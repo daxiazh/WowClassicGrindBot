@@ -11,6 +11,28 @@ using System.Text.RegularExpressions;
 
 namespace Core;
 
+/// <summary>
+/// Addon 配置器 - 负责管理和部署 WoW 插件到游戏客户端
+/// </summary>
+/// <remarks>
+/// 主要功能:
+/// 1. 安装/卸载插件 - 将 DataToColor 插件从源目录复制到 WoW AddOns 目录
+/// 2. 插件个性化 - 根据配置自定义插件名称、作者、命令和单元格大小
+/// 3. 版本管理 - 检测插件版本并提示更新
+/// 4. 配置验证 - 验证插件配置的合法性(标题、作者、单元格大小等)
+///
+/// 工作流程:
+/// - 读取 addon_config.json 配置
+/// - 删除旧版本插件(如果存在)
+/// - 从 .\Addons\ 复制默认 DataToColor 插件到 WoW 的 Interface\AddOns 目录
+/// - 重命名插件文件夹和文件为自定义名称
+/// - 修改 .toc、.lua 文件中的插件元数据(名称、作者、命令、单元格大小)
+/// - 使插件唯一化,避免与默认版本冲突
+///
+/// 插件作用:
+/// DataToColor 插件在 WoW 窗口顶部绘制彩色像素单元格,每个单元格编码游戏状态
+/// (生命值、法力值、增益、目标信息等),供机器人通过屏幕截图读取和解析
+/// </remarks>
 public sealed partial class AddonConfigurator
 {
     private readonly ILogger<AddonConfigurator> logger;
