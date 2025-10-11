@@ -234,3 +234,4 @@ dotnet run -c Release -- Hunter_1.json --loadonly
 - **Vortice.Direct3D11** - DXGI 屏幕截图
 - **GameOverlay.Net** - NPC 名称覆盖层渲染
 - **Microsoft.Extensions.DependencyInjection** - 依赖注入
+- 使用lua 5.1 的语法
