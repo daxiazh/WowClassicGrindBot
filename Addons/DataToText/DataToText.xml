@@ -1,0 +1,86 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interface\FrameXML\UI.xsd">
+
+  <!-- Script -->
+  <Script file="DataToText.lua"/>
+
+  <!-- Main Frame -->
+  <Frame name="DataToTextFrame" toplevel="true" frameStrata="DIALOG" movable="true" enableMouse="true" hidden="true" parent="UIParent">
+    <TitleRegion setAllPoints="true"/>
+    <Size>
+      <AbsDimension x="400" y="200"/>
+    </Size>
+    <Anchors>
+      <Anchor point="CENTER" relativeTo="UIParent" />
+    </Anchors>
+    <Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" edgeFile="Interface\DialogFrame\UI-DialogBox-Border" tile="true">
+      <BackgroundInsets>
+        <AbsInset left="11" right="12" top="12" bottom="11"/>
+      </BackgroundInsets>
+      <TileSize>
+        <AbsValue val="32"/>
+      </TileSize>
+      <EdgeSize>
+        <AbsValue val="32"/>
+      </EdgeSize>
+    </Backdrop>
+
+    <Layers>
+      <Layer level="ARTWORK">
+        <Texture name="DataToText_title_texture" file="Interface\DialogFrame\UI-DialogBox-Header">
+          <Size>
+            <AbsDimension x="320" y="64"/>
+          </Size>
+          <Anchors>
+            <Anchor point="TOP">
+              <Offset>
+                <AbsDimension x="0" y="12"/>
+              </Offset>
+            </Anchor>
+          </Anchors>
+        </Texture>
+        <FontString inherits="GameFontNormal" text="DataToText">
+          <Anchors>
+            <Anchor point="TOP" relativeTo="DataToText_title_texture">
+              <Offset>
+                <AbsDimension x="0" y="-14"/>
+              </Offset>
+            </Anchor>
+          </Anchors>
+        </FontString>
+      </Layer>
+    </Layers>
+
+    <Frames>
+      <Button name="DataToText_buttonClose" parent="DataToTextFrame" inherits="GameMenuButtonTemplate" text="Close">
+        <Size>
+          <AbsDimension x="100" y="24"/>
+        </Size>
+        <Anchors>
+          <Anchor point="BOTTOMRIGHT">
+            <Offset>
+              <AbsDimension x="-15" y="15"/>
+            </Offset>
+          </Anchor>
+        </Anchors>
+        <Scripts>
+          <OnClick>
+            DataToText_UI_OnClick(this);
+          </OnClick>
+        </Scripts>
+      </Button>
+    </Frames>
+
+    <Scripts>
+      <OnLoad>
+        DataToText_OnLoad();
+      </OnLoad>
+      <OnEvent>
+        DataToText_OnEvent(event);
+      </OnEvent>
+    </Scripts>
+  </Frame>
+
+  <GameTooltip name="DataToTextTooltip" frameStrata="TOOLTIP" hidden="true" parent="DataToTextFrame" inherits="GameTooltipTemplate" />
+</Ui>

@@ -119,6 +119,7 @@ end)
 
 function DataToText:OnInitialize()
     self:Print("Loaded v1.0.0")
+    self:Print("Client Version: " .. tostring(self.ClientVersion))
 
     -- Register slash commands
     SLASH_DATATOTEXT1 = "/dtt"
@@ -141,22 +142,53 @@ function DataToText:OnInitialize()
                 self.displayFrame:SetPoint("TOP", UIParent, "TOP", DataToTextDB.posX, DataToTextDB.posY)
             end
             self:Print("Position reset")
+        elseif msg == "debug" then
+            self:Print("Debug Info:")
+            self:Print("  displayFrame: " .. tostring(self.displayFrame ~= nil))
+            self:Print("  Visible: " .. tostring(self.displayFrame and self.displayFrame:IsVisible() or false))
+            self:Print("  Modules: " .. tostring(self.M and "loaded" or "nil"))
+            local moduleCount = 0
+            if self.M then
+                for name, _ in pairs(self.M) do
+                    moduleCount = moduleCount + 1
+                    self:Print("    - " .. name)
+                end
+            end
+            self:Print("  Total modules: " .. moduleCount)
         else
             self:Print("Commands:")
             self:Print("/dtt toggle - Toggle display")
             self:Print("/dtt reset - Reset position")
+            self:Print("/dtt debug - Show debug info")
         end
     end
+
+    self:Print("Slash commands registered")
 end
 
 function DataToText:OnEnable()
-    if not DataToTextDB.enabled then return end
+    if not DataToTextDB.enabled then
+        self:Print("OnEnable: Disabled in DB, aborting")
+        return
+    end
+
+    self:Print("OnEnable: Creating display frame...")
 
     if not self.displayFrame then
         self:CreateDisplayFrame()
+        self:Print("OnEnable: Display frame created")
+    else
+        self:Print("OnEnable: Display frame already exists")
     end
 
-    self.displayFrame:Show()
+    if self.displayFrame then
+        self.displayFrame:Show()
+        self:Print("OnEnable: Display frame shown")
+        self:Print("OnEnable: Frame visible: " .. tostring(self.displayFrame:IsVisible()))
+    else
+        self:Print("OnEnable: ERROR - Display frame is nil!")
+    end
+
     self.updateTimer = 0
     self:Print("Display enabled")
 end

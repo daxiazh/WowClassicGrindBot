@@ -1,21 +1,15 @@
-## Interface: 11500
-## Interface-BCC: 20502
-## Interface-WOTLKC: 30400
-## Interface-Cata: 40400
+## Interface: 11200
 ## Title: DataToText
+## Notes: OCR-friendly data display
 ## Author: WowClassicGrindBot
-## Notes: Displays game data as OCR-friendly text
 ## Version: 1.0.0
-## RequiredDeps:
-## OptionalDeps:
-## SavedVariables: DataToTextDB
+## SavedVariables: DataToTextDB, DataToTextIcon
 
-init.lua
-Utils.lua
-Core.lua
+libs\LibStub.lua
+libs\CallbackHandler-1.0.lua
+libs\AceCore-3.0.lua
+libs\AceHook-3.0.lua
+libs\LibDataBroker-1.1.lua
+libs\LibDBIcon-1.0.lua
 
-Modules\Player.lua
-Modules\Target.lua
-Modules\Combat.lua
-Modules\Inventory.lua
-Modules\Status.lua
+DataToText.xml
