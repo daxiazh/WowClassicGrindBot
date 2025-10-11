@@ -9,45 +9,94 @@ xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interfac
   <Frame name="DataToTextFrame" toplevel="true" frameStrata="DIALOG" movable="true" enableMouse="true" hidden="true" parent="UIParent">
     <TitleRegion setAllPoints="true"/>
     <Size>
-      <AbsDimension x="400" y="200"/>
+      <AbsDimension x="600" y="400"/>
     </Size>
     <Anchors>
       <Anchor point="CENTER" relativeTo="UIParent" />
     </Anchors>
-    <Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" edgeFile="Interface\DialogFrame\UI-DialogBox-Border" tile="true">
-      <BackgroundInsets>
-        <AbsInset left="11" right="12" top="12" bottom="11"/>
-      </BackgroundInsets>
-      <TileSize>
-        <AbsValue val="32"/>
-      </TileSize>
+    <Backdrop edgeFile="Interface\Tooltips\UI-Tooltip-Border" tile="false">
       <EdgeSize>
-        <AbsValue val="32"/>
+        <AbsValue val="16"/>
       </EdgeSize>
+      <BackgroundInsets>
+        <AbsInset left="4" right="4" top="4" bottom="4"/>
+      </BackgroundInsets>
+      <Color r="0" g="0" b="0" a="1"/>
     </Backdrop>
 
     <Layers>
+      <Layer level="BACKGROUND">
+        <Texture name="DataToText_background">
+          <Anchors>
+            <Anchor point="TOPLEFT">
+              <Offset>
+                <AbsDimension x="4" y="-4"/>
+              </Offset>
+            </Anchor>
+            <Anchor point="BOTTOMRIGHT">
+              <Offset>
+                <AbsDimension x="-4" y="4"/>
+              </Offset>
+            </Anchor>
+          </Anchors>
+          <Color r="0" g="0" b="0" a="1"/>
+        </Texture>
+      </Layer>
       <Layer level="ARTWORK">
-        <Texture name="DataToText_title_texture" file="Interface\DialogFrame\UI-DialogBox-Header">
-          <Size>
-            <AbsDimension x="320" y="64"/>
-          </Size>
+        <FontString name="DataToText_Title" inherits="GameFontNormal" text="DataToText - OCR Data Display">
           <Anchors>
             <Anchor point="TOP">
               <Offset>
-                <AbsDimension x="0" y="12"/>
+                <AbsDimension x="0" y="-10"/>
               </Offset>
             </Anchor>
           </Anchors>
-        </Texture>
-        <FontString inherits="GameFontNormal" text="DataToText">
+          <Color r="1" g="1" b="1"/>
+        </FontString>
+
+        <!-- Player Info -->
+        <FontString name="DataToText_PlayerInfo" justifyH="LEFT">
           <Anchors>
-            <Anchor point="TOP" relativeTo="DataToText_title_texture">
+            <Anchor point="TOPLEFT">
               <Offset>
-                <AbsDimension x="0" y="-14"/>
+                <AbsDimension x="15" y="-35"/>
               </Offset>
             </Anchor>
           </Anchors>
+          <FontHeight>
+            <AbsValue val="12"/>
+          </FontHeight>
+          <Color r="1" g="1" b="1"/>
+        </FontString>
+
+        <!-- Target Info -->
+        <FontString name="DataToText_TargetInfo" justifyH="LEFT">
+          <Anchors>
+            <Anchor point="TOPLEFT" relativeTo="DataToText_PlayerInfo" relativePoint="BOTTOMLEFT">
+              <Offset>
+                <AbsDimension x="0" y="-80"/>
+              </Offset>
+            </Anchor>
+          </Anchors>
+          <FontHeight>
+            <AbsValue val="12"/>
+          </FontHeight>
+          <Color r="1" g="1" b="1"/>
+        </FontString>
+
+        <!-- Bag Info -->
+        <FontString name="DataToText_BagInfo" justifyH="LEFT">
+          <Anchors>
+            <Anchor point="TOPLEFT" relativeTo="DataToText_TargetInfo" relativePoint="BOTTOMLEFT">
+              <Offset>
+                <AbsDimension x="0" y="-60"/>
+              </Offset>
+            </Anchor>
+          </Anchors>
+          <FontHeight>
+            <AbsValue val="12"/>
+          </FontHeight>
+          <Color r="1" g="1" b="1"/>
         </FontString>
       </Layer>
     </Layers>
@@ -79,6 +128,9 @@ xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interfac
       <OnEvent>
         DataToText_OnEvent(event);
       </OnEvent>
+      <OnUpdate>
+        DataToText_OnUpdate(arg1);
+      </OnUpdate>
     </Scripts>
   </Frame>
 
