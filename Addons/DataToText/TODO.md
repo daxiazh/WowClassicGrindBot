@@ -79,11 +79,20 @@
   - ✅ 添加 CRC32 测试用例 (TestCRC32)
   - ✅ 添加 `/dtt crc32` 命令
 
+- [x] **步骤7**: 使用 EditBox 替换 FontString 显示
+  - ✅ 修改 DataToText.xml 使用 EditBox 控件
+  - ✅ EditBox 支持多行显示和文本选择
+  - ✅ 允许用户复制数据（无需 OCR）
+  - ✅ 保持 MONOCHROME 等宽字体
+  - ✅ 添加 Pause/Resume 按钮暂停数据刷新
+  - ✅ 暂停状态下可以选择和复制文本
+  - ✅ 验证输出数据格式正确（使用 Node.js 验证 CRC32）
+
 ### ⏳ 进行中
 
 ### 📋 待执行
 
-- [ ] **步骤6**: 切换到模块化架构
+- [ ] **步骤8**: 切换到模块化架构
   - 迁移到 init.lua + Core.lua + Modules 架构
   - 更新 TOC 加载顺序
   - 保持向后兼容
@@ -95,9 +104,11 @@
 ### 当前版本架构
 - **主文件**: `DataToText.lua` (主逻辑) + `DataToText.xml` (UI定义)
 - **工具库**: `Utils.lua` (工具函数) + `Tests.lua` (测试套件)
-- **字体**: Tiny-Bold.ttf, 14px, MONOCHROME
+- **字体**: Tiny-Bold.ttf, 12px, MONOCHROME
 - **更新频率**: 0.1秒 (10 FPS)
+- **显示方式**: EditBox (多行输入框，支持文本选择和复制)
 - **显示内容**: 玩家数据、目标数据、背包数据
+- **控制按钮**: Pause/Resume (暂停/恢复数据刷新), Close (关闭窗口)
 
 ### 文件加载顺序 (DataToText.toc)
 ```
@@ -250,6 +261,17 @@ D4:USED:A/10|BAG_FREE:6
 ---
 
 ## 🔄 更新日志
+
+### [1.0.4] - 2025-01-13
+- ✅ 使用 EditBox 替换 FontString 显示数据
+- ✅ 修改 DataToText.xml 添加 EditBox 控件（770x340像素，多行模式）
+- ✅ EditBox 支持文本选择和复制（Ctrl+C）
+- ✅ 添加 Pause/Resume 按钮控制数据刷新
+- ✅ 暂停状态下可以选择和复制文本，方便手动获取数据
+- ✅ 保持 MONOCHROME 等宽字体渲染
+- ✅ 添加音效反馈（暂停/恢复时播放音效）
+- ✅ 验证输出数据格式正确（使用 Node.js 验证 CRC32 校验通过）
+- ✅ 更新 TODO.md 记录 EditBox 实现细节
 
 ### [1.0.3] - 2025-01-13
 - ✅ 实现全局 CRC32 校验系统
