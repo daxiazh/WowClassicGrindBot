@@ -53,55 +53,53 @@ xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interfac
           </Anchors>
           <Color r="1" g="1" b="1"/>
         </FontString>
-
-        <!-- Player Info -->
-        <FontString name="DataToText_PlayerInfo" justifyH="LEFT">
-          <Anchors>
-            <Anchor point="TOPLEFT">
-              <Offset>
-                <AbsDimension x="15" y="-35"/>
-              </Offset>
-            </Anchor>
-          </Anchors>
-          <FontHeight>
-            <AbsValue val="12"/>
-          </FontHeight>
-          <Color r="1" g="1" b="1"/>
-        </FontString>
-
-        <!-- Target Info -->
-        <FontString name="DataToText_TargetInfo" justifyH="LEFT">
-          <Anchors>
-            <Anchor point="TOPLEFT" relativeTo="DataToText_PlayerInfo" relativePoint="BOTTOMLEFT">
-              <Offset>
-                <AbsDimension x="0" y="-10"/>
-              </Offset>
-            </Anchor>
-          </Anchors>
-          <FontHeight>
-            <AbsValue val="12"/>
-          </FontHeight>
-          <Color r="1" g="1" b="1"/>
-        </FontString>
-
-        <!-- Bag Info -->
-        <FontString name="DataToText_BagInfo" justifyH="LEFT">
-          <Anchors>
-            <Anchor point="TOPLEFT" relativeTo="DataToText_TargetInfo" relativePoint="BOTTOMLEFT">
-              <Offset>
-                <AbsDimension x="0" y="-10"/>
-              </Offset>
-            </Anchor>
-          </Anchors>
-          <FontHeight>
-            <AbsValue val="12"/>
-          </FontHeight>
-          <Color r="1" g="1" b="1"/>
-        </FontString>
       </Layer>
     </Layers>
 
     <Frames>
+      <!-- Data Display EditBox -->
+      <EditBox name="DataToText_DataEditBox" autoFocus="false" multiLine="true">
+        <Size>
+          <AbsDimension x="770" y="340"/>
+        </Size>
+        <Anchors>
+          <Anchor point="TOPLEFT">
+            <Offset>
+              <AbsDimension x="15" y="-35"/>
+            </Offset>
+          </Anchor>
+        </Anchors>
+        <FontString inherits="GameFontNormal">
+          <FontHeight>
+            <AbsValue val="12"/>
+          </FontHeight>
+          <Color r="1" g="1" b="1"/>
+        </FontString>
+        <Scripts>
+          <OnEscapePressed>
+            this:ClearFocus()
+          </OnEscapePressed>
+        </Scripts>
+      </EditBox>
+
+      <Button name="DataToText_buttonPause" parent="DataToTextFrame" inherits="GameMenuButtonTemplate" text="Pause">
+        <Size>
+          <AbsDimension x="100" y="24"/>
+        </Size>
+        <Anchors>
+          <Anchor point="BOTTOMRIGHT">
+            <Offset>
+              <AbsDimension x="-125" y="15"/>
+            </Offset>
+          </Anchor>
+        </Anchors>
+        <Scripts>
+          <OnClick>
+            DataToText_UI_OnClick(this);
+          </OnClick>
+        </Scripts>
+      </Button>
+
       <Button name="DataToText_buttonClose" parent="DataToTextFrame" inherits="GameMenuButtonTemplate" text="Close">
         <Size>
           <AbsDimension x="100" y="24"/>

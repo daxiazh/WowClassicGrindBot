@@ -18,6 +18,9 @@ local UPDATE_INTERVAL = 0.1  -- Update every 0.1 seconds
 -- Update timer
 local updateTimer = 0
 
+-- Pause state
+local isPaused = false
+
 -- Print helper
 local function DataToText_Print(msg)
     if not DEFAULT_CHAT_FRAME then
@@ -140,7 +143,16 @@ local function UpdateDisplay()
         return
     end
 
-    DataToText_PlayerInfo:SetText(GetAllData())
+    -- 如果暂停，则不更新
+    if isPaused then
+        return
+    end
+
+    -- 使用EditBox显示数据
+    DataToText_DataEditBox:SetText(GetAllData())
+    -- 设置为只读（禁用编辑）
+    DataToText_DataEditBox:SetAutoFocus(false)
+    DataToText_DataEditBox:ClearFocus()
 end
 
 -- Slash commands
@@ -182,10 +194,14 @@ DataToText_Print("DataToText loaded!")
 
 -- OnLoad function
 function DataToText_OnLoad()
-    -- Set custom font (黑底白字不需要OUTLINE)
-    DataToText_PlayerInfo:SetFont(FONT_PATH, FONT_SIZE, "MONOCHROME")
-    DataToText_TargetInfo:SetFont(FONT_PATH, FONT_SIZE, "MONOCHROME")
-    DataToText_BagInfo:SetFont(FONT_PATH, FONT_SIZE, "MONOCHROME")
+    -- Set custom font for EditBox (黑底白字不需要OUTLINE)
+    DataToText_DataEditBox:SetFont(FONT_PATH, FONT_SIZE, "MONOCHROME")
+    DataToText_DataEditBox:SetTextColor(1, 1, 1)  -- 白色文字
+
+    -- 设置EditBox为多行模式，禁用自动聚焦
+    DataToText_DataEditBox:SetMultiLine(true)
+    DataToText_DataEditBox:SetAutoFocus(false)
+    DataToText_DataEditBox:EnableMouse(true)  -- 允许鼠标选择文本
 
     DataToTextFrame:RegisterEvent("ADDON_LOADED")
 end
@@ -259,5 +275,17 @@ function DataToText_UI_OnClick(widget)
     if string.find(widget:GetName(), "_buttonClose") then
         PlaySound("gsTitleOptionExit")
         DataToTextFrame:Hide()
+    elseif string.find(widget:GetName(), "_buttonPause") then
+        -- 切换暂停状态
+        isPaused = not isPaused
+        if isPaused then
+            widget:SetText("Resume")
+            PlaySound("igMainMenuOptionCheckBoxOn")
+            DataToText_Print("数据刷新已暂停 - 现在可以选择和复制数据")
+        else
+            widget:SetText("Pause")
+            PlaySound("igMainMenuOptionCheckBoxOff")
+            DataToText_Print("数据刷新已恢复")
+        end
     end
 end
