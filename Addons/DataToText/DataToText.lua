@@ -34,13 +34,53 @@ local function GetUnitGUID(unit)
     return "0x0000000000000000"
 end
 
--- Helper: Format number to hex
+----------------------------------------------------------------------------
+-- 工具函数 (Utils)
+----------------------------------------------------------------------------
+
+-- 将数字转换为固定宽度的十六进制字符串
 local function ToHex(num, digits)
     local hex = string.format("%X", num or 0)
     while string.len(hex) < digits do
         hex = "0" .. hex
     end
     return hex
+end
+
+-- 将十六进制字符串转换为数字
+local function FromHex(hexStr)
+    if not hexStr or hexStr == "" then
+        return 0
+    end
+    return tonumber(hexStr, 16) or 0
+end
+
+-- 运行工具函数自测
+local function TestUtils()
+    local tests = {
+        {name = "ToHex(255, 2)", func = function() return ToHex(255, 2) end, expected = "FF"},
+        {name = "ToHex(16, 4)", func = function() return ToHex(16, 4) end, expected = "0010"},
+        {name = "ToHex(0, 2)", func = function() return ToHex(0, 2) end, expected = "00"},
+        {name = "FromHex('FF')", func = function() return FromHex("FF") end, expected = 255},
+        {name = "FromHex('0010')", func = function() return FromHex("0010") end, expected = 16},
+        {name = "FromHex('00')", func = function() return FromHex("00") end, expected = 0},
+    }
+
+    local passed = 0
+    local failed = 0
+
+    for _, test in ipairs(tests) do
+        local result = test.func()
+        if result == test.expected then
+            passed = passed + 1
+            DataToText_Print("✓ " .. test.name .. " = " .. tostring(result))
+        else
+            failed = failed + 1
+            DataToText_Print("✗ " .. test.name .. " 期望: " .. tostring(test.expected) .. ", 实际: " .. tostring(result))
+        end
+    end
+
+    DataToText_Print("测试完成: " .. passed .. " 通过, " .. failed .. " 失败")
 end
 
 -- Get player data
@@ -125,13 +165,28 @@ end
 -- Slash commands
 SLASH_DATATOTEXT1 = "/dtt"
 SLASH_DATATOTEXT2 = "/datatotext"
-SlashCmdList["DATATOTEXT"] = function()
-    if DataToTextFrame:IsShown() then
-        PlaySound("igMainMenuContinue")
-        DataToTextFrame:Hide()
+SlashCmdList["DATATOTEXT"] = function(msg)
+    -- 去除首尾空格
+    msg = string.gsub(msg or "", "^%s*(.-)%s*$", "%1")
+
+    if msg == "test" then
+        -- 运行工具函数测试
+        DataToText_Print("运行工具函数测试...")
+        TestUtils()
+    elseif msg == "" then
+        -- 切换显示
+        if DataToTextFrame:IsShown() then
+            PlaySound("igMainMenuContinue")
+            DataToTextFrame:Hide()
+        else
+            PlaySound("igMainMenuOpen")
+            DataToTextFrame:Show()
+        end
     else
-        PlaySound("igMainMenuOpen")
-        DataToTextFrame:Show()
+        -- 显示帮助
+        DataToText_Print("可用命令:")
+        DataToText_Print("  /dtt - 切换显示")
+        DataToText_Print("  /dtt test - 运行工具函数测试")
     end
 end
 
