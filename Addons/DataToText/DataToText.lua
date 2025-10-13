@@ -12,7 +12,7 @@ local DATATOTEXTTOOLTIP = "DataToText - Click to toggle display"
 
 -- Constants
 local FONT_PATH = "Interface\\AddOns\\DataToText\\Fonts\\Tiny-Bold.ttf"
-local FONT_SIZE = 12
+local FONT_SIZE = 14
 local UPDATE_INTERVAL = 0.1  -- Update every 0.1 seconds
 
 -- Update timer
@@ -139,10 +139,10 @@ DataToText_Print("DataToText loaded!")
 
 -- OnLoad function
 function DataToText_OnLoad()
-    -- Set custom font
-    DataToText_PlayerInfo:SetFont(FONT_PATH, FONT_SIZE, "OUTLINE, MONOCHROME")
-    DataToText_TargetInfo:SetFont(FONT_PATH, FONT_SIZE, "OUTLINE, MONOCHROME")
-    DataToText_BagInfo:SetFont(FONT_PATH, FONT_SIZE, "OUTLINE, MONOCHROME")
+    -- Set custom font (黑底白字不需要OUTLINE)
+    DataToText_PlayerInfo:SetFont(FONT_PATH, FONT_SIZE, "MONOCHROME")
+    DataToText_TargetInfo:SetFont(FONT_PATH, FONT_SIZE, "MONOCHROME")
+    DataToText_BagInfo:SetFont(FONT_PATH, FONT_SIZE, "MONOCHROME")
 
     DataToTextFrame:RegisterEvent("ADDON_LOADED")
 end
