@@ -183,6 +183,75 @@ function T.TestBitLibrary()
 end
 
 ----------------------------------------------------------------------------
+-- UTF-8 编码测试
+----------------------------------------------------------------------------
+
+-- 测试 UTF-8 编码功能
+function T.TestUTF8Encoding()
+    Print("===== UTF-8 编码测试 =====")
+
+    local passed = 0
+    local failed = 0
+
+    -- 测试1: 空字符串
+    local result = U.EncodeNameHex("")
+    if result == "0000" then
+        Print("✓ EncodeNameHex('') = '0000'")
+        passed = passed + 1
+    else
+        Print("✗ EncodeNameHex('') | 期望: '0000', 实际: '" .. result .. "'")
+        failed = failed + 1
+    end
+
+    -- 测试2: 简单ASCII字符串
+    local ascii = "ABC"
+    local asciiBytes = U.EncodeUTF8String(ascii)
+    if table.getn(asciiBytes) == 3 and asciiBytes[1] == 65 and asciiBytes[2] == 66 and asciiBytes[3] == 67 then
+        Print("✓ EncodeUTF8String('ABC') = {65, 66, 67}")
+        passed = passed + 1
+    else
+        Print("✗ EncodeUTF8String('ABC') 字节数组错误")
+        failed = failed + 1
+    end
+
+    -- 测试3: CRC8 计算
+    local testBytes = {65, 66, 67}  -- "ABC"
+    local crc = U.CalculateCRC8(testBytes)
+    Print("  CalculateCRC8({65,66,67}) = " .. crc .. " (0x" .. U.ToHex(crc, 2) .. ")")
+    passed = passed + 1
+
+    -- 测试4: 完整编码 "ABC"
+    local encoded = U.EncodeNameHex("ABC")
+    local expectedLen = "03"  -- 3 字节
+    local actualLen = string.sub(encoded, 1, 2)
+    if actualLen == expectedLen then
+        Print("✓ EncodeNameHex('ABC') 长度 = " .. actualLen)
+        passed = passed + 1
+    else
+        Print("✗ EncodeNameHex('ABC') 长度错误 | 期望: " .. expectedLen .. ", 实际: " .. actualLen)
+        failed = failed + 1
+    end
+
+    -- 测试5: 显示完整编码结果
+    Print("  完整编码: '" .. encoded .. "'")
+    Print("    长度: " .. string.sub(encoded, 1, 2))
+    Print("    CRC8: " .. string.sub(encoded, 3, 4))
+    Print("    字节: " .. string.sub(encoded, 5))
+
+    -- 测试6: 中文字符编码（如果有中文输入的话）
+    local chineseName = "测试"
+    local chineseEncoded = U.EncodeNameHex(chineseName)
+    local chineseBytes = U.EncodeUTF8String(chineseName)
+    Print("  中文测试: '" .. chineseName .. "'")
+    Print("    字节数: " .. table.getn(chineseBytes))
+    Print("    编码: " .. chineseEncoded)
+    passed = passed + 1
+
+    Print("结果: " .. passed .. " 通过, " .. failed .. " 失败")
+    return failed == 0
+end
+
+----------------------------------------------------------------------------
 -- 运行所有测试
 ----------------------------------------------------------------------------
 

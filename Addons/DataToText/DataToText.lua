@@ -72,7 +72,11 @@ local function GetTargetData()
     local level = UnitLevel("target") or 0
     local isDead = UnitIsDead("target")
 
+    -- 编码名称为十六进制
+    local nameHex = U.EncodeNameHex(name)
+
     local text = "TARGET: " .. name .. "\n"
+    text = text .. "  NAME_HEX: " .. nameHex .. "\n"
     text = text .. "  HP:    " .. hp .. " / " .. maxHp .. " (" .. ToHex(hp, 4) .. "/" .. ToHex(maxHp, 4) .. ")\n"
     text = text .. "  LEVEL: " .. level .. " (0x" .. ToHex(level, 2) .. ")\n"
     text = text .. "  DEAD:  " .. (isDead and "YES" or "NO") .. "\n"
@@ -129,6 +133,9 @@ SlashCmdList["DATATOTEXT"] = function(msg)
     if msg == "test" then
         -- 运行所有测试
         T.RunAllTests()
+    elseif msg == "testutf8" or msg == "utf8" then
+        -- 运行UTF-8编码测试
+        T.TestUTF8Encoding()
     elseif msg == "" then
         -- 切换显示
         if DataToTextFrame:IsShown() then
@@ -143,6 +150,7 @@ SlashCmdList["DATATOTEXT"] = function(msg)
         DataToText_Print("可用命令:")
         DataToText_Print("  /dtt - 切换显示")
         DataToText_Print("  /dtt test - 运行所有单元测试")
+        DataToText_Print("  /dtt utf8 - 运行UTF-8编码测试")
     end
 end
 
