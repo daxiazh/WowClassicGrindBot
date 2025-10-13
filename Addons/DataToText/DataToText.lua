@@ -44,74 +44,56 @@ local function Hex(num)
     return string.format("%X", num or 0)
 end
 
--- Get player data
-local function GetPlayerData()
-    local hp = UnitHealth("player") or 0
-    local maxHp = UnitHealthMax("player") or 1
-    local mana = UnitMana("player") or 0
-    local maxMana = UnitManaMax("player") or 1
-    local level = UnitLevel("player") or 1
-    local xp = UnitXP and UnitXP("player") or 0
-    local maxXp = UnitXPMax and UnitXPMax("player") or 1
+-- Get all data in flat format
+local function GetAllData()
+    -- Player data
+    local pHp = UnitHealth("player") or 0
+    local pMaxHp = UnitHealthMax("player") or 1
+    local pMana = UnitMana("player") or 0
+    local pMaxMana = UnitManaMax("player") or 1
+    local pLevel = UnitLevel("player") or 1
+    local pXp = UnitXP and UnitXP("player") or 0
+    local pMaxXp = UnitXPMax and UnitXPMax("player") or 1
+    local pGuid = GetUnitGUID("player")
 
-    local text = "PLAYER:\n"
-    text = text .. "HP:" .. Hex(hp) .. "/" .. Hex(maxHp) .. "\n"
-    text = text .. "MANA:" .. Hex(mana) .. "/" .. Hex(maxMana) .. "\n"
-    text = text .. "LEVEL:" .. Hex(level) .. "\n"
-    text = text .. "XP:" .. Hex(xp) .. "/" .. Hex(maxXp) .. "\n"
-    text = text .. "GUID:" .. GetUnitGUID("player")
+    -- Target data
+    local tExists = UnitExists("target")
+    local tName = tExists and (UnitName("target") or "Unknown") or "None"
+    local tHp = tExists and (UnitHealth("target") or 0) or 0
+    local tMaxHp = tExists and (UnitHealthMax("target") or 1) or 0
+    local tLevel = tExists and (UnitLevel("target") or 0) or 0
+    local tDead = tExists and (UnitIsDead("target") and "1" or "0") or "0"
+    local tGuid = tExists and GetUnitGUID("target") or "0x0000000000000000"
+    local tNameHex = tExists and U.EncodeNameHex(tName) or "0000"
 
-    return text
-end
-
--- Get target data
-local function GetTargetData()
-    if not UnitExists("target") then
-        return "TARGET:None"
-    end
-
-    local name = UnitName("target") or "Unknown"
-    local hp = UnitHealth("target") or 0
-    local maxHp = UnitHealthMax("target") or 1
-    local level = UnitLevel("target") or 0
-    local isDead = UnitIsDead("target")
-
-    -- 编码名称为十六进制
-    local nameHex = U.EncodeNameHex(name)
-
-    local text = "TARGET:\n"
-    text = text .. "NAME:" .. nameHex .. "\n"
-    text = text .. "HP:" .. Hex(hp) .. "/" .. Hex(maxHp) .. "\n"
-    text = text .. "LEVEL:" .. Hex(level) .. "\n"
-    text = text .. "DEAD:" .. (isDead and "1" or "0") .. "\n"
-    text = text .. "GUID:" .. GetUnitGUID("target")
-
-    return text
-end
-
--- Get bag data
-local function GetBagData()
+    -- Bag data
     local totalSlots = 0
     local freeSlots = 0
-
-    -- Count bag slots (0-4 for classic)
     for bag = 0, 4 do
         local slots = GetContainerNumSlots(bag) or 0
         totalSlots = totalSlots + slots
-
         for slot = 1, slots do
-            local itemLink = GetContainerItemLink(bag, slot)
-            if not itemLink then
+            if not GetContainerItemLink(bag, slot) then
                 freeSlots = freeSlots + 1
             end
         end
     end
-
     local usedSlots = totalSlots - freeSlots
 
-    local text = "BAG:\n"
-    text = text .. "USED:" .. Hex(usedSlots) .. "/" .. Hex(totalSlots) .. "\n"
-    text = text .. "FREE:" .. Hex(freeSlots)
+    -- Build flat output
+    local text = ""
+    text = text .. "P_HP:" .. Hex(pHp) .. "/" .. Hex(pMaxHp) .. "\n"
+    text = text .. "P_MANA:" .. Hex(pMana) .. "/" .. Hex(pMaxMana) .. "\n"
+    text = text .. "P_LEVEL:" .. Hex(pLevel) .. "\n"
+    text = text .. "P_XP:" .. Hex(pXp) .. "/" .. Hex(pMaxXp) .. "\n"
+    text = text .. "P_GUID:" .. pGuid .. "\n"
+    text = text .. "T_NAME:" .. tNameHex .. "\n"
+    text = text .. "T_HP:" .. Hex(tHp) .. "/" .. Hex(tMaxHp) .. "\n"
+    text = text .. "T_LEVEL:" .. Hex(tLevel) .. "\n"
+    text = text .. "T_DEAD:" .. tDead .. "\n"
+    text = text .. "T_GUID:" .. tGuid .. "\n"
+    text = text .. "BAG_USED:" .. Hex(usedSlots) .. "/" .. Hex(totalSlots) .. "\n"
+    text = text .. "BAG_FREE:" .. Hex(freeSlots)
 
     return text
 end
@@ -122,9 +104,7 @@ local function UpdateDisplay()
         return
     end
 
-    DataToText_PlayerInfo:SetText(GetPlayerData())
-    DataToText_TargetInfo:SetText(GetTargetData())
-    DataToText_BagInfo:SetText(GetBagData())
+    DataToText_PlayerInfo:SetText(GetAllData())
 end
 
 -- Slash commands

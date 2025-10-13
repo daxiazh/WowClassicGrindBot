@@ -9,7 +9,7 @@ xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interfac
   <Frame name="DataToTextFrame" toplevel="true" frameStrata="DIALOG" movable="true" enableMouse="true" hidden="true" parent="UIParent">
     <TitleRegion setAllPoints="true"/>
     <Size>
-      <AbsDimension x="600" y="400"/>
+      <AbsDimension x="800" y="400"/>
     </Size>
     <Anchors>
       <Anchor point="CENTER" relativeTo="UIParent" />
@@ -74,7 +74,7 @@ xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interfac
           <Anchors>
             <Anchor point="TOPLEFT" relativeTo="DataToText_PlayerInfo" relativePoint="BOTTOMLEFT">
               <Offset>
-                <AbsDimension x="0" y="-80"/>
+                <AbsDimension x="0" y="-10"/>
               </Offset>
             </Anchor>
           </Anchors>
@@ -89,7 +89,7 @@ xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interfac
           <Anchors>
             <Anchor point="TOPLEFT" relativeTo="DataToText_TargetInfo" relativePoint="BOTTOMLEFT">
               <Offset>
-                <AbsDimension x="0" y="-60"/>
+                <AbsDimension x="0" y="-10"/>
               </Offset>
             </Anchor>
           </Anchors>
