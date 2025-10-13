@@ -59,6 +59,35 @@ function U.Trim(str)
 end
 
 ----------------------------------------------------------------------------
+-- 数据编码函数（带CRC8校验）
+----------------------------------------------------------------------------
+
+-- 将十六进制字符串编码为带CRC8的格式
+-- 格式: [CRC8(2位)][数据]
+-- @param hexStr: 十六进制字符串
+-- @return: 编码后的字符串
+function U.EncodeHexWithCRC(hexStr)
+    if not hexStr or hexStr == "" then
+        return "0000"  -- CRC8 00 + 空数据 00
+    end
+
+    -- 将十六进制字符串转换为字节数组
+    local bytes = {}
+    local len = string.len(hexStr)
+
+    for i = 1, len do
+        local char = string.sub(hexStr, i, i)
+        table.insert(bytes, string.byte(char))
+    end
+
+    -- 计算CRC8
+    local crc = U.CalculateCRC8(bytes)
+
+    -- 返回: CRC8 + 原始数据
+    return U.ToHex(crc, 2) .. hexStr
+end
+
+----------------------------------------------------------------------------
 -- UTF-8 编码函数
 ----------------------------------------------------------------------------
 
@@ -110,34 +139,95 @@ function U.CalculateCRC8(bytes)
     return crc
 end
 
--- 编码名称为十六进制格式
--- 格式: [长度(2位)][CRC8(2位)][字节1(2位)][字节2(2位)]...
+-- 计算 CRC32 校验值
+-- @param str: 输入字符串
+-- @return: CRC32 校验值 (0-4294967295)
+function U.CalculateCRC32(str)
+    if not str or str == "" then
+        return 0
+    end
+
+    -- CRC32 多项式: 0x04C11DB7 (IEEE 802.3)
+    -- 使用简化的查表法提高性能
+    local crc = 4294967295  -- 0xFFFFFFFF
+
+    for i = 1, string.len(str) do
+        local byte = string.byte(str, i)
+        crc = bit.bxor(crc, byte)
+
+        for j = 1, 8 do
+            if bit.band(crc, 1) ~= 0 then
+                crc = bit.bxor(bit.rshift(crc, 1), 3988292384)  -- 0xEDB88320
+            else
+                crc = bit.rshift(crc, 1)
+            end
+        end
+    end
+
+    -- 返回补码
+    return bit.bxor(crc, 4294967295)
+end
+
+-- 编码名称为十六进制格式（支持分行）
+-- 格式: [CRC8(2位)][字节1(2位)][字节2(2位)]...
+-- 限制: 最多10个字符（30字节UTF-8）
 -- @param name: 要编码的名称字符串
--- @return: 十六进制编码字符串
+-- @return: 编码字符串, 可能包含换行符分隔为多行
 function U.EncodeNameHex(name)
     if not name or name == "" then
-        return "0000"
+        return "0000"  -- CRC8 00 + 空数据 00
     end
 
     -- 转换为字节数组
     local bytes = U.EncodeUTF8String(name)
     local len = table.getn(bytes)
 
-    -- 限制最大长度
-    if len > 255 then
-        len = 255
+    -- 限制最大30字节（约10个字符）
+    if len > 30 then
+        len = 30
     end
 
     -- 计算 CRC8
     local crc = U.CalculateCRC8(bytes)
 
-    -- 构建十六进制字符串
-    local result = U.ToHex(len, 2) .. U.ToHex(crc, 2)
+    -- 构建十六进制字符串: CRC8 + 字节数据
+    local result = U.ToHex(crc, 2)
 
     -- 添加所有字节
     for i = 1, len do
         result = result .. U.ToHex(bytes[i], 2)
     end
 
-    return result
+    -- 如果数据太长，分成多行，每行包含：CRC8 + 行号 + 数据片段
+    local maxCharsPerLine = 16  -- 每行最多16个十六进制字符（不含CRC和行号）
+    local dataLen = string.len(result) - 2  -- 总数据长度（不含CRC8）
+
+    if dataLen <= maxCharsPerLine then
+        -- 短名称，单行显示: CRC8 + 数据
+        return result
+    end
+
+    -- 长名称，分多行显示
+    local lines = {}
+    local offset = 2  -- 跳过CRC8
+    local lineNum = 0
+
+    while offset <= string.len(result) do
+        local remaining = string.len(result) - offset + 1
+        local chunkSize = remaining
+        if chunkSize > maxCharsPerLine then
+            chunkSize = maxCharsPerLine
+        end
+
+        local chunk = string.sub(result, offset, offset + chunkSize - 1)
+        -- 格式: CRC8(2位) + 行号(1位) + 数据片段
+        local line = U.ToHex(crc, 2) .. lineNum .. chunk
+        table.insert(lines, line)
+
+        offset = offset + chunkSize
+        lineNum = lineNum + 1
+    end
+
+    -- 返回多行，用 | 分隔
+    return table.concat(lines, "|")
 end

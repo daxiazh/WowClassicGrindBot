@@ -12,7 +12,7 @@ local DATATOTEXTTOOLTIP = "DataToText - Click to toggle display"
 
 -- Constants
 local FONT_PATH = "Interface\\AddOns\\DataToText\\Fonts\\Tiny-Bold.ttf"
-local FONT_SIZE = 14
+local FONT_SIZE = 12
 local UPDATE_INTERVAL = 0.1  -- Update every 0.1 seconds
 
 -- Update timer
@@ -44,7 +44,7 @@ local function Hex(num)
     return string.format("%X", num or 0)
 end
 
--- Get all data in flat format
+-- Get all data in flat format with global CRC32
 local function GetAllData()
     -- Player data
     local pHp = UnitHealth("player") or 0
@@ -64,7 +64,13 @@ local function GetAllData()
     local tLevel = tExists and (UnitLevel("target") or 0) or 0
     local tDead = tExists and (UnitIsDead("target") and "1" or "0") or "0"
     local tGuid = tExists and GetUnitGUID("target") or "0x0000000000000000"
-    local tNameHex = tExists and U.EncodeNameHex(tName) or "0000"
+
+    -- 名称编码（简化，不分行）
+    local tNameBytes = U.EncodeUTF8String(tName)
+    local tNameHex = ""
+    for i = 1, table.getn(tNameBytes) do
+        tNameHex = tNameHex .. U.ToHex(tNameBytes[i], 2)
+    end
 
     -- Bag data
     local totalSlots = 0
@@ -80,22 +86,52 @@ local function GetAllData()
     end
     local usedSlots = totalSlots - freeSlots
 
-    -- Build flat output
-    local text = ""
-    text = text .. "P_HP:" .. Hex(pHp) .. "/" .. Hex(pMaxHp) .. "\n"
-    text = text .. "P_MANA:" .. Hex(pMana) .. "/" .. Hex(pMaxMana) .. "\n"
-    text = text .. "P_LEVEL:" .. Hex(pLevel) .. "\n"
-    text = text .. "P_XP:" .. Hex(pXp) .. "/" .. Hex(pMaxXp) .. "\n"
-    text = text .. "P_GUID:" .. pGuid .. "\n"
-    text = text .. "T_NAME:" .. tNameHex .. "\n"
-    text = text .. "T_HP:" .. Hex(tHp) .. "/" .. Hex(tMaxHp) .. "\n"
-    text = text .. "T_LEVEL:" .. Hex(tLevel) .. "\n"
-    text = text .. "T_DEAD:" .. tDead .. "\n"
-    text = text .. "T_GUID:" .. tGuid .. "\n"
-    text = text .. "BAG_USED:" .. Hex(usedSlots) .. "/" .. Hex(totalSlots) .. "\n"
-    text = text .. "BAG_FREE:" .. Hex(freeSlots)
+    -- 构建所有数据字符串（用 | 分隔）
+    local dataFields = {}
+    table.insert(dataFields, "P_HP:" .. Hex(pHp) .. "/" .. Hex(pMaxHp))
+    table.insert(dataFields, "P_MANA:" .. Hex(pMana) .. "/" .. Hex(pMaxMana))
+    table.insert(dataFields, "P_LEVEL:" .. Hex(pLevel))
+    table.insert(dataFields, "P_XP:" .. Hex(pXp) .. "/" .. Hex(pMaxXp))
+    table.insert(dataFields, "P_GUID:" .. pGuid)
+    table.insert(dataFields, "T_NAME:" .. tNameHex)
+    table.insert(dataFields, "T_HP:" .. Hex(tHp) .. "/" .. Hex(tMaxHp))
+    table.insert(dataFields, "T_LEVEL:" .. Hex(tLevel))
+    table.insert(dataFields, "T_DEAD:" .. tDead)
+    table.insert(dataFields, "T_GUID:" .. tGuid)
+    table.insert(dataFields, "BAG_USED:" .. Hex(usedSlots) .. "/" .. Hex(totalSlots))
+    table.insert(dataFields, "BAG_FREE:" .. Hex(freeSlots))
 
-    return text
+    -- 合并所有数据
+    local allData = table.concat(dataFields, "|")
+
+    -- 计算 CRC32
+    local crc32 = U.CalculateCRC32(allData)
+
+    -- 固定行宽（每行60个字符）
+    local lineWidth = 60
+    local lines = {}
+
+    -- 第一行: CRC32
+    table.insert(lines, "CRC:" .. U.ToHex(crc32, 8))
+
+    -- 分割数据为多行，每行添加前缀 D1, D2, D3...
+    local offset = 1
+    local lineNum = 1
+    while offset <= string.len(allData) do
+        local remaining = string.len(allData) - offset + 1
+        local chunkSize = remaining
+        if chunkSize > lineWidth then
+            chunkSize = lineWidth
+        end
+
+        local chunk = string.sub(allData, offset, offset + chunkSize - 1)
+        table.insert(lines, "D" .. lineNum .. ":" .. chunk)
+
+        offset = offset + chunkSize
+        lineNum = lineNum + 1
+    end
+
+    return table.concat(lines, "\n")
 end
 
 -- Update display
@@ -120,6 +156,9 @@ SlashCmdList["DATATOTEXT"] = function(msg)
     elseif msg == "testutf8" or msg == "utf8" then
         -- 运行UTF-8编码测试
         T.TestUTF8Encoding()
+    elseif msg == "testcrc32" or msg == "crc32" then
+        -- 运行CRC32测试
+        T.TestCRC32()
     elseif msg == "" then
         -- 切换显示
         if DataToTextFrame:IsShown() then
@@ -135,6 +174,7 @@ SlashCmdList["DATATOTEXT"] = function(msg)
         DataToText_Print("  /dtt - 切换显示")
         DataToText_Print("  /dtt test - 运行所有单元测试")
         DataToText_Print("  /dtt utf8 - 运行UTF-8编码测试")
+        DataToText_Print("  /dtt crc32 - 运行CRC32校验测试")
     end
 end
 

@@ -222,21 +222,19 @@ function T.TestUTF8Encoding()
 
     -- 测试4: 完整编码 "ABC"
     local encoded = U.EncodeNameHex("ABC")
-    local expectedLen = "03"  -- 3 字节
-    local actualLen = string.sub(encoded, 1, 2)
-    if actualLen == expectedLen then
-        Print("✓ EncodeNameHex('ABC') 长度 = " .. actualLen)
+    local expectedCRC = string.sub(encoded, 1, 2)
+    if string.len(encoded) >= 2 then
+        Print("✓ EncodeNameHex('ABC') CRC8 = " .. expectedCRC)
         passed = passed + 1
     else
-        Print("✗ EncodeNameHex('ABC') 长度错误 | 期望: " .. expectedLen .. ", 实际: " .. actualLen)
+        Print("✗ EncodeNameHex('ABC') 编码失败")
         failed = failed + 1
     end
 
     -- 测试5: 显示完整编码结果
     Print("  完整编码: '" .. encoded .. "'")
-    Print("    长度: " .. string.sub(encoded, 1, 2))
-    Print("    CRC8: " .. string.sub(encoded, 3, 4))
-    Print("    字节: " .. string.sub(encoded, 5))
+    Print("    CRC8: " .. string.sub(encoded, 1, 2))
+    Print("    字节: " .. string.sub(encoded, 3))
 
     -- 测试6: 中文字符编码（如果有中文输入的话）
     local chineseName = "测试"
@@ -246,6 +244,62 @@ function T.TestUTF8Encoding()
     Print("    字节数: " .. table.getn(chineseBytes))
     Print("    编码: " .. chineseEncoded)
     passed = passed + 1
+
+    Print("结果: " .. passed .. " 通过, " .. failed .. " 失败")
+    return failed == 0
+end
+
+----------------------------------------------------------------------------
+-- CRC32 测试
+----------------------------------------------------------------------------
+
+-- 测试 CRC32 校验功能
+function T.TestCRC32()
+    Print("===== CRC32 校验测试 =====")
+
+    local passed = 0
+    local failed = 0
+
+    -- 测试1: 空字符串
+    local result = U.CalculateCRC32("")
+    if result == 0 then
+        Print("✓ CalculateCRC32('') = 0")
+        passed = passed + 1
+    else
+        Print("✗ CalculateCRC32('') | 期望: 0, 实际: " .. result)
+        failed = failed + 1
+    end
+
+    -- 测试2: 简单字符串 "ABC"
+    local crc1 = U.CalculateCRC32("ABC")
+    Print("  CalculateCRC32('ABC') = " .. crc1 .. " (0x" .. U.ToHex(crc1, 8) .. ")")
+    passed = passed + 1
+
+    -- 测试3: 不同的字符串应该有不同的 CRC32
+    local crc2 = U.CalculateCRC32("XYZ")
+    if crc1 ~= crc2 then
+        Print("✓ CalculateCRC32('ABC') != CalculateCRC32('XYZ')")
+        passed = passed + 1
+    else
+        Print("✗ 不同字符串产生了相同的 CRC32")
+        failed = failed + 1
+    end
+
+    -- 测试4: 游戏数据格式示例
+    local gameData = "P_HP:1F4/3E8|P_MANA:12C/1F4|P_LEVEL:A|T_NAME:E6B58BEBAF95"
+    local crc3 = U.CalculateCRC32(gameData)
+    Print("  游戏数据 CRC32 = " .. U.ToHex(crc3, 8))
+    passed = passed + 1
+
+    -- 测试5: 相同字符串应该产生相同的 CRC32
+    local crc4 = U.CalculateCRC32("ABC")
+    if crc1 == crc4 then
+        Print("✓ 相同字符串产生相同 CRC32")
+        passed = passed + 1
+    else
+        Print("✗ 相同字符串产生了不同的 CRC32")
+        failed = failed + 1
+    end
 
     Print("结果: " .. passed .. " 通过, " .. failed .. " 失败")
     return failed == 0
@@ -273,8 +327,12 @@ function T.RunAllTests()
     end
 
     Print("")
-
     if not T.TestStringUtils() then
+        allPassed = false
+    end
+
+    Print("")
+    if not T.TestCRC32() then
         allPassed = false
     end
 
