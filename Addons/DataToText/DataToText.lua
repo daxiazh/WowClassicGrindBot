@@ -37,8 +37,12 @@ local U = DataToTextUtils
 local T = DataToTextTests
 
 -- 本地快捷方式
-local ToHex = U.ToHex
 local GetUnitGUID = U.GetUnitGUID
+
+-- 十六进制转换（不补0，自然宽度）
+local function Hex(num)
+    return string.format("%X", num or 0)
+end
 
 -- Get player data
 local function GetPlayerData()
@@ -51,11 +55,11 @@ local function GetPlayerData()
     local maxXp = UnitXPMax and UnitXPMax("player") or 1
 
     local text = "PLAYER:\n"
-    text = text .. "  HP:    " .. hp .. " / " .. maxHp .. " (" .. ToHex(hp, 4) .. "/" .. ToHex(maxHp, 4) .. ")\n"
-    text = text .. "  MANA:  " .. mana .. " / " .. maxMana .. " (" .. ToHex(mana, 4) .. "/" .. ToHex(maxMana, 4) .. ")\n"
-    text = text .. "  LEVEL: " .. level .. " (0x" .. ToHex(level, 2) .. ")\n"
-    text = text .. "  XP:    " .. xp .. " / " .. maxXp .. " (" .. ToHex(xp, 4) .. "/" .. ToHex(maxXp, 4) .. ")\n"
-    text = text .. "  GUID:  " .. GetUnitGUID("player")
+    text = text .. "HP:" .. Hex(hp) .. "/" .. Hex(maxHp) .. "\n"
+    text = text .. "MANA:" .. Hex(mana) .. "/" .. Hex(maxMana) .. "\n"
+    text = text .. "LEVEL:" .. Hex(level) .. "\n"
+    text = text .. "XP:" .. Hex(xp) .. "/" .. Hex(maxXp) .. "\n"
+    text = text .. "GUID:" .. GetUnitGUID("player")
 
     return text
 end
@@ -63,7 +67,7 @@ end
 -- Get target data
 local function GetTargetData()
     if not UnitExists("target") then
-        return "TARGET: None"
+        return "TARGET:None"
     end
 
     local name = UnitName("target") or "Unknown"
@@ -75,12 +79,12 @@ local function GetTargetData()
     -- 编码名称为十六进制
     local nameHex = U.EncodeNameHex(name)
 
-    local text = "TARGET: " .. name .. "\n"
-    text = text .. "  NAME_HEX: " .. nameHex .. "\n"
-    text = text .. "  HP:    " .. hp .. " / " .. maxHp .. " (" .. ToHex(hp, 4) .. "/" .. ToHex(maxHp, 4) .. ")\n"
-    text = text .. "  LEVEL: " .. level .. " (0x" .. ToHex(level, 2) .. ")\n"
-    text = text .. "  DEAD:  " .. (isDead and "YES" or "NO") .. "\n"
-    text = text .. "  GUID:  " .. GetUnitGUID("target")
+    local text = "TARGET:\n"
+    text = text .. "NAME:" .. nameHex .. "\n"
+    text = text .. "HP:" .. Hex(hp) .. "/" .. Hex(maxHp) .. "\n"
+    text = text .. "LEVEL:" .. Hex(level) .. "\n"
+    text = text .. "DEAD:" .. (isDead and "1" or "0") .. "\n"
+    text = text .. "GUID:" .. GetUnitGUID("target")
 
     return text
 end
@@ -106,8 +110,8 @@ local function GetBagData()
     local usedSlots = totalSlots - freeSlots
 
     local text = "BAG:\n"
-    text = text .. "  USED:  " .. usedSlots .. " / " .. totalSlots .. "\n"
-    text = text .. "  FREE:  " .. freeSlots .. " (0x" .. ToHex(freeSlots, 2) .. ")"
+    text = text .. "USED:" .. Hex(usedSlots) .. "/" .. Hex(totalSlots) .. "\n"
+    text = text .. "FREE:" .. Hex(freeSlots)
 
     return text
 end
