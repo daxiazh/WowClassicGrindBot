@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.nuget.org)",
+      "WebFetch(domain:github.com)",
+      "Read(//c/Users/zhanghua/Documents/wow-clean/Interface/AddOns/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
