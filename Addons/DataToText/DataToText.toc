@@ -2,9 +2,10 @@
 ## Title: DataToText
 ## Notes: OCR-friendly data display
 ## Author: WowClassicGrindBot
-## Version: 1.0.0
+## Version: 1.0.1
 ## SavedVariables: DataToTextDB, DataToTextIcon
 
+# 第三方库
 libs\LibStub.lua
 libs\CallbackHandler-1.0.lua
 libs\AceCore-3.0.lua
@@ -12,4 +13,9 @@ libs\AceHook-3.0.lua
 libs\LibDataBroker-1.1.lua
 libs\LibDBIcon-1.0.lua
 
+# 工具函数和测试
+Utils.lua
+Tests.lua
+
+# 主文件
 DataToText.xml

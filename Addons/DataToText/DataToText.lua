@@ -26,62 +26,19 @@ local function DataToText_Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[DataToText]|r " .. tostring(msg))
 end
 
--- Helper: Get unit GUID (compatible with Classic)
-local function GetUnitGUID(unit)
-    if UnitGUID then
-        return UnitGUID(unit) or "0x0000000000000000"
-    end
-    return "0x0000000000000000"
-end
-
 ----------------------------------------------------------------------------
--- 工具函数 (Utils)
+-- 引用外部模块
 ----------------------------------------------------------------------------
 
--- 将数字转换为固定宽度的十六进制字符串
-local function ToHex(num, digits)
-    local hex = string.format("%X", num or 0)
-    while string.len(hex) < digits do
-        hex = "0" .. hex
-    end
-    return hex
-end
+-- 工具函数（定义在 Utils.lua）
+local U = DataToTextUtils
 
--- 将十六进制字符串转换为数字
-local function FromHex(hexStr)
-    if not hexStr or hexStr == "" then
-        return 0
-    end
-    return tonumber(hexStr, 16) or 0
-end
+-- 测试函数（定义在 Tests.lua）
+local T = DataToTextTests
 
--- 运行工具函数自测
-local function TestUtils()
-    local tests = {
-        {name = "ToHex(255, 2)", func = function() return ToHex(255, 2) end, expected = "FF"},
-        {name = "ToHex(16, 4)", func = function() return ToHex(16, 4) end, expected = "0010"},
-        {name = "ToHex(0, 2)", func = function() return ToHex(0, 2) end, expected = "00"},
-        {name = "FromHex('FF')", func = function() return FromHex("FF") end, expected = 255},
-        {name = "FromHex('0010')", func = function() return FromHex("0010") end, expected = 16},
-        {name = "FromHex('00')", func = function() return FromHex("00") end, expected = 0},
-    }
-
-    local passed = 0
-    local failed = 0
-
-    for _, test in ipairs(tests) do
-        local result = test.func()
-        if result == test.expected then
-            passed = passed + 1
-            DataToText_Print("✓ " .. test.name .. " = " .. tostring(result))
-        else
-            failed = failed + 1
-            DataToText_Print("✗ " .. test.name .. " 期望: " .. tostring(test.expected) .. ", 实际: " .. tostring(result))
-        end
-    end
-
-    DataToText_Print("测试完成: " .. passed .. " 通过, " .. failed .. " 失败")
-end
+-- 本地快捷方式
+local ToHex = U.ToHex
+local GetUnitGUID = U.GetUnitGUID
 
 -- Get player data
 local function GetPlayerData()
@@ -167,12 +124,11 @@ SLASH_DATATOTEXT1 = "/dtt"
 SLASH_DATATOTEXT2 = "/datatotext"
 SlashCmdList["DATATOTEXT"] = function(msg)
     -- 去除首尾空格
-    msg = string.gsub(msg or "", "^%s*(.-)%s*$", "%1")
+    msg = U.Trim(msg or "")
 
     if msg == "test" then
-        -- 运行工具函数测试
-        DataToText_Print("运行工具函数测试...")
-        TestUtils()
+        -- 运行所有测试
+        T.RunAllTests()
     elseif msg == "" then
         -- 切换显示
         if DataToTextFrame:IsShown() then
@@ -186,7 +142,7 @@ SlashCmdList["DATATOTEXT"] = function(msg)
         -- 显示帮助
         DataToText_Print("可用命令:")
         DataToText_Print("  /dtt - 切换显示")
-        DataToText_Print("  /dtt test - 运行工具函数测试")
+        DataToText_Print("  /dtt test - 运行所有单元测试")
     end
 end
 

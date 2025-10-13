@@ -13,26 +13,60 @@
 
 ### ✅ 已完成
 - [x] **步骤1**: 优化字体设置为 MONOCHROME（黑底白字不需要 OUTLINE）
-  - 修改 `DataToText.lua:143-145`
+  - 修改 `DataToText.lua:154-156`
   - 从 `"OUTLINE, MONOCHROME"` 改为 `"MONOCHROME"`
   - 字体更粗更清晰，OCR 识别更准确
 
+- [x] **清理**: 备份未使用的模块化文件到 archived 目录
+  - 移动 init.lua, Core.lua, Utils.lua (旧版), Modules/* 到 archived/
+  - 创建 archived/README.md 说明归档原因
+  - 保持主目录简洁
+
+- [x] **步骤2**: 添加十六进制工具函数和测试
+  - 添加 `ToHex()` 和 `FromHex()` 函数
+  - 创建 8 个测试用例验证十六进制转换
+  - 添加 `/dtt test` 命令运行测试
+  - ✅ 所有测试通过
+
+- [x] **重构**: 分离工具函数到 Utils.lua
+  - 创建 `DataToTextUtils` 命名空间
+  - 包含函数: `ToHex`, `FromHex`, `GetUnitGUID`, `Trim`
+  - 在 TOC 中正确排序加载
+
+- [x] **重构**: 分离测试函数到 Tests.lua
+  - 创建 `DataToTextTests` 命名空间
+  - 包含测试: `TestHexConversion`, `TestStringUtils`, `TestBitLibrary`
+  - 实现 `RunAllTests()` 统一测试入口
+
+- [x] **步骤3a**: 测试 bit 库的可用性
+  - 创建 `TestBitLibrary()` 检测位运算环境
+  - 检测 bit 库（LuaJIT）、bit32 库（Lua 5.2+）
+  - 检测 math.fmod / math.mod 函数可用性
+  - 修复语法错误（移除 % 运算符直接使用）
+  - ✅ **游戏内测试通过**
+
+- [x] **研究**: 分析可用的 API 库
+  - 发现 `C:\Users\zhanghua\Documents\wow-clean\Interface\AddOns\!Libs` 包含完整的 API 封装
+  - 发现 `luaAPI.lua` 提供: `string.trim`, `string.split`, `math.fmod` 等
+  - 发现 LibSharedMedia-3.0 使用了 bit 库，说明 bit 库应该可用
+  - DataToColor/libs 包含 Ace3 和其他库
+
+- [x] **步骤3b**: 确认位运算方案
+  - ✅ **bit 库核心函数完全可用**
+  - ✅ 可用函数: band, bor, bxor, bnot, lshift, rshift, arshift
+  - ❌ 不可用函数: rol, ror, bswap (但不影响 UTF-8 编码实现)
+  - ✅ 功能测试通过: bit.band(15,7)=7, bit.bxor(15,7)=8, bit.lshift(1,4)=16
+  - 🎯 **决定**: 直接使用 bit 库实现 UTF-8 编码和 CRC8
+
 ### ⏳ 进行中
-- [ ] **步骤2**: 添加十六进制工具函数测试
-  - 在 `DataToText.lua` 中添加基础工具函数
-  - 创建简单的测试用例验证功能
-  - 确保十六进制转换正确
 
 ### 📋 待执行
-- [ ] **步骤3**: 添加位运算兼容层
-  - 使用 `math.mod()` 和 `math.floor()` 实现位运算
-  - 避免使用 `%` 操作符和 `bit` 库
-  - 测试 `bxor`, `band`, `lshift` 等函数
-
 - [ ] **步骤4**: 实现 UTF-8 名称编码功能
-  - 添加 `EncodeNameHex()` 函数
-  - 添加 `CalculateCRC8()` 函数
-  - 在目标显示中测试中文名称编码
+  - 添加 `EncodeUTF8String()` 函数 - 将 UTF-8 字符串转为字节数组
+  - 添加 `CalculateCRC8()` 函数 - 使用 bit.bxor 实现校验
+  - 添加 `EncodeNameHex()` 函数 - 完整的名称编码（长度+CRC8+字节）
+  - 添加测试用例验证中文名称编码
+  - 在目标显示中集成编码功能
 
 - [ ] **步骤5**: 切换到模块化架构
   - 迁移到 init.lua + Core.lua + Modules 架构
@@ -44,15 +78,90 @@
 ## 📝 技术笔记
 
 ### 当前版本架构
-- **文件**: `DataToText.lua` (主逻辑) + `DataToText.xml` (UI定义)
+- **主文件**: `DataToText.lua` (主逻辑) + `DataToText.xml` (UI定义)
+- **工具库**: `Utils.lua` (工具函数) + `Tests.lua` (测试套件)
 - **字体**: Tiny-Bold.ttf, 14px, MONOCHROME
 - **更新频率**: 0.1秒 (10 FPS)
 - **显示内容**: 玩家数据、目标数据、背包数据
 
+### 文件加载顺序 (DataToText.toc)
+```
+# 第三方库
+libs\LibStub.lua
+libs\CallbackHandler-1.0.lua
+libs\AceCore-3.0.lua
+libs\AceHook-3.0.lua
+libs\LibDataBroker-1.1.lua
+libs\LibDBIcon-1.0.lua
+
+# 工具函数和测试
+Utils.lua
+Tests.lua
+
+# 主文件
+DataToText.xml
+```
+
+### 可用的外部库 (重要!)
+
+#### 1. !Libs 目录 (wow-clean/Interface/AddOns/!Libs)
+这个目录包含了游戏中总是可用的封装完整的库，**可以直接使用**。
+
+**luaAPI.lua** (`!Libs/!MyLib/api/luaAPI.lua`):
+- `string.trim(str, chars)` / `strtrim(str, chars)` - 去除首尾空格或指定字符
+- `string.split(subject, delimiter, trim)` / `strsplit(...)` - 字符串分割
+- `string.join(delimiter, ...)` / `strjoin(...)` - 字符串连接
+- `string.match(str, pattern, index)` / `strmatch(...)` - 正则匹配
+- `string.reverse(str)` / `strrev(str)` - 字符串反转
+- `math.fmod(x, y)` - 等价于 `math.mod` (第17行)
+- `math.modf(i)` - 返回整数和小数部分
+- `math.cosh(i)`, `math.sinh(i)`, `math.tanh(i)` - 双曲函数
+- `clamp(x, min, max)` - 限制数值范围
+- `Round(input, places)` - 四舍五入
+- `HexColors(r, g, b)` - 生成颜色码
+
+**其他库**:
+- Ace2 / Ace3 - 插件框架
+- LibSharedMedia-3.0 - 媒体库（使用了 bit 库）
+- Abacus-2.0, Tourist-2.0 等 - 数据处理库
+
+#### 2. DataToColor/libs 目录
+- Ace3 完整库
+- LibClassicCasterino
+- LibRangeCheck-2.0 / LibRangeCheck-3.0
+
+### 位运算环境 (已确认)
+✅ **bit 库可用** (LuaJIT) - 核心函数全部支持
+
+**✅ 可用的 bit 库函数** (经测试验证):
+- `bit.band(a, b)` - 按位与 (AND) ✓
+- `bit.bor(a, b)` - 按位或 (OR) ✓
+- `bit.bxor(a, b)` - 按位异或 (XOR) ✓
+- `bit.bnot(x)` - 按位取反 (NOT) ✓
+- `bit.lshift(x, n)` - 左移 ✓
+- `bit.rshift(x, n)` - 逻辑右移 ✓
+- `bit.arshift(x, n)` - 算术右移 ✓
+
+**❌ 不可用的函数**:
+- `bit.rol(x, n)` - 循环左移 ✗
+- `bit.ror(x, n)` - 循环右移 ✗
+- `bit.bswap(x)` - 字节交换 ✗
+
+**功能测试结果**:
+- bit.band(15, 7) = 7 ✓
+- bit.bxor(15, 7) = 8 ✓
+- bit.lshift(1, 4) = 16 ✓
+
+**UTF-8 编码实现方案**:
+- 使用 `bit.bxor` 实现 CRC8 校验
+- 使用 `bit.band` 提取字节 (0xFF 掩码)
+- 使用 `bit.rshift` 处理多字节字符
+- **核心函数足够使用，无需循环移位**
+
 ### 已知限制
 - 目标名称尚未支持中文（需要 UTF-8 编码）
 - 未实现完整的数据格式（只有基础信息）
-- 没有模块化架构
+- 暂未启用模块化架构（已归档到 archived/）
 
 ### 下一步测试要求
 每个步骤完成后需要：
@@ -65,10 +174,22 @@
 
 ## 🔄 更新日志
 
-### [1.0.1] - 2025-01-13 (进行中)
+### [1.0.2] - 2025-01-13 (进行中)
+- ✅ 重构: 分离工具函数到 Utils.lua
+- ✅ 重构: 分离测试函数到 Tests.lua
+- ✅ 添加 `/dtt test` 命令运行单元测试
+- ✅ 创建 TestBitLibrary() 检测位运算环境
+- ✅ 研究并记录可用的外部库 (!Libs 目录)
+- ✅ 确认 bit 库完全可用 (所有函数测试通过)
+- ✅ 更新 TODO.md 记录 bit 库的详细信息
+- ⏳ 准备实现 UTF-8 编码支持
+
+### [1.0.1] - 2025-01-13
 - ✅ 优化字体渲染: MONOCHROME 替代 OUTLINE
-- ⏳ 添加工具函数测试
-- 📋 计划添加 UTF-8 编码支持
+- ✅ 添加十六进制工具函数 (ToHex, FromHex)
+- ✅ 添加工具函数测试 (8个测试用例)
+- ✅ 清理未使用代码到 archived/ 目录
+- ✅ 创建测试框架
 
 ### [1.0.0] - 2025-01-13
 - ✅ 初始稳定版本
@@ -105,3 +226,8 @@
 3. **优先使用已验证的函数**，如 `math.mod()` 而不是 `%`
 4. **所有注释使用中文**
 5. **更新此 TODO.md 反映实际进度**
+6. **优先使用 !Libs 中的库函数**，避免重复造轮子
+   - 字符串处理: 使用 `strtrim`, `strsplit`, `strjoin` 等
+   - 数学函数: 使用 `math.fmod`, `clamp`, `Round` 等
+   - 检查 `luaAPI.lua` 是否已有所需功能
+7. **位运算**: 等待 `/dtt test` 结果再决定实现方案
