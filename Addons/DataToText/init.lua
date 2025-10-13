@@ -34,7 +34,7 @@ end
 
 -- Constants
 DataToText.C.FONT_PATH = "Interface\\AddOns\\DataToText\\Fonts\\Tiny-Bold.ttf"
-DataToText.C.FONT_SIZE = 12
+DataToText.C.FONT_SIZE = 14
 DataToText.C.FONT_FLAGS = "MONOCHROME, OUTLINE"
 
 DataToText.C.FRAME_WIDTH = 900

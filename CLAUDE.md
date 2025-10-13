@@ -235,3 +235,5 @@ dotnet run -c Release -- Hunter_1.json --loadonly
 - **GameOverlay.Net** - NPC 名称覆盖层渲染
 - **Microsoft.Extensions.DependencyInjection** - 依赖注入
 - 使用lua 5.1 的语法
+- 每次执行完TODO.md中的任务后， 都需要同步更新进度，如果需要也同步调整新的计划
+- 这个工程运行在windows上
