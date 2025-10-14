@@ -25,6 +25,9 @@ local isPaused = false
 local gridPixels = {}  -- 存储网格像素帧
 local gridData = nil   -- 存储当前的网格数据
 
+-- FontString 测试状态
+local testGridTextStrings = {}  -- 存储 FontString 对象
+
 -- Print helper
 local function DataToText_Print(msg)
     if not DEFAULT_CHAT_FRAME then
@@ -325,6 +328,134 @@ local function RenderGrid(grid)
     end
 end
 
+----------------------------------------------------------------------------
+-- FontString 字符网格测试（性能优化方案）
+----------------------------------------------------------------------------
+
+-- 使用 FontString + 特殊字符显示黑白网格，减少对象数量
+local function TestGridText()
+    local gridFrame = DataToText_GridFrame
+    if not gridFrame then
+        DataToText_Print("错误: GridFrame 未找到")
+        return
+    end
+
+    -- 确保 GridFrame 可见
+    gridFrame:Show()
+
+    -- 隐藏所有 Texture 像素（旧方案）
+    DataToText_Print("隐藏 Texture 网格（" .. table.getn(gridPixels) .. " 个对象）...")
+    for i = 1, table.getn(gridPixels) do
+        if gridPixels[i] then
+            gridPixels[i]:Hide()
+        end
+    end
+
+    -- 清理旧的 FontString 对象
+    for i = 1, table.getn(testGridTextStrings) do
+        if testGridTextStrings[i] then
+            testGridTextStrings[i]:Hide()
+        end
+    end
+    testGridTextStrings = {}
+
+    -- 测试参数
+    local TEST_GRID_SIZE = 32  -- 32×32 测试网格
+    local CHAR_BLACK = "#"      -- 使用 # 代表黑色（更可靠）
+    local CHAR_WHITE = "."      -- 使用 . 代表白色
+    local FONT_SIZE_GRID = 10   -- 字体大小（像素，增大到10以便看清）
+
+    -- 创建测试图案（带3×3角标记 + 对角线）
+    local testGrid = {}
+    for row = 1, TEST_GRID_SIZE do
+        testGrid[row] = {}
+        for col = 1, TEST_GRID_SIZE do
+            -- 默认白色
+            testGrid[row][col] = 0
+
+            -- 四个角的3×3定位标记（黑色边框，中心白色）
+            local inCorner = false
+
+            -- 左上角
+            if row <= 3 and col <= 3 then
+                if not (row == 2 and col == 2) then
+                    testGrid[row][col] = 1  -- 黑色
+                end
+                inCorner = true
+            end
+
+            -- 右上角
+            if row <= 3 and col > TEST_GRID_SIZE - 3 then
+                if not (row == 2 and col == TEST_GRID_SIZE - 1) then
+                    testGrid[row][col] = 1  -- 黑色
+                end
+                inCorner = true
+            end
+
+            -- 左下角
+            if row > TEST_GRID_SIZE - 3 and col <= 3 then
+                if not (row == TEST_GRID_SIZE - 1 and col == 2) then
+                    testGrid[row][col] = 1  -- 黑色
+                end
+                inCorner = true
+            end
+
+            -- 右下角
+            if row > TEST_GRID_SIZE - 3 and col > TEST_GRID_SIZE - 3 then
+                if not (row == TEST_GRID_SIZE - 1 and col == TEST_GRID_SIZE - 1) then
+                    testGrid[row][col] = 1  -- 黑色
+                end
+                inCorner = true
+            end
+
+            -- 中间区域: 对角线测试图案
+            if not inCorner then
+                if row == col and row > 5 and row < TEST_GRID_SIZE - 5 then
+                    testGrid[row][col] = 1  -- 对角线
+                end
+            end
+        end
+    end
+
+    -- 逐行生成 FontString（每行一个对象，减少对象数量）
+    DataToText_Print("开始生成 FontString 网格...")
+
+    for row = 1, TEST_GRID_SIZE do
+        local rowText = ""
+        for col = 1, TEST_GRID_SIZE do
+            if testGrid[row][col] == 1 then
+                rowText = rowText .. CHAR_BLACK
+            else
+                rowText = rowText .. CHAR_WHITE
+            end
+        end
+
+        -- 创建 FontString
+        local fontString = gridFrame:CreateFontString(nil, "OVERLAY")
+        fontString:SetFont(FONT_PATH, FONT_SIZE_GRID, "OUTLINE")  -- 使用 OUTLINE 增加可见性
+        fontString:SetText(rowText)
+        fontString:SetTextColor(1, 1, 0)  -- 黄色文字（在深灰背景上更清晰）
+        fontString:SetJustifyH("LEFT")
+        fontString:SetJustifyV("TOP")
+        fontString:SetPoint("TOPLEFT", gridFrame, "TOPLEFT", 5, -5 - (row - 1) * FONT_SIZE_GRID)  -- 添加5像素边距
+        fontString:Show()  -- 确保显示
+
+        table.insert(testGridTextStrings, fontString)
+    end
+
+    -- 调试：显示第一个 FontString 的信息
+    if table.getn(testGridTextStrings) > 0 then
+        local first = testGridTextStrings[1]
+        DataToText_Print("调试: 第一个 FontString 文本 = " .. (first:GetText() or "无"))
+        DataToText_Print("调试: 第一个 FontString 可见 = " .. tostring(first:IsVisible()))
+    end
+
+    DataToText_Print("FontString 测试网格已生成: " .. TEST_GRID_SIZE .. "x" .. TEST_GRID_SIZE)
+    DataToText_Print("对象数量: " .. table.getn(testGridTextStrings) .. " (vs 原方案 4225)")
+    DataToText_Print("请截图并使用 CoreTests 中的解码器分析")
+    DataToText_Print("或使用 Node.js 解码器: node grid_text_decoder.js <截图路径>")
+end
+
 -- Update display
 local function UpdateDisplay()
     if not DataToTextFrame or not DataToTextFrame:IsVisible() then
@@ -371,6 +502,9 @@ SlashCmdList["DATATOTEXT"] = function(msg)
         if testGrid then
             DataToText_Print("网格编码测试完成！")
         end
+    elseif msg == "testgridtext" or msg == "gridtext" then
+        -- 测试 FontString 字符网格（性能优化方案）
+        TestGridText()
     elseif msg == "" then
         -- 切换显示
         if DataToTextFrame:IsShown() then
@@ -387,7 +521,8 @@ SlashCmdList["DATATOTEXT"] = function(msg)
         DataToText_Print("  /dtt test - 运行所有单元测试")
         DataToText_Print("  /dtt utf8 - 运行UTF-8编码测试")
         DataToText_Print("  /dtt crc32 - 运行CRC32校验测试")
-        DataToText_Print("  /dtt grid - 测试网格编码器")
+        DataToText_Print("  /dtt grid - 测试网格编码器 (Texture方案)")
+        DataToText_Print("  /dtt gridtext - 测试字符网格 (FontString方案)")
     end
 end
 

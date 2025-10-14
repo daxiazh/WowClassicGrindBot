@@ -237,3 +237,6 @@ dotnet run -c Release -- Hunter_1.json --loadonly
 - 使用lua 5.1 的语法
 - 每次执行完TODO.md中的任务后， 都需要同步更新进度，如果需要也同步调整新的计划
 - 这个工程运行在windows上
+- 在 Lua 5.1 中不支持 0x 开头的十六进制字面量。
+- lua中不支持#来获取Table的长度，改为table.getn()
+- lua中不支持%，需要使用函数math.fmod / math.mod
