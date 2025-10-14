@@ -52,37 +52,21 @@ local function Hex(num)
     return string.format("%X", num or 0)
 end
 
--- 注意：移除了 CollectAllFieldData() 函数，因为 GridEncoder 已被移除
-
--- Get all data in flat format with global CRC32
+-- Get all data (使用字段定义系统，保留用于兼容性)
+-- 注意：推荐直接使用 CollectBinaryData() + FormatDataAsText()
 local function GetAllData()
-    -- Player data
-    local pHp = UnitHealth("player") or 0
-    local pMaxHp = UnitHealthMax("player") or 1
-    local pMana = UnitMana("player") or 0
-    local pMaxMana = UnitManaMax("player") or 1
-    local pLevel = UnitLevel("player") or 1
-    local pXp = UnitXP and UnitXP("player") or 0
-    local pMaxXp = UnitXPMax and UnitXPMax("player") or 1
-    local pGuid = GetUnitGUID("player")
+    local fields = CollectBinaryData()
+    return FormatDataAsText(fields)
+end
 
-    -- Target data
-    local tExists = UnitExists("target")
-    local tName = tExists and (UnitName("target") or "Unknown") or "None"
-    local tHp = tExists and (UnitHealth("target") or 0) or 0
-    local tMaxHp = tExists and (UnitHealthMax("target") or 1) or 0
-    local tLevel = tExists and (UnitLevel("target") or 0) or 0
-    local tDead = tExists and (UnitIsDead("target") and "1" or "0") or "0"
-    local tGuid = tExists and GetUnitGUID("target") or "0x0000000000000000"
+-- 删除了 InitializeGrid() 和 RenderGrid() - 已被 FontString 方案替代
 
-    -- 名称编码（简化，不分行）
-    local tNameBytes = U.EncodeUTF8String(tName)
-    local tNameHex = ""
-    for i = 1, table.getn(tNameBytes) do
-        tNameHex = tNameHex .. U.ToHex(tNameBytes[i], 2)
-    end
+----------------------------------------------------------------------------
+-- 基于字段定义的数据编码系统
+----------------------------------------------------------------------------
 
-    -- Bag data
+-- 辅助函数：获取背包信息
+local function GetBagInfo()
     local totalSlots = 0
     local freeSlots = 0
     for bag = 0, 4 do
@@ -95,56 +79,253 @@ local function GetAllData()
         end
     end
     local usedSlots = totalSlots - freeSlots
+    return usedSlots, totalSlots
+end
 
-    -- 构建所有数据字符串（用 | 分隔）
-    local dataFields = {}
-    table.insert(dataFields, "P_HP:" .. Hex(pHp) .. "/" .. Hex(pMaxHp))
-    table.insert(dataFields, "P_MANA:" .. Hex(pMana) .. "/" .. Hex(pMaxMana))
-    table.insert(dataFields, "P_LEVEL:" .. Hex(pLevel))
-    table.insert(dataFields, "P_XP:" .. Hex(pXp) .. "/" .. Hex(pMaxXp))
-    table.insert(dataFields, "P_GUID:" .. pGuid)
-    table.insert(dataFields, "T_NAME:" .. tNameHex)
-    table.insert(dataFields, "T_HP:" .. Hex(tHp) .. "/" .. Hex(tMaxHp))
-    table.insert(dataFields, "T_LEVEL:" .. Hex(tLevel))
-    table.insert(dataFields, "T_DEAD:" .. tDead)
-    table.insert(dataFields, "T_GUID:" .. tGuid)
-    table.insert(dataFields, "BAG_USED:" .. Hex(usedSlots) .. "/" .. Hex(totalSlots))
-    table.insert(dataFields, "BAG_FREE:" .. Hex(freeSlots))
+-- 字节编码辅助函数
+local function AppendUInt8(bytes, value)
+    value = value or 0
+    table.insert(bytes, bit.band(value, 255))
+end
 
-    -- 合并所有数据
-    local allData = table.concat(dataFields, "|")
+local function AppendUInt16(bytes, value)
+    value = value or 0
+    -- Big-endian (高字节在前)
+    table.insert(bytes, bit.band(bit.rshift(value, 8), 255))
+    table.insert(bytes, bit.band(value, 255))
+end
 
-    -- 计算 CRC32
-    local crc32 = U.CalculateCRC32(allData)
+local function AppendUInt32(bytes, value)
+    value = value or 0
+    table.insert(bytes, bit.band(bit.rshift(value, 24), 255))
+    table.insert(bytes, bit.band(bit.rshift(value, 16), 255))
+    table.insert(bytes, bit.band(bit.rshift(value, 8), 255))
+    table.insert(bytes, bit.band(value, 255))
+end
 
-    -- 固定行宽（每行60个字符）
-    local lineWidth = 60
+-- 收集游戏数据（字段定义格式）
+local function CollectBinaryData()
+    local fields = {}
+
+    -- 格式: {index, type, value, name}
+    -- index: 字段序号
+    -- type: 数据类型 ("uint8", "uint16", "uint32")
+    -- value: 实际值
+    -- name: 字段名（用于文本显示）
+
+    -- 玩家基础属性
+    table.insert(fields, {1, "uint8", UnitLevel("player"), "P_LEVEL"})
+    table.insert(fields, {2, "uint16", UnitHealth("player"), "P_HP"})
+    table.insert(fields, {3, "uint16", UnitHealthMax("player"), "P_MAXHP"})
+    table.insert(fields, {4, "uint16", UnitMana("player"), "P_MANA"})
+    table.insert(fields, {5, "uint16", UnitManaMax("player"), "P_MAXMANA"})
+    table.insert(fields, {6, "uint16", UnitXP and UnitXP("player") or 0, "P_XP"})
+    table.insert(fields, {7, "uint16", UnitXPMax and UnitXPMax("player") or 0, "P_MAXXP"})
+
+    -- 目标信息
+    table.insert(fields, {10, "uint16", UnitHealth("target") or 0, "T_HP"})
+    table.insert(fields, {11, "uint16", UnitHealthMax("target") or 0, "T_MAXHP"})
+    table.insert(fields, {12, "uint8", UnitLevel("target") or 0, "T_LEVEL"})
+    table.insert(fields, {13, "uint8", (UnitExists("target") and UnitIsDead("target")) and 1 or 0, "T_DEAD"})
+
+    -- 背包信息
+    local usedSlots, totalSlots = GetBagInfo()
+    table.insert(fields, {20, "uint8", usedSlots, "BAG_USED"})
+    table.insert(fields, {21, "uint8", totalSlots, "BAG_TOTAL"})
+
+    return fields
+end
+
+-- 将字段编码为字节数组
+local function EncodeDataToBytes(fields)
+    local bytes = {}
+
+    -- 按序号排序
+    table.sort(fields, function(a, b) return a[1] < b[1] end)
+
+    -- 遍历所有字段，根据类型编码
+    for i = 1, table.getn(fields) do
+        local field = fields[i]
+        local fieldType = field[2]
+        local value = field[3]
+
+        if fieldType == "uint8" then
+            AppendUInt8(bytes, value)
+        elseif fieldType == "uint16" then
+            AppendUInt16(bytes, value)
+        elseif fieldType == "uint32" then
+            AppendUInt32(bytes, value)
+        end
+    end
+
+    return bytes
+end
+
+-- 将字段格式化为可读文本
+local function FormatDataAsText(fields)
     local lines = {}
 
-    -- 第一行: CRC32
-    table.insert(lines, "CRC:" .. U.ToHex(crc32, 8))
+    -- 按序号排序
+    table.sort(fields, function(a, b) return a[1] < b[1] end)
 
-    -- 分割数据为多行，每行添加前缀 D1, D2, D3...
-    local offset = 1
-    local lineNum = 1
-    while offset <= string.len(allData) do
-        local remaining = string.len(allData) - offset + 1
-        local chunkSize = remaining
-        if chunkSize > lineWidth then
-            chunkSize = lineWidth
-        end
+    -- 遍历所有字段，格式化为文本
+    for i = 1, table.getn(fields) do
+        local field = fields[i]
+        local index = field[1]
+        local name = field[4]
+        local value = field[3]
 
-        local chunk = string.sub(allData, offset, offset + chunkSize - 1)
-        table.insert(lines, "D" .. lineNum .. ":" .. chunk)
-
-        offset = offset + chunkSize
-        lineNum = lineNum + 1
+        table.insert(lines, string.format("[%d] %s: %s", index, name, tostring(value)))
     end
 
     return table.concat(lines, "\n")
 end
 
--- 删除了 InitializeGrid() 和 RenderGrid() - 已被 FontString 方案替代
+-- 检查是否在角标记区域
+local function InCorner(row, col)
+    -- 左上角 3×3
+    if row <= 3 and col <= 3 then
+        return true
+    end
+    -- 右上角 3×3
+    if row <= 3 and col >= 30 then
+        return true
+    end
+    -- 左下角 3×3
+    if row >= 30 and col <= 3 then
+        return true
+    end
+    -- 右下角 3×3
+    if row >= 30 and col >= 30 then
+        return true
+    end
+    return false
+end
+
+-- 添加4个3×3角标记到网格
+local function AddCornerMarkers(grid)
+    -- 左上角
+    for row = 1, 3 do
+        for col = 1, 3 do
+            if not (row == 2 and col == 2) then
+                grid[row][col] = 1  -- 黑色边框
+            end
+        end
+    end
+
+    -- 右上角
+    for row = 1, 3 do
+        for col = 30, 32 do
+            if not (row == 2 and col == 31) then
+                grid[row][col] = 1
+            end
+        end
+    end
+
+    -- 左下角
+    for row = 30, 32 do
+        for col = 1, 3 do
+            if not (row == 31 and col == 2) then
+                grid[row][col] = 1
+            end
+        end
+    end
+
+    -- 右下角
+    for row = 30, 32 do
+        for col = 30, 32 do
+            if not (row == 31 and col == 31) then
+                grid[row][col] = 1
+            end
+        end
+    end
+end
+
+-- 将字节数组编码为32×32网格
+local function EncodeDataToGrid(bytes)
+    local grid = {}
+
+    -- 初始化32×32网格为0（白色）
+    for row = 1, 32 do
+        grid[row] = {}
+        for col = 1, 32 do
+            grid[row][col] = 0
+        end
+    end
+
+    -- 添加4个3×3角标记
+    AddCornerMarkers(grid)
+
+    -- 字节转位，填充到网格（跳过角标记区域）
+    local bitIndex = 1
+    for row = 1, 32 do
+        for col = 1, 32 do
+            if not InCorner(row, col) then
+                local byteIndex = math.floor((bitIndex - 1) / 8) + 1
+                if byteIndex <= table.getn(bytes) then
+                    local byte = bytes[byteIndex]
+                    local bitPos = math.mod(bitIndex - 1, 8)
+                    local bitValue = bit.band(bit.rshift(byte, 7 - bitPos), 1)
+                    grid[row][col] = bitValue
+                    bitIndex = bitIndex + 1
+                end
+            end
+        end
+    end
+
+    return grid
+end
+
+-- 渲染网格为FontString
+local function RenderDataGrid(grid)
+    local gridFrame = DataToText_GridFrame
+    if not gridFrame then
+        return
+    end
+
+    -- 确保 GridFrame 可见
+    gridFrame:Show()
+
+    -- 清理旧的 FontString 对象
+    for i = 1, table.getn(testGridTextStrings) do
+        if testGridTextStrings[i] then
+            testGridTextStrings[i]:Hide()
+        end
+    end
+    testGridTextStrings = {}
+
+    -- 渲染参数
+    local CHAR_BLOCK = "█"
+    local FONT_SIZE_GRID = 8
+    local LINE_SPACING = 8.5
+    local COLOR_WHITE = "|cFFFFFFFF"  -- 白色（数据位1）
+    local COLOR_BLACK = "|cFF000000"  -- 黑色（数据位0）
+    local COLOR_RESET = "|r"
+
+    -- 逐行生成 FontString
+    for row = 1, 32 do
+        local rowText = ""
+        for col = 1, 32 do
+            -- 为每个字符添加颜色代码（1=白色，0=黑色）
+            if grid[row][col] == 1 then
+                rowText = rowText .. COLOR_WHITE .. CHAR_BLOCK .. COLOR_RESET
+            else
+                rowText = rowText .. COLOR_BLACK .. CHAR_BLOCK .. COLOR_RESET
+            end
+        end
+
+        -- 创建 FontString
+        local fontString = gridFrame:CreateFontString(nil, "OVERLAY")
+        fontString:SetFont(FONT_PATH, FONT_SIZE_GRID, "MONOCHROME")
+        fontString:SetText(rowText)
+        fontString:SetJustifyH("LEFT")
+        fontString:SetJustifyV("TOP")
+        fontString:SetPoint("TOPLEFT", gridFrame, "TOPLEFT", 5, -5 - (row - 1) * LINE_SPACING)
+        fontString:Show()
+
+        table.insert(testGridTextStrings, fontString)
+    end
+end
 
 ----------------------------------------------------------------------------
 -- FontString 字符网格测试（性能优化方案）
@@ -277,13 +458,18 @@ local function UpdateDisplay()
         return
     end
 
-    -- 使用EditBox显示数据（文本格式）
-    DataToText_DataEditBox:SetText(GetAllData())
-    -- 设置为只读（禁用编辑）
+    -- 收集字段数据（单一数据源）
+    local fields = CollectBinaryData()
+
+    -- 更新EditBox（文本显示）
+    DataToText_DataEditBox:SetText(FormatDataAsText(fields))
     DataToText_DataEditBox:SetAutoFocus(false)
     DataToText_DataEditBox:ClearFocus()
 
-    -- 注意：网格渲染已移除，使用 /dtt gridtext 手动触发 FontString 网格显示
+    -- 更新二维码（二进制网格显示）
+    local bytes = EncodeDataToBytes(fields)
+    local grid = EncodeDataToGrid(bytes)
+    RenderDataGrid(grid)
 end
 
 -- Slash commands
@@ -303,7 +489,7 @@ SlashCmdList["DATATOTEXT"] = function(msg)
         -- 运行CRC32测试
         T.TestCRC32()
     elseif msg == "testgridtext" or msg == "gridtext" or msg == "grid" then
-        -- 测试 FontString 字符网格（性能优化方案）
+        -- 测试 FontString 字符网格（显示测试图案：角标记+对角线）
         TestGridText()
     elseif msg == "" then
         -- 切换显示
@@ -317,11 +503,11 @@ SlashCmdList["DATATOTEXT"] = function(msg)
     else
         -- 显示帮助
         DataToText_Print("可用命令:")
-        DataToText_Print("  /dtt - 切换显示")
+        DataToText_Print("  /dtt - 切换显示（自动刷新文本和二维码）")
         DataToText_Print("  /dtt test - 运行所有单元测试")
         DataToText_Print("  /dtt utf8 - 运行UTF-8编码测试")
         DataToText_Print("  /dtt crc32 - 运行CRC32校验测试")
-        DataToText_Print("  /dtt grid 或 /dtt gridtext - 显示字符网格")
+        DataToText_Print("  /dtt grid - 显示测试图案（角标记+对角线）")
     end
 end
 

@@ -99,37 +99,64 @@
   - ✅ 发现 Texture 方案性能瓶颈：4225 个对象导致 60fps → 30fps
   - ✅ 删除所有 Texture/GridEncoder 相关代码
   - ✅ 实现 FontString + 二维码字符方案：
-    - 字符：█ (U+2588 实心方块) = 黑色，空格 = 白色
-    - 字体：WoW 默认字体 (FRIZQT__.TTF), 10px, MONOCHROME
+    - 字符：█ (U+2588 实心方块)，通过颜色代码区分黑白
+    - 颜色：|cFFFFFFFF (白色) = 数据位1，|cFF000000 (黑色) = 数据位0
+    - 字体：Tiny-Bold.ttf, 8px, MONOCHROME
     - 布局：32×32 网格，每行一个 FontString（共 32 个对象）
-    - 显示：白色方块在黑色背景上，标准二维码样式
   - ✅ 测试图案：4个 3×3 角标记 + 对角线
-  - ✅ 添加 `/dtt grid` 命令
+  - ✅ 添加 `/dtt grid` 命令显示测试图案
   - ✅ 游戏内测试通过，显示正常
   - 📊 **性能提升**: 对象数量 4225 → 32（减少 99.2%）
-  - 🎯 **下一步**: CoreTests 解码器验证识别准确率
+
+- [x] **步骤10**: 实现基于字段定义的数据编码系统
+  - ✅ 添加 `GetBagInfo()` 辅助函数
+  - ✅ 添加字节编码函数：`AppendUInt8`, `AppendUInt16`, `AppendUInt32`
+  - ✅ 实现 `CollectBinaryData()` - 收集13个游戏数据字段
+    - 玩家：Level(uint8), HP(uint16), MaxHP(uint16), Mana(uint16), MaxMana(uint16), XP(uint16), MaxXP(uint16)
+    - 目标：HP(uint16), MaxHP(uint16), Level(uint8), Dead(uint8)
+    - 背包：UsedSlots(uint8), TotalSlots(uint8)
+  - ✅ 实现 `EncodeDataToBytes()` - 通用编码器，根据字段类型自动编码
+  - ✅ 实现 `FormatDataAsText()` - 将字段格式化为可读文本
+  - ✅ 实现 `InCorner()` 和 `AddCornerMarkers()` - 3×3 角标记定位
+  - ✅ 实现 `EncodeDataToGrid()` - 字节数组 → 32×32 二进制网格
+  - ✅ 实现 `RenderDataGrid()` - 渲染网格为 FontString 显示
+  - ✅ 重构 `GetAllData()` 使用新的字段系统
+  - ✅ 集成到 `UpdateDisplay()` - 自动刷新文本和二维码
+  - ✅ 数据容量：19 bytes (13个字段) / 123 bytes 可用容量
+  - 🎯 **架构优势**: 添加新字段只需在 CollectBinaryData() 中添加一行
 
 ### ⏳ 进行中
 
-- [ ] **步骤10**: 实现 C# 端网格解码器 (CoreTests)
-  - 在 CoreTests 中创建 Test_GridTextDecoder.cs
-  - 使用 WowScreenDXGI.ScreenImage 捕获屏幕
-  - 识别 █ 字符和空格，提取二维码数据
-  - 验证 3×3 角标记识别准确率
-  - 输出识别报告和调试信息
-  - 🎯 **目标**: 验证 FontString 方案可行性（识别率 > 95%）
+- [ ] **步骤11**: 游戏内测试真实数据二维码显示
+  - 在游戏中运行 `/reload` 重载插件
+  - 运行 `/dtt` 打开界面
+  - 验证左侧二维码显示正确（4个角标记 + 数据）
+  - 验证右侧文本显示正确（13个字段）
+  - 测试 Pause 按钮功能
+  - 截图保存，用于 C# 解码器测试
+  - 🎯 **目标**: 验证 Lua 端编码系统正常工作
 
 ### 📋 待执行
 
-- [ ] **步骤11**: 根据解码器测试结果扩展网格
-  - 如果测试成功：扩展到 48×48 或 65×65 网格
-  - 集成真实游戏数据编码（替代测试图案）
-  - 实现完整的数据打包和解包逻辑
+- [ ] **步骤12**: 实现 C# 端网格解码器 (CoreTests)
+  - 在 CoreTests 中创建 Test_GridTextDecoder.cs
+  - 使用 WowScreenDXGI.ScreenImage 捕获屏幕
+  - 识别 █ 字符颜色，提取二维码数据
+  - 验证 3×3 角标记识别准确率
+  - 解码字节数组并还原为字段值
+  - 输出识别报告和调试信息
+  - 🎯 **目标**: 验证 FontString 方案可行性（识别率 > 95%）
 
-- [ ] **步骤12**: 逐步完善数据收集（低优先级）
+- [ ] **步骤13**: 根据解码器测试结果扩展功能
+  - 如果测试成功：扩展到 48×48 或 65×65 网格
+  - 添加更多游戏数据字段（参考 DATATOCOLOR_FIELDS.md）
+  - 优化字体渲染参数（字体大小、行间距）
+  - 实现错误校验（CRC8 或奇偶校验）
+
+- [ ] **步骤14**: 逐步完善数据收集（低优先级）
   - 参考 DataToColor.lua 实现更多字段
-  - 优先级：战斗数据（技能冷却、Buff/Debuff、GCD）
-  - 中优先级：动作条状态、宠物信息、战斗日志
+  - 高优先级：战斗数据（目标GUID、Buff/Debuff、技能冷却）
+  - 中优先级：动作条状态、宠物信息、组队信息
   - 低优先级：法术书、天赋、Gossip 对话
 
 ### ❌ 已跳过
@@ -146,11 +173,16 @@
 ### 当前版本架构
 - **主文件**: `DataToText.lua` (主逻辑) + `DataToText.xml` (UI定义)
 - **工具库**: `Utils.lua` (工具函数) + `Tests.lua` (测试套件)
-- **字体**: Tiny-Bold.ttf, 12px, MONOCHROME
+- **字体**:
+  - 文本显示：Tiny-Bold.ttf, 12px, MONOCHROME
+  - 二维码网格：Tiny-Bold.ttf, 8px, MONOCHROME
 - **更新频率**: 0.1秒 (10 FPS)
-- **显示方式**: EditBox (多行输入框，支持文本选择和复制)
-- **显示内容**: 玩家数据、目标数据、背包数据
+- **显示方式**:
+  - 左侧：32×32 二维码网格 (FontString 渲染)
+  - 右侧：EditBox 文本显示 (支持文本选择和复制)
+- **显示内容**: 13个字段（玩家、目标、背包数据）
 - **控制按钮**: Pause/Resume (暂停/恢复数据刷新), Close (关闭窗口)
+- **数据编码**: 基于字段定义的自动编码系统
 
 ### 文件加载顺序 (DataToText.toc)
 ```
@@ -246,6 +278,73 @@ DataToText.xml
 - 使用 `bit.bxor`, `bit.lshift`, `bit.band` 实现
 - 检测位: 0x80 (128)
 
+### 二维码编码系统 (FontString 方案)
+
+✅ **当前实现**: 基于字段定义的自动编码系统
+
+**编码流程**:
+```
+CollectBinaryData() → fields array
+    ├─ 字段格式: {index, type, value, name}
+    ├─ 13个字段 (19 bytes)
+    └─ 可扩展到 123 bytes (988 bits)
+
+EncodeDataToBytes(fields) → byte array
+    ├─ 按 index 排序
+    ├─ 根据 type 自动选择编码函数
+    │   ├─ uint8: 1 byte
+    │   ├─ uint16: 2 bytes (Big-endian)
+    │   └─ uint32: 4 bytes (Big-endian)
+    └─ 返回字节数组
+
+EncodeDataToGrid(bytes) → 32×32 binary grid
+    ├─ 添加 4× 3×3 角标记 (36 bits)
+    ├─ 字节转为位，逐行填充（跳过角标记）
+    └─ 0=黑色, 1=白色
+
+RenderDataGrid(grid) → FontString display
+    ├─ 32 个 FontString 对象 (每行一个)
+    ├─ 字符: █ (U+2588 实心方块)
+    ├─ 颜色: |cFFFFFFFF (白色) / |cFF000000 (黑色)
+    └─ 字体: Tiny-Bold.ttf, 8px, MONOCHROME
+```
+
+**数据容量**:
+- **总容量**: 32×32 = 1024 bits
+- **角标记**: 4× 3×3 = 36 bits
+- **可用容量**: 1024 - 36 = 988 bits = 123 bytes
+- **当前使用**: 19 bytes (13个字段)
+- **剩余容量**: 104 bytes (可扩展)
+
+**字段定义示例**:
+```lua
+-- 在 CollectBinaryData() 中添加新字段只需一行
+table.insert(fields, {1, "uint8", UnitLevel("player"), "P_LEVEL"})
+table.insert(fields, {2, "uint16", UnitHealth("player"), "P_HP"})
+-- 序号可以不连续（预留空间给未来字段）
+table.insert(fields, {10, "uint16", UnitHealth("target") or 0, "T_HP"})
+```
+
+**角标记格式**:
+```
+左上角 (1,1)-(3,3):     右上角 (1,30)-(3,32):
+█ █ █                   █ █ █
+█ ░ █                   █ ░ █
+█ █ █                   █ █ █
+
+左下角 (30,1)-(32,3):   右下角 (30,30)-(32,32):
+█ █ █                   █ █ █
+█ ░ █                   █ ░ █
+█ █ █                   █ █ █
+```
+
+**性能对比**:
+| 方案 | 对象数量 | 预期帧率 | 实测帧率 |
+|------|----------|----------|----------|
+| Texture 方案 | 4225 | 30 FPS | ~30 FPS |
+| FontString 方案 | 32 | 50+ FPS | 待测试 |
+| 对象减少 | -99.2% | +66% | - |
+
 ### 最终显示格式 (全局 CRC32 + 固定行宽)
 
 ✅ **当前格式**: 全局 CRC32 校验 + 固定行宽换行
@@ -304,6 +403,23 @@ D4:USED:A/10|BAG_FREE:6
 
 ## 🔄 更新日志
 
+### [1.3.0] - 2025-01-13
+- ✅ **实现基于字段定义的数据编码系统**
+- ✅ 添加字节编码函数：AppendUInt8, AppendUInt16, AppendUInt32
+- ✅ 实现 CollectBinaryData() - 收集13个游戏数据字段
+  - 玩家：Level(uint8), HP(uint16), MaxHP(uint16), Mana(uint16), MaxMana(uint16), XP(uint16), MaxXP(uint16)
+  - 目标：HP(uint16), MaxHP(uint16), Level(uint8), Dead(uint8)
+  - 背包：UsedSlots(uint8), TotalSlots(uint8)
+- ✅ 实现 EncodeDataToBytes() - 通用编码器，根据字段类型自动编码
+- ✅ 实现 FormatDataAsText() - 将字段格式化为可读文本
+- ✅ 实现 InCorner() 和 AddCornerMarkers() - 3×3 角标记定位
+- ✅ 实现 EncodeDataToGrid() - 字节数组 → 32×32 二进制网格
+- ✅ 实现 RenderDataGrid() - 渲染网格为 FontString 显示
+- ✅ 重构 UpdateDisplay() - 集成文本和二维码自动刷新
+- ✅ 数据容量：19 bytes (当前) / 123 bytes (可用容量)
+- 🎯 **架构优势**: 添加新字段只需在 CollectBinaryData() 中添加一行
+- 🎯 **下一步**: 游戏内测试真实数据二维码显示
+
 ### [1.2.0] - 2025-01-13
 - ✅ **FontString 二维码方案（替代 Texture）**
 - ✅ 删除 Texture 方案所有代码（性能问题：60fps → 30fps）
@@ -311,15 +427,14 @@ D4:USED:A/10|BAG_FREE:6
   - 删除 InitializeGrid()、RenderGrid()、CollectAllFieldData()
   - 删除 4225 个 Texture 对象创建逻辑
 - ✅ 实现 FontString + 二维码字符方案
-  - 使用 █ (U+2588 实心方块) 代表黑色，空格代表白色
-  - 使用 WoW 默认字体 (FRIZQT__.TTF), 10px, MONOCHROME
+  - 使用 █ (U+2588 实心方块)，通过颜色代码区分黑白
+  - 颜色：|cFFFFFFFF (白色) = 数据位1，|cFF000000 (黑色) = 数据位0
+  - 字体：Tiny-Bold.ttf, 8px, MONOCHROME
   - 32×32 网格，每行一个 FontString（共 32 个对象）
-  - 白色方块在黑色背景上，标准二维码样式
 - ✅ 测试图案：4个 3×3 角标记 + 对角线
-- ✅ `/dtt grid` 命令统一触发 FontString 网格
+- ✅ `/dtt grid` 命令触发测试图案显示
 - ✅ 游戏内测试通过，显示正常
 - 📊 **性能提升**: 对象数量 4225 → 32（减少 99.2%）
-- 🎯 **下一步**: CoreTests C# 解码器验证识别准确率
 
 ### [1.1.0] - 2025-01-13 (已废弃)
 - ❌ Texture 黑白网格编码系统（因性能问题已删除）
