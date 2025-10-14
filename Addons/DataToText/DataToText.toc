@@ -15,6 +15,7 @@ libs\LibDBIcon-1.0.lua
 
 # 工具函数和测试
 Utils.lua
+GridEncoder.lua
 Tests.lua
 
 # 主文件
