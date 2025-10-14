@@ -24,6 +24,11 @@ local isPaused = false
 -- FontString 网格状态
 local testGridTextStrings = {}  -- 存储 FontString 对象
 
+-- 性能监控
+local enableProfiling = false  -- 是否启用性能分析
+local profileData = {}  -- 性能数据累积
+local profileCount = 0  -- 采样次数
+
 -- Print helper
 local function DataToText_Print(msg)
     if not DEFAULT_CHAT_FRAME then
@@ -60,6 +65,48 @@ local function GetAllData()
 end
 
 -- 删除了 InitializeGrid() 和 RenderGrid() - 已被 FontString 方案替代
+
+----------------------------------------------------------------------------
+-- 性能分析工具
+----------------------------------------------------------------------------
+
+-- 重置性能数据
+local function ResetProfileData()
+    profileData = {
+        CollectBinaryData = 0,
+        FormatDataAsText = 0,
+        EncodeDataToBytes = 0,
+        EncodeDataToGrid = 0,
+        RenderDataGrid = 0,
+        Total = 0
+    }
+    profileCount = 0
+end
+
+-- 显示性能报告
+local function ShowProfileReport()
+    if profileCount == 0 then
+        DataToText_Print("性能分析：没有数据")
+        return
+    end
+
+    DataToText_Print("=== 性能分析报告 (采样次数: " .. profileCount .. ") ===")
+
+    local avgTotal = profileData.Total / profileCount * 1000
+    local avgCollect = profileData.CollectBinaryData / profileCount * 1000
+    local avgFormat = profileData.FormatDataAsText / profileCount * 1000
+    local avgEncode = profileData.EncodeDataToBytes / profileCount * 1000
+    local avgGrid = profileData.EncodeDataToGrid / profileCount * 1000
+    local avgRender = profileData.RenderDataGrid / profileCount * 1000
+
+    DataToText_Print(string.format("总耗时: %.2f ms", avgTotal))
+    DataToText_Print(string.format("  CollectBinaryData: %.2f ms (%.1f%%)", avgCollect, avgCollect/avgTotal*100))
+    DataToText_Print(string.format("  FormatDataAsText: %.2f ms (%.1f%%)", avgFormat, avgFormat/avgTotal*100))
+    DataToText_Print(string.format("  EncodeDataToBytes: %.2f ms (%.1f%%)", avgEncode, avgEncode/avgTotal*100))
+    DataToText_Print(string.format("  EncodeDataToGrid: %.2f ms (%.1f%%)", avgGrid, avgGrid/avgTotal*100))
+    DataToText_Print(string.format("  RenderDataGrid: %.2f ms (%.1f%%)", avgRender, avgRender/avgTotal*100))
+    DataToText_Print(string.format("预计帧率影响: %.1f FPS", 1 / avgTotal * 1000))
+end
 
 ----------------------------------------------------------------------------
 -- 基于字段定义的数据编码系统
@@ -276,7 +323,7 @@ local function EncodeDataToGrid(bytes)
     return grid
 end
 
--- 渲染网格为FontString
+-- 渲染网格为FontString（优化版：重用对象）
 local function RenderDataGrid(grid)
     local gridFrame = DataToText_GridFrame
     if not gridFrame then
@@ -286,14 +333,6 @@ local function RenderDataGrid(grid)
     -- 确保 GridFrame 可见
     gridFrame:Show()
 
-    -- 清理旧的 FontString 对象
-    for i = 1, table.getn(testGridTextStrings) do
-        if testGridTextStrings[i] then
-            testGridTextStrings[i]:Hide()
-        end
-    end
-    testGridTextStrings = {}
-
     -- 渲染参数
     local CHAR_BLOCK = "█"
     local FONT_SIZE_GRID = 8
@@ -302,28 +341,45 @@ local function RenderDataGrid(grid)
     local COLOR_BLACK = "|cFF000000"  -- 黑色（数据位0）
     local COLOR_RESET = "|r"
 
-    -- 逐行生成 FontString
+    -- 如果 FontString 对象尚未创建，则创建它们（只创建一次）
+    if table.getn(testGridTextStrings) == 0 then
+        for row = 1, 32 do
+            local fontString = gridFrame:CreateFontString(nil, "OVERLAY")
+            fontString:SetFont(FONT_PATH, FONT_SIZE_GRID, "MONOCHROME")
+            fontString:SetJustifyH("LEFT")
+            fontString:SetJustifyV("TOP")
+            fontString:SetPoint("TOPLEFT", gridFrame, "TOPLEFT", 5, -5 - (row - 1) * LINE_SPACING)
+            table.insert(testGridTextStrings, fontString)
+        end
+    end
+
+    -- 更新每行的文本内容（重用现有对象 + 优化字符串拼接）
+    local rowChars = {}  -- 重用table减少内存分配
     for row = 1, 32 do
-        local rowText = ""
+        -- 清空table
+        for i = 1, table.getn(rowChars) do
+            rowChars[i] = nil
+        end
+
+        -- 使用table存储字符，避免字符串重复拼接
+        local idx = 1
         for col = 1, 32 do
             -- 为每个字符添加颜色代码（1=白色，0=黑色）
             if grid[row][col] == 1 then
-                rowText = rowText .. COLOR_WHITE .. CHAR_BLOCK .. COLOR_RESET
+                rowChars[idx] = COLOR_WHITE
+                rowChars[idx + 1] = CHAR_BLOCK
+                rowChars[idx + 2] = COLOR_RESET
             else
-                rowText = rowText .. COLOR_BLACK .. CHAR_BLOCK .. COLOR_RESET
+                rowChars[idx] = COLOR_BLACK
+                rowChars[idx + 1] = CHAR_BLOCK
+                rowChars[idx + 2] = COLOR_RESET
             end
+            idx = idx + 3
         end
 
-        -- 创建 FontString
-        local fontString = gridFrame:CreateFontString(nil, "OVERLAY")
-        fontString:SetFont(FONT_PATH, FONT_SIZE_GRID, "MONOCHROME")
-        fontString:SetText(rowText)
-        fontString:SetJustifyH("LEFT")
-        fontString:SetJustifyV("TOP")
-        fontString:SetPoint("TOPLEFT", gridFrame, "TOPLEFT", 5, -5 - (row - 1) * LINE_SPACING)
-        fontString:Show()
-
-        table.insert(testGridTextStrings, fontString)
+        -- 一次性拼接字符串
+        testGridTextStrings[row]:SetText(table.concat(rowChars))
+        testGridTextStrings[row]:Show()
     end
 end
 
@@ -458,18 +514,52 @@ local function UpdateDisplay()
         return
     end
 
+    local t0, t1, t2, t3, t4, t5
+    if enableProfiling then
+        t0 = GetTime()
+    end
+
     -- 收集字段数据（单一数据源）
     local fields = CollectBinaryData()
+
+    if enableProfiling then
+        t1 = GetTime()
+        profileData.CollectBinaryData = profileData.CollectBinaryData + (t1 - t0)
+    end
 
     -- 更新EditBox（文本显示）
     DataToText_DataEditBox:SetText(FormatDataAsText(fields))
     DataToText_DataEditBox:SetAutoFocus(false)
     DataToText_DataEditBox:ClearFocus()
 
+    if enableProfiling then
+        t2 = GetTime()
+        profileData.FormatDataAsText = profileData.FormatDataAsText + (t2 - t1)
+    end
+
     -- 更新二维码（二进制网格显示）
     local bytes = EncodeDataToBytes(fields)
+
+    if enableProfiling then
+        t3 = GetTime()
+        profileData.EncodeDataToBytes = profileData.EncodeDataToBytes + (t3 - t2)
+    end
+
     local grid = EncodeDataToGrid(bytes)
+
+    if enableProfiling then
+        t4 = GetTime()
+        profileData.EncodeDataToGrid = profileData.EncodeDataToGrid + (t4 - t3)
+    end
+
     RenderDataGrid(grid)
+
+    if enableProfiling then
+        t5 = GetTime()
+        profileData.RenderDataGrid = profileData.RenderDataGrid + (t5 - t4)
+        profileData.Total = profileData.Total + (t5 - t0)
+        profileCount = profileCount + 1
+    end
 end
 
 -- Slash commands
@@ -491,6 +581,18 @@ SlashCmdList["DATATOTEXT"] = function(msg)
     elseif msg == "testgridtext" or msg == "gridtext" or msg == "grid" then
         -- 测试 FontString 字符网格（显示测试图案：角标记+对角线）
         TestGridText()
+    elseif msg == "profile" or msg == "perf" then
+        -- 切换性能分析
+        enableProfiling = not enableProfiling
+        if enableProfiling then
+            ResetProfileData()
+            DataToText_Print("✅ 性能分析已启用 - 10秒后运行 /dtt report 查看报告")
+        else
+            DataToText_Print("❌ 性能分析已禁用")
+        end
+    elseif msg == "report" then
+        -- 显示性能报告
+        ShowProfileReport()
     elseif msg == "" then
         -- 切换显示
         if DataToTextFrame:IsShown() then
@@ -504,6 +606,8 @@ SlashCmdList["DATATOTEXT"] = function(msg)
         -- 显示帮助
         DataToText_Print("可用命令:")
         DataToText_Print("  /dtt - 切换显示（自动刷新文本和二维码）")
+        DataToText_Print("  /dtt profile - 启用/禁用性能分析")
+        DataToText_Print("  /dtt report - 显示性能分析报告")
         DataToText_Print("  /dtt test - 运行所有单元测试")
         DataToText_Print("  /dtt utf8 - 运行UTF-8编码测试")
         DataToText_Print("  /dtt crc32 - 运行CRC32校验测试")
