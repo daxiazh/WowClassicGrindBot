@@ -1,8 +1,8 @@
 ## Interface: 11200
 ## Title: DataToText
-## Notes: OCR-friendly data display
+## Notes: OCR-friendly data display with 65x65 grid encoding
 ## Author: WowClassicGrindBot
-## Version: 1.0.1
+## Version: 2.0.0
 ## SavedVariables: DataToTextDB, DataToTextIcon
 
 # 第三方库
@@ -15,8 +15,12 @@ libs\LibDBIcon-1.0.lua
 
 # 工具函数和测试
 Utils.lua
-GridEncoder.lua
 Tests.lua
+
+# 数据收集和编码模块（按依赖顺序加载）
+FieldCollector.lua
+GridEncoder.lua
+GridRenderer.lua
 
 # 主文件
 DataToText.xml

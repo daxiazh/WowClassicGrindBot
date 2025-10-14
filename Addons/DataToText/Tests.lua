@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------------
 --  DataToText - 测试函数
---  包含所有单元测试和自动化测试
+--  包含单元测试和环境检测
 ----------------------------------------------------------------------------
 
 -- 创建命名空间
@@ -21,39 +21,6 @@ end
 ----------------------------------------------------------------------------
 -- 工具函数测试
 ----------------------------------------------------------------------------
-
--- 测试十六进制转换函数
-function T.TestHexConversion()
-    local tests = {
-        {name = "ToHex(255, 2)", func = function() return U.ToHex(255, 2) end, expected = "FF"},
-        {name = "ToHex(16, 4)", func = function() return U.ToHex(16, 4) end, expected = "0010"},
-        {name = "ToHex(0, 2)", func = function() return U.ToHex(0, 2) end, expected = "00"},
-        {name = "ToHex(4095, 4)", func = function() return U.ToHex(4095, 4) end, expected = "0FFF"},
-        {name = "FromHex('FF')", func = function() return U.FromHex("FF") end, expected = 255},
-        {name = "FromHex('0010')", func = function() return U.FromHex("0010") end, expected = 16},
-        {name = "FromHex('00')", func = function() return U.FromHex("00") end, expected = 0},
-        {name = "FromHex('0FFF')", func = function() return U.FromHex("0FFF") end, expected = 4095},
-    }
-
-    local passed = 0
-    local failed = 0
-
-    Print("===== 十六进制转换测试 =====")
-
-    for _, test in ipairs(tests) do
-        local result = test.func()
-        if result == test.expected then
-            passed = passed + 1
-            Print("✓ " .. test.name .. " = " .. tostring(result))
-        else
-            failed = failed + 1
-            Print("✗ " .. test.name .. " | 期望: " .. tostring(test.expected) .. ", 实际: " .. tostring(result))
-        end
-    end
-
-    Print("结果: " .. passed .. " 通过, " .. failed .. " 失败")
-    return failed == 0
-end
 
 -- 测试字符串处理函数
 function T.TestStringUtils()
@@ -98,8 +65,7 @@ function T.TestBitLibrary()
         -- 测试各个函数
         local functions = {
             "band", "bor", "bxor", "bnot",
-            "lshift", "rshift", "arshift",
-            "rol", "ror", "bswap"
+            "lshift", "rshift", "arshift"
         }
 
         for _, funcName in ipairs(functions) do
@@ -141,112 +107,9 @@ function T.TestBitLibrary()
         return testPassed
     else
         Print("✗ 全局 'bit' 库不可用")
-
-        -- 检测 bit32 库 (Lua 5.2+)
-        if bit32 then
-            Print("✓ 'bit32' 库可用（Lua 5.2+）")
-            return true
-        else
-            Print("✗ 'bit32' 库也不可用")
-        end
-
-        -- 检测取模操作符（使用math.fmod或math.mod）
-        local hasModulo = false
-        if math.fmod then
-            local result = math.fmod(10, 3)
-            if result == 1 then
-                Print("✓ math.fmod 函数可用")
-                hasModulo = true
-            end
-        elseif math.mod then
-            local result = math.mod(10, 3)
-            if result == 1 then
-                Print("✓ math.mod 函数可用")
-                hasModulo = true
-            end
-        end
-
-        if not hasModulo then
-            Print("✗ 取模函数不可用")
-        end
-
-        -- 检测 math.mod
-        if math.mod then
-            Print("✓ math.mod 函数可用")
-        else
-            Print("✗ math.mod 函数不可用")
-        end
-
-        Print("结论: 需要实现自定义位运算兼容层")
+        Print("结论: WoW 1.12 Vanilla 需要 bit 库支持")
         return false
     end
-end
-
-----------------------------------------------------------------------------
--- UTF-8 编码测试
-----------------------------------------------------------------------------
-
--- 测试 UTF-8 编码功能
-function T.TestUTF8Encoding()
-    Print("===== UTF-8 编码测试 =====")
-
-    local passed = 0
-    local failed = 0
-
-    -- 测试1: 空字符串
-    local result = U.EncodeNameHex("")
-    if result == "0000" then
-        Print("✓ EncodeNameHex('') = '0000'")
-        passed = passed + 1
-    else
-        Print("✗ EncodeNameHex('') | 期望: '0000', 实际: '" .. result .. "'")
-        failed = failed + 1
-    end
-
-    -- 测试2: 简单ASCII字符串
-    local ascii = "ABC"
-    local asciiBytes = U.EncodeUTF8String(ascii)
-    if table.getn(asciiBytes) == 3 and asciiBytes[1] == 65 and asciiBytes[2] == 66 and asciiBytes[3] == 67 then
-        Print("✓ EncodeUTF8String('ABC') = {65, 66, 67}")
-        passed = passed + 1
-    else
-        Print("✗ EncodeUTF8String('ABC') 字节数组错误")
-        failed = failed + 1
-    end
-
-    -- 测试3: CRC8 计算
-    local testBytes = {65, 66, 67}  -- "ABC"
-    local crc = U.CalculateCRC8(testBytes)
-    Print("  CalculateCRC8({65,66,67}) = " .. crc .. " (0x" .. U.ToHex(crc, 2) .. ")")
-    passed = passed + 1
-
-    -- 测试4: 完整编码 "ABC"
-    local encoded = U.EncodeNameHex("ABC")
-    local expectedCRC = string.sub(encoded, 1, 2)
-    if string.len(encoded) >= 2 then
-        Print("✓ EncodeNameHex('ABC') CRC8 = " .. expectedCRC)
-        passed = passed + 1
-    else
-        Print("✗ EncodeNameHex('ABC') 编码失败")
-        failed = failed + 1
-    end
-
-    -- 测试5: 显示完整编码结果
-    Print("  完整编码: '" .. encoded .. "'")
-    Print("    CRC8: " .. string.sub(encoded, 1, 2))
-    Print("    字节: " .. string.sub(encoded, 3))
-
-    -- 测试6: 中文字符编码（如果有中文输入的话）
-    local chineseName = "测试"
-    local chineseEncoded = U.EncodeNameHex(chineseName)
-    local chineseBytes = U.EncodeUTF8String(chineseName)
-    Print("  中文测试: '" .. chineseName .. "'")
-    Print("    字节数: " .. table.getn(chineseBytes))
-    Print("    编码: " .. chineseEncoded)
-    passed = passed + 1
-
-    Print("结果: " .. passed .. " 通过, " .. failed .. " 失败")
-    return failed == 0
 end
 
 ----------------------------------------------------------------------------
@@ -272,7 +135,7 @@ function T.TestCRC32()
 
     -- 测试2: 简单字符串 "ABC"
     local crc1 = U.CalculateCRC32("ABC")
-    Print("  CalculateCRC32('ABC') = " .. crc1 .. " (0x" .. U.ToHex(crc1, 8) .. ")")
+    Print("  CalculateCRC32('ABC') = " .. crc1)
     passed = passed + 1
 
     -- 测试3: 不同的字符串应该有不同的 CRC32
@@ -285,19 +148,134 @@ function T.TestCRC32()
         failed = failed + 1
     end
 
-    -- 测试4: 游戏数据格式示例
-    local gameData = "P_HP:1F4/3E8|P_MANA:12C/1F4|P_LEVEL:A|T_NAME:E6B58BEBAF95"
-    local crc3 = U.CalculateCRC32(gameData)
-    Print("  游戏数据 CRC32 = " .. U.ToHex(crc3, 8))
-    passed = passed + 1
-
-    -- 测试5: 相同字符串应该产生相同的 CRC32
-    local crc4 = U.CalculateCRC32("ABC")
-    if crc1 == crc4 then
+    -- 测试4: 相同字符串应该产生相同的 CRC32
+    local crc3 = U.CalculateCRC32("ABC")
+    if crc1 == crc3 then
         Print("✓ 相同字符串产生相同 CRC32")
         passed = passed + 1
     else
         Print("✗ 相同字符串产生了不同的 CRC32")
+        failed = failed + 1
+    end
+
+    -- 测试5: 长字符串
+    local longStr = string.rep("A", 328)  -- 328字节数据（与GridEncoder大小相同）
+    local crc4 = U.CalculateCRC32(longStr)
+    Print("  CalculateCRC32(328字节) = " .. crc4)
+    passed = passed + 1
+
+    Print("结果: " .. passed .. " 通过, " .. failed .. " 失败")
+    return failed == 0
+end
+
+----------------------------------------------------------------------------
+-- 数据收集测试
+----------------------------------------------------------------------------
+
+-- 测试字段收集器
+function T.TestFieldCollector()
+    Print("===== 字段收集器测试 =====")
+
+    local FC = DataToTextFieldCollector
+    if not FC then
+        Print("✗ FieldCollector 模块未加载")
+        return false
+    end
+
+    local passed = 0
+    local failed = 0
+
+    -- 测试1: 收集所有字段
+    local fields = FC.CollectAllFields()
+    if fields then
+        Print("✓ CollectAllFields() 成功")
+        passed = passed + 1
+    else
+        Print("✗ CollectAllFields() 失败")
+        failed = failed + 1
+        return false
+    end
+
+    -- 测试2: 检查字段数量
+    local fieldCount = FC.GetFieldCount()
+    if fieldCount == 108 then
+        Print("✓ GetFieldCount() = 108")
+        passed = passed + 1
+    else
+        Print("✗ GetFieldCount() | 期望: 108, 实际: " .. fieldCount)
+        failed = failed + 1
+    end
+
+    -- 测试3: 检查字段值范围
+    local outOfRange = 0
+    for i = 0, 107 do
+        local value = fields[i] or 0
+        if value < 0 or value > 16777215 then
+            outOfRange = outOfRange + 1
+        end
+    end
+
+    if outOfRange == 0 then
+        Print("✓ 所有字段值在 24-bit 范围内 (0-16777215)")
+        passed = passed + 1
+    else
+        Print("✗ " .. outOfRange .. " 个字段值超出范围")
+        failed = failed + 1
+    end
+
+    -- 测试4: 显示部分字段值（调试）
+    Print("  部分字段值示例:")
+    Print("    Field[0] (InitFlag): " .. (fields[0] or 0))
+    Print("    Field[5] (PlayerLevel): " .. (fields[5] or 0))
+    Print("    Field[11] (PlayerHP): " .. (fields[11] or 0))
+    Print("    Field[106] (GlobalTime): " .. (fields[106] or 0))
+
+    Print("结果: " .. passed .. " 通过, " .. failed .. " 失败")
+    return failed == 0
+end
+
+-- 测试网格编码器
+function T.TestGridEncoder()
+    Print("===== 网格编码器测试 =====")
+
+    local GE = DataToTextGridEncoder
+    if not GE then
+        Print("✗ GridEncoder 模块未加载")
+        return false
+    end
+
+    local passed = 0
+    local failed = 0
+
+    -- 测试1: 获取容量信息
+    local info = GE.GetCapacityInfo()
+    if info then
+        Print("✓ GetCapacityInfo() 成功")
+        Print("  网格尺寸: " .. info.gridSize .. "x" .. info.gridSize)
+        Print("  总容量: " .. info.capacityBits .. " bits (" .. info.capacityBytes .. " bytes)")
+        Print("  已使用: " .. info.usedBits .. " bits (" .. info.usedBytes .. " bytes)")
+        Print("  使用率: " .. string.format("%.1f%%", info.utilizationPercent))
+        passed = passed + 1
+    else
+        Print("✗ GetCapacityInfo() 失败")
+        failed = failed + 1
+    end
+
+    -- 测试2: 编码测试字段
+    local testFields = {}
+    for i = 0, 107 do
+        testFields[i] = i * 1000
+    end
+
+    local grid, stats = GE.EncodeToGrid(testFields)
+    if grid and stats then
+        Print("✓ EncodeToGrid() 成功")
+        Print("  总字段: " .. stats.totalFields)
+        Print("  总字节: " .. stats.totalBytes)
+        Print("  总位数: " .. stats.totalBits)
+        passed = passed + 1
+    else
+        Print("✗ EncodeToGrid() 失败")
         failed = failed + 1
     end
 
@@ -311,21 +289,18 @@ end
 
 function T.RunAllTests()
     Print("========================================")
-    Print("开始运行 DataToText 单元测试")
+    Print("开始运行 DataToText v2.0 单元测试")
     Print("========================================")
 
     local allPassed = true
 
-    -- 首先检测环境
+    -- 1. 环境检测
     Print("")
-    T.TestBitLibrary()
-
-    -- 运行各个测试套件
-    Print("")
-    if not T.TestHexConversion() then
+    if not T.TestBitLibrary() then
         allPassed = false
     end
 
+    -- 2. 工具函数测试
     Print("")
     if not T.TestStringUtils() then
         allPassed = false
@@ -333,6 +308,17 @@ function T.RunAllTests()
 
     Print("")
     if not T.TestCRC32() then
+        allPassed = false
+    end
+
+    -- 3. 模块测试
+    Print("")
+    if not T.TestFieldCollector() then
+        allPassed = false
+    end
+
+    Print("")
+    if not T.TestGridEncoder() then
         allPassed = false
     end
 
