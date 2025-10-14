@@ -173,7 +173,7 @@ local function TestGridText()
     local TEST_GRID_SIZE = 32  -- 32×32 测试网格
     local CHAR_BLOCK = "█"      -- U+2588 全方块（黑白都用这个字符，通过颜色区分）
     local FONT_SIZE_GRID = 8    -- 字体大小（像素）
-    local LINE_SPACING = 8      -- 行间距（像素，与字符宽度相同形成正方形）
+    local LINE_SPACING = 8.5    -- 行间距（像素，与字符宽度相同形成正方形）
     local CHAR_SPACING = 0      -- 字符间距（0表示紧密排列）
 
     -- WoW 颜色代码

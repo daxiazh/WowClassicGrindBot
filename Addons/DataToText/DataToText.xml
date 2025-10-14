@@ -93,7 +93,7 @@ xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interfac
         <Anchors>
           <Anchor point="TOPLEFT">
             <Offset>
-              <AbsDimension x="225" y="-35"/>
+              <AbsDimension x="320" y="-35"/>
             </Offset>
           </Anchor>
         </Anchors>
