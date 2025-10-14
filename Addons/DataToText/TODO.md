@@ -88,69 +88,49 @@
   - ✅ 暂停状态下可以选择和复制文本
   - ✅ 验证输出数据格式正确（使用 Node.js 验证 CRC32）
 
-- [x] **步骤8**: 实现黑白网格编码系统
-  - ✅ 评估数据容量：65×65 网格可容纳 108 字段（每字段 24 位）+ 15% 纠错
-  - ✅ 创建 Node.js 验证程序（grid_encoding_test.js, grid_capacity_test.js）
-  - ✅ 实现 GridEncoder.lua（网格编码器）
-    - 完整 108 个字段索引定义
-    - 位流打包和 CRC32 校验
-    - 15% XOR 奇偶校验纠错
-    - 3×3 角标记定位（4 个角）
-    - 65×65 网格布局生成
-  - ✅ 集成到 DataToText.lua
-    - CollectAllFieldData() 收集所有游戏数据
-    - InitializeGrid() 创建 4225 个像素帧（3×3 像素/单元）
-    - RenderGrid() 实时渲染黑白网格
-  - ✅ 更新 DataToText.xml 界面
-    - 添加 200×200 像素网格显示区域（左侧）
-    - 调整 EditBox 位置和宽度（右侧）
-  - ✅ 添加 `/dtt grid` 测试命令
-  - 🎯 **目标**: 消除颜色 gamma 敏感性，使用二值编码提高鲁棒性
-  - 📊 **格式**:
-    - 元数据（32 bits）：版本 + 字段数
-    - 数据（2592 bits）：108 字段 × 24 bits
-    - CRC32（32 bits）：IEEE 802.3 校验
-    - 纠错（~400 bits）：XOR 奇偶校验
-  - 🔍 **待测试**: 游戏内显示和 C# 端解码器
+- [x] ~~**步骤8**: Texture 黑白网格编码系统（已废弃）~~
+  - ❌ **已废弃**: 因严重性能问题（60fps → 30fps）被 FontString 方案替代
+  - 问题：4225 个 Texture 对象导致帧率下降 50%
+  - 已删除：GridEncoder.lua, InitializeGrid(), RenderGrid(), CollectAllFieldData()
+
+### ✅ 已完成 (续2)
+
+- [x] **步骤9**: FontString 字符网格方案（性能优化）
+  - ✅ 发现 Texture 方案性能瓶颈：4225 个对象导致 60fps → 30fps
+  - ✅ 删除所有 Texture/GridEncoder 相关代码
+  - ✅ 实现 FontString + 二维码字符方案：
+    - 字符：█ (U+2588 实心方块) = 黑色，空格 = 白色
+    - 字体：WoW 默认字体 (FRIZQT__.TTF), 10px, MONOCHROME
+    - 布局：32×32 网格，每行一个 FontString（共 32 个对象）
+    - 显示：白色方块在黑色背景上，标准二维码样式
+  - ✅ 测试图案：4个 3×3 角标记 + 对角线
+  - ✅ 添加 `/dtt grid` 命令
+  - ✅ 游戏内测试通过，显示正常
+  - 📊 **性能提升**: 对象数量 4225 → 32（减少 99.2%）
+  - 🎯 **下一步**: CoreTests 解码器验证识别准确率
 
 ### ⏳ 进行中
-
-- [x] **步骤9a**: 性能问题分析
-  - ✅ 发现性能瓶颈：4225 个 Texture 对象导致帧率从 60fps 降到 30fps
-  - ✅ 研究 DataToColor 的优化方案（Frame + SetBackdropColor + 缓存）
-  - ✅ 提出替代方案：使用 FontString + 特殊字符（█）显示网格
-  - 🎯 **目标**: 减少对象数量，从 4225 个降到 32-65 个（每行一个 FontString）
-  - 📊 **预期**: 帧率从 30fps 提升到 50fps+
-
-- [x] **步骤9b**: 实现 FontString 字符网格测试
-  - ✅ 创建 `TestGridText()` 函数生成 32×32 测试网格
-  - ✅ 使用 FontString + █ (U+2588 全方块) 字符显示
-  - ✅ 包含 3×3 角标记定位（黑色边框，中心白色）
-  - ✅ 添加对角线测试图案验证显示效果
-  - ✅ 添加 `/dtt gridtext` 命令触发测试
-  - ✅ 对象数量从 4225 降低到 32（每行一个 FontString）
-  - 🎯 **实现细节**:
-    - 字体: Tiny-Bold.ttf, 6px, MONOCHROME
-    - 字符: █ (黑色), ░ (白色/对比)
-    - 布局: 左对齐，逐行排列
-    - 测试图案: 4个角标记 + 中心对角线
-  - 📋 **待测试**: 游戏内性能和显示效果
 
 - [ ] **步骤10**: 实现 C# 端网格解码器 (CoreTests)
   - 在 CoreTests 中创建 Test_GridTextDecoder.cs
   - 使用 WowScreenDXGI.ScreenImage 捕获屏幕
-  - 自适应阈值二值化（SixLabors.ImageSharp）
-  - 定位标记检测和校正（查找 3×3 角标记）
-  - 网格数据提取和验证
-  - 输出识别准确率报告
+  - 识别 █ 字符和空格，提取二维码数据
+  - 验证 3×3 角标记识别准确率
+  - 输出识别报告和调试信息
+  - 🎯 **目标**: 验证 FontString 方案可行性（识别率 > 95%）
 
-- [ ] **步骤11**: 逐步完善数据收集
-  - 参考 DataToColor.lua 实现剩余字段
+### 📋 待执行
+
+- [ ] **步骤11**: 根据解码器测试结果扩展网格
+  - 如果测试成功：扩展到 48×48 或 65×65 网格
+  - 集成真实游戏数据编码（替代测试图案）
+  - 实现完整的数据打包和解包逻辑
+
+- [ ] **步骤12**: 逐步完善数据收集（低优先级）
+  - 参考 DataToColor.lua 实现更多字段
   - 优先级：战斗数据（技能冷却、Buff/Debuff、GCD）
   - 中优先级：动作条状态、宠物信息、战斗日志
   - 低优先级：法术书、天赋、Gossip 对话
-
-### 📋 待执行
 
 ### ❌ 已跳过
 
@@ -324,46 +304,25 @@ D4:USED:A/10|BAG_FREE:6
 
 ## 🔄 更新日志
 
-### [1.1.1] - 2025-01-13
-- ✅ 实现 FontString 字符网格测试方案（性能优化）
-- ✅ 添加 `TestGridText()` 函数到 DataToText.lua
-  - 生成 32×32 测试网格
-  - 使用 █ (U+2588) 和 ░ (U+2591) 字符显示
-  - 包含 3×3 角标记定位（4 个角）
-  - 添加对角线测试图案
-  - 每行一个 FontString，减少对象数量（32 vs 4225）
-- ✅ 添加 `/dtt gridtext` 命令触发测试
-- ✅ 更新帮助信息区分两种网格方案
-- ✅ 更新 TODO.md 记录实现细节
-- 🎯 目标：解决 Texture 方案的性能问题（60fps → 30fps）
-- 📊 预期：对象数量减少 99.2%，帧率提升到 50fps+
-- 🔍 待测试：游戏内性能和 C# 解码器验证
+### [1.2.0] - 2025-01-13
+- ✅ **FontString 二维码方案（替代 Texture）**
+- ✅ 删除 Texture 方案所有代码（性能问题：60fps → 30fps）
+  - 删除 GridEncoder.lua（108 字段编码器）
+  - 删除 InitializeGrid()、RenderGrid()、CollectAllFieldData()
+  - 删除 4225 个 Texture 对象创建逻辑
+- ✅ 实现 FontString + 二维码字符方案
+  - 使用 █ (U+2588 实心方块) 代表黑色，空格代表白色
+  - 使用 WoW 默认字体 (FRIZQT__.TTF), 10px, MONOCHROME
+  - 32×32 网格，每行一个 FontString（共 32 个对象）
+  - 白色方块在黑色背景上，标准二维码样式
+- ✅ 测试图案：4个 3×3 角标记 + 对角线
+- ✅ `/dtt grid` 命令统一触发 FontString 网格
+- ✅ 游戏内测试通过，显示正常
+- 📊 **性能提升**: 对象数量 4225 → 32（减少 99.2%）
+- 🎯 **下一步**: CoreTests C# 解码器验证识别准确率
 
-### [1.1.0] - 2025-01-13
-- ✅ 实现黑白网格编码系统（消除 gamma 敏感性）
-- ✅ 创建 GridEncoder.lua 网格编码器模块
-  - 定义全部 108 个 DataToColor 字段索引
-  - 实现位流打包和 CRC32 校验
-  - 实现 15% XOR 奇偶校验纠错码
-  - 实现 3×3 角标记定位（4 个角）
-  - 生成 65×65 黑白网格布局
-- ✅ 集成网格编码到 DataToText.lua
-  - 添加 CollectAllFieldData() 收集 108 个字段
-  - 添加 InitializeGrid() 创建 4225 个像素帧
-  - 添加 RenderGrid() 渲染黑白网格
-  - 实时编码和显示游戏数据
-- ✅ 更新 DataToText.xml 界面布局
-  - 添加 200×200 网格显示区域（左侧）
-  - 调整 EditBox 宽度和位置（右侧）
-- ✅ 添加 `/dtt grid` 命令测试网格编码器
-- ✅ 创建 Node.js 容量验证程序
-  - grid_encoding_test.js - 基础容量测试
-  - grid_capacity_test.js - 详细容量分析
-- ✅ 更新 DataToText.toc 加载 GridEncoder.lua
-- ✅ 更新 TODO.md 记录实现细节
-- 🎯 目标：使用二值（黑白）编码替代 RGB 颜色，消除不同屏幕 gamma 设置导致的颜色失真问题
-- 📊 数据格式：65×65 网格，3×3 像素/单元，总共 195×195 像素显示区域
-- 🔍 待测试：游戏内显示效果和 C# 端解码器实现
+### [1.1.0] - 2025-01-13 (已废弃)
+- ❌ Texture 黑白网格编码系统（因性能问题已删除）
 
 ### [1.0.4] - 2025-01-13
 - ✅ 使用 EditBox 替换 FontString 显示数据
