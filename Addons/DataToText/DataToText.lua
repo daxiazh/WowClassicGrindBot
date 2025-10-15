@@ -13,6 +13,7 @@ local DATATOTEXTTOOLTIP = "DataToText - Click to toggle display"
 -- Constants
 local FONT_PATH = "Interface\\AddOns\\DataToText\\Fonts\\Tiny-Bold.ttf"
 local FONT_SIZE = 12
+local EDITBOX_FONT_SIZE = 13  -- EditBox使用稍大的字体
 local UPDATE_INTERVAL = 0.1  -- Update every 0.1 seconds
 
 -- Update timer
@@ -159,18 +160,67 @@ local function UpdateDisplay()
         profileCount = profileCount + 1
     end
 
-    -- 4. 更新EditBox文本显示（简化）
+    -- 4. 更新EditBox文本显示（简洁清晰版本）
     local textLines = {
-        "DataToText v2.0 - 65x65 Grid Encoding",
+        "DataToText v2.0",
+        "===============",
         "",
-        string.format("Fields: %d / %d", stats.totalFields, FC.GetFieldCount()),
-        string.format("Data: %d bytes (%d bits)", stats.totalBytes, stats.totalBits),
-        string.format("Grid: %dx%d", stats.gridSize, stats.gridSize),
-        string.format("Used: %d bits", stats.usedBits),
-        string.format("Capacity: %d bits", stats.capacity),
-        "",
-        "Use /dtt help for commands"
     }
+
+    -- 编码统计（简化）
+    table.insert(textLines, string.format("Fields: %d/%d", stats.totalFields, FC.GetFieldCount()))
+    table.insert(textLines, string.format("Size: %d bytes", stats.totalBytes))
+    table.insert(textLines, string.format("Grid: %dx%d", stats.gridSize, stats.gridSize))
+    table.insert(textLines, string.format("Used: %.1f%%", stats.usedBits / stats.capacity * 100))
+    table.insert(textLines, "")
+
+    -- 关键游戏数据
+    table.insert(textLines, "=== Game Data ===")
+
+    if fields[5] then
+        table.insert(textLines, string.format("Level: %d", fields[5]))
+    end
+
+    if fields[10] and fields[11] then
+        local hpPercent = fields[10] > 0 and (fields[11] * 100 / fields[10]) or 0
+        table.insert(textLines, string.format("HP: %d/%d (%.0f%%)", fields[11], fields[10], hpPercent))
+    end
+
+    if fields[12] and fields[13] then
+        local powerPercent = fields[12] > 0 and (fields[13] * 100 / fields[12]) or 0
+        table.insert(textLines, string.format("Power: %d/%d (%.0f%%)", fields[13], fields[12], powerPercent))
+    end
+
+    if fields[18] and fields[19] and fields[18] > 0 then
+        local targetHpPercent = (fields[19] * 100 / fields[18])
+        table.insert(textLines, string.format("Target: %d/%d (%.0f%%)", fields[19], fields[18], targetHpPercent))
+    end
+
+    if fields[44] and fields[45] then
+        local copper = fields[44]
+        local gold = fields[45]
+        local totalGold = gold + (copper / 10000)
+        table.insert(textLines, string.format("Gold: %.2f", totalGold))
+    end
+
+    if fields[20] then
+        local freeSlots = bit.band(fields[20], 255)
+        local totalSlots = bit.rshift(fields[20], 8)
+        table.insert(textLines, string.format("Bag: %d/%d", freeSlots, totalSlots))
+    end
+
+    table.insert(textLines, "")
+    table.insert(textLines, "=== Sample Fields ===")
+
+    -- 只显示前5个字段的值
+    for i = 0, 4 do
+        if fields[i] ~= nil then
+            table.insert(textLines, string.format("[%d] %d", i, fields[i]))
+        end
+    end
+
+    table.insert(textLines, "")
+    table.insert(textLines, "/dtt help - Commands")
 
     DataToText_DataEditBox:SetText(table.concat(textLines, "\n"))
     DataToText_DataEditBox:SetAutoFocus(false)
@@ -236,11 +286,32 @@ DataToText_Print("DataToText v2.0 loaded! (65x65 Grid, 108 Fields)")
 
 -- OnLoad function
 function DataToText_OnLoad()
-    DataToText_DataEditBox:SetFont(FONT_PATH, FONT_SIZE, "MONOCHROME")
-    DataToText_DataEditBox:SetTextColor(1, 1, 1)
+    -- 创建EditBox背景（使用Backdrop）
+    DataToText_DataEditBox:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    DataToText_DataEditBox:SetBackdropColor(0, 0, 0, 0.9)  -- 黑色背景，90%不透明
+    DataToText_DataEditBox:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)  -- 灰色边框
+
+    -- 设置EditBox字体和样式（必须在SetBackdrop之后）
+    local fontObj = DataToText_DataEditBox:GetFontString()
+    if fontObj then
+        fontObj:SetFont(FONT_PATH, EDITBOX_FONT_SIZE, "OUTLINE")  -- 使用更大的字体和轮廓
+        fontObj:SetTextColor(1, 1, 0.2)  -- 亮黄色文字
+        fontObj:SetJustifyH("LEFT")
+        fontObj:SetJustifyV("TOP")
+    end
+
+    DataToText_DataEditBox:SetTextColor(1, 1, 0.2)  -- 亮黄色
     DataToText_DataEditBox:SetMultiLine(true)
     DataToText_DataEditBox:SetAutoFocus(false)
     DataToText_DataEditBox:EnableMouse(true)
+    DataToText_DataEditBox:SetMaxLetters(0)  -- 无字符限制
 
     DataToTextFrame:RegisterEvent("ADDON_LOADED")
 end

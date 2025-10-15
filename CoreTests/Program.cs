@@ -59,12 +59,13 @@ internal sealed class Program
         process = new(cts, Options.Create<StartupConfigPid>(new() { Id = -1 }));
         screen = new WowScreenDXGI(loggerFactory.CreateLogger<WowScreenDXGI>(), process, mockFrames);
 
-        Test_NPCNameFinder();
+        //Test_NPCNameFinder();
         //Test_Input();
         //Test_CursorGrabber();
         //Test_CursorCompare();
         //Test_MinimapNodeFinder();
         //Test_FindTargetByCursor();
+        Test_DataToTextDecoder();
 
         Environment.Exit(0);
     }
@@ -256,5 +257,30 @@ internal sealed class Program
         }
 
         screen.Enabled = false;
+    }
+
+    private static void Test_DataToTextDecoder()
+    {
+        using Test_DataToTextDecoder test = new(logger, screen);
+
+        int count = 100;
+        Log.Logger.Information($"开始DataToText解码测试 ({count}次采样)...");
+
+        screen.Enabled = true;
+
+        // 方式1: 持续监控模式 (实时显示每次解码结果)
+        // test.ContinuousMonitor(intervalMs: 500, count: 20);
+
+        // 方式2: 性能测试模式 (统计分析)
+        test.PerformanceTest(count: count);
+
+        // 方式3: 单次测试 + 保存调试截图
+        // double elapsed = test.Execute();
+        // test.SaveDebugImage("datatotext_debug.jpg");
+        // Log.Logger.Information($"单次解码耗时: {elapsed:F2}ms");
+
+        screen.Enabled = false;
+
+        Log.Logger.Information("DataToText解码测试完成");
     }
 }
