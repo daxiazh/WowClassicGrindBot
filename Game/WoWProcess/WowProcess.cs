@@ -121,11 +121,6 @@ public sealed class WowProcess
         }
 
         FileVersionInfo fileVersion = FileVersionInfo.GetVersionInfo(System.IO.Path.Join(path, process.ProcessName + ".exe"));
-        if (Version.TryParse(fileVersion.FileVersion, out Version? v))
-        {
-            return (path, v);
-        }
-
-        return (path, new());
+        return (path, new Version(fileVersion.FileMajorPart, fileVersion.FileMinorPart, fileVersion.FilePrivatePart, fileVersion.FileBuildPart));
     }
 }

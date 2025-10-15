@@ -20,6 +20,7 @@ using SharedLib.Converters;
 
 using System;
 using System.IO;
+using System.Security.Principal;
 using System.Threading;
 
 namespace BlazorServer;
@@ -28,6 +29,15 @@ public static class Program
 {
     public static void Main(string[] args)
     {
+        if (!IsRunningAsAdministrator())
+        {
+            const string warning = "This process is not running with administrator privileges. Run Rider or the executable as administrator to enable full functionality.";
+            Log.Warning($"[{nameof(Program),-17}] {warning}");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine(warning);
+            Console.ResetColor();
+        }
+
         while (true)
         {
             Log.Information($"[{nameof(Program),-17}] Starting blazor server");
@@ -170,6 +180,23 @@ public static class Program
         });
 
         return app;
+    }
+
+    private static bool IsRunningAsAdministrator()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return true;
+        }
+
+        using WindowsIdentity? identity = WindowsIdentity.GetCurrent();
+        if (identity == null)
+        {
+            return false;
+        }
+
+        WindowsPrincipal principal = new(identity);
+        return principal.IsInRole(WindowsBuiltInRole.Administrator);
     }
 
 }
