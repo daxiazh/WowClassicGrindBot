@@ -136,8 +136,8 @@ public sealed class DataToTextGridDecoder
                 continue;
 
             // 在屏幕中滑动窗口搜索
-            // 为了性能，采用步进搜索而非逐像素
-            int step = Math.Max(1, estimatedCellSize / 2);
+            // 使用较小的步进以提高准确性，同时保持性能
+            int step = Math.Max(1, estimatedCellSize / 3); // 从 /2 改为 /3，减少跳过目标的风险
 
             for (int y = 0; y <= height - gridPixelSize; y += step)
             {
@@ -146,15 +146,11 @@ public sealed class DataToTextGridDecoder
                     // 快速检查：验证左上角标记
                     if (IsCornerMarkerPresent(screenImage, x, y, estimatedCellSize))
                     {
-                        // 验证其他三个角标记
-                        if (VerifyAllCornerMarkers(screenImage, x, y, estimatedCellSize))
+                        // 找到疑似位置后，进行精确对齐
+                        GridLocation? alignedLocation = TryAlignGrid(screenImage, x, y, estimatedCellSize);
+                        if (alignedLocation != null)
                         {
-                            return new GridLocation
-                            {
-                                X = x,
-                                Y = y,
-                                CellSize = estimatedCellSize
-                            };
+                            return alignedLocation;
                         }
                     }
                 }
@@ -165,34 +161,101 @@ public sealed class DataToTextGridDecoder
     }
 
     /// <summary>
+    /// 尝试对齐网格到精确位置
+    /// 在粗略位置周围进行精细搜索
+    /// </summary>
+    private static GridLocation? TryAlignGrid(Image<Bgra32> image, int roughX, int roughY, int cellSize)
+    {
+        // 在粗略位置周围进行精细搜索（±cellSize范围）
+        int searchRadius = cellSize;
+        int startX = Math.Max(0, roughX - searchRadius);
+        int endX = Math.Min(image.Width - GRID_SIZE * cellSize, roughX + searchRadius);
+        int startY = Math.Max(0, roughY - searchRadius);
+        int endY = Math.Min(image.Height - GRID_SIZE * cellSize, roughY + searchRadius);
+
+        for (int y = startY; y <= endY; y++)
+        {
+            for (int x = startX; x <= endX; x++)
+            {
+                if (VerifyAllCornerMarkers(image, x, y, cellSize))
+                {
+                    return new GridLocation
+                    {
+                        X = x,
+                        Y = y,
+                        CellSize = cellSize
+                    };
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// 检查指定位置是否存在3×3角标记
-    /// 图案: █ █ █
-    ///      █ ░ █
-    ///      █ █ █
+    /// 图案（屏幕渲染）: ░ ░ ░  (Lua值1=白色渲染)
+    ///                ░ █ ░  (Lua值0=黑色渲染)
+    ///                ░ ░ ░
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsCornerMarkerPresent(Image<Bgra32> image, int startX, int startY, int cellSize)
     {
-        // 采样9个位置的中心点
+        // 边界检查：确保整个3x3标记都在图像内
+        int markerWidth = 3 * cellSize;
+        int markerHeight = 3 * cellSize;
+        if (startX + markerWidth > image.Width || startY + markerHeight > image.Height)
+            return false;
+
+        // 使用容错机制：允许一定比例的像素不匹配
+        int totalSamples = 0;
+        int matchingSamples = 0;
+
+        // 对每个单元格进行多点采样以提高鲁棒性
         for (int row = 0; row < 3; row++)
         {
             for (int col = 0; col < 3; col++)
             {
-                int x = startX + col * cellSize + cellSize / 2;
-                int y = startY + row * cellSize + cellSize / 2;
+                // 注意：Lua中 grid[r][c]=1 渲染为白色，grid[r][c]=0 渲染为黑色
+                // 角标记：中心为0（黑色），周围为1（白色）
+                bool shouldBeBlack = (row == 1 && col == 1); // 中心是黑色
 
-                if (x >= image.Width || y >= image.Height)
-                    return false;
+                // 多点采样：采样单元格的中心点和四个角点
+                int cellX = startX + col * cellSize;
+                int cellY = startY + row * cellSize;
 
-                bool shouldBeBlack = !(row == 1 && col == 1); // 中心是白色
-                bool isBlack = IsPixelBlack(image[x, y]);
+                // 采样点列表
+                (int dx, int dy)[] samplePoints = [
+                    (cellSize / 2, cellSize / 2), // 中心
+                    (cellSize / 4, cellSize / 4), // 左上
+                    (cellSize * 3 / 4, cellSize / 4), // 右上
+                    (cellSize / 4, cellSize * 3 / 4), // 左下
+                    (cellSize * 3 / 4, cellSize * 3 / 4) // 右下
+                ];
 
-                if (shouldBeBlack != isBlack)
-                    return false;
+                int cellMatches = 0;
+                foreach (var (dx, dy) in samplePoints)
+                {
+                    int x = cellX + dx;
+                    int y = cellY + dy;
+
+                    if (x < image.Width && y < image.Height)
+                    {
+                        bool isBlack = IsPixelBlack(image[x, y]);
+                        if (shouldBeBlack == isBlack)
+                            cellMatches++;
+                        totalSamples++;
+                    }
+                }
+
+                // 单元格内至少60%的采样点匹配
+                if (cellMatches >= samplePoints.Length * 0.6)
+                    matchingSamples++;
             }
         }
 
-        return true;
+        // 要求至少8个单元格（9个中的至少8个）匹配
+        return matchingSamples >= 8;
     }
 
     /// <summary>
@@ -380,12 +443,25 @@ public sealed class DataToTextGridDecoder
 
     /// <summary>
     /// 判断像素是否为黑色
+    /// 使用更宽容的阈值和饱和度检查
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsPixelBlack(Bgra32 pixel)
     {
-        // 简单阈值: 平均亮度 < 128
-        int brightness = (pixel.R + pixel.G + pixel.B) / 3;
+        // 计算亮度（使用加权平均，更接近人眼感知）
+        // Y = 0.299R + 0.587G + 0.114B
+        int brightness = (pixel.R * 299 + pixel.G * 587 + pixel.B * 114) / 1000;
+
+        // 使用动态阈值：
+        // 非常暗的像素（< 64）肯定是黑色
+        // 非常亮的像素（> 192）肯定是白色
+        // 中间范围（64-192）使用标准阈值128
+        if (brightness < 10)
+            return true;
+        if (brightness > 192)
+            return false;
+
+        // 中间范围使用128作为阈值
         return brightness < 128;
     }
 

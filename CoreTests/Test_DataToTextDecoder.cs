@@ -7,6 +7,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 
 namespace CoreTests;
@@ -217,5 +218,306 @@ internal sealed class Test_DataToTextDecoder : IDisposable
     {
         screen.ScreenImage.SaveAsJpeg(filename);
         logger.LogInformation($"调试截图已保存: {filename}");
+    }
+
+    /// <summary>
+    /// 使用保存的调试图片进行离线测试
+    /// </summary>
+    public static void TestWithDebugImage(
+        Microsoft.Extensions.Logging.ILogger logger,
+        string imagePath = "datatotext_debug.jpg")
+    {
+        if (!File.Exists(imagePath))
+        {
+            logger.LogError($"调试图片不存在: {imagePath}");
+            return;
+        }
+
+        logger.LogInformation($"=== 离线测试: {imagePath} ===");
+        logger.LogInformation($"文件大小: {new FileInfo(imagePath).Length / 1024} KB");
+
+        // 加载图片
+        using var image = Image.Load<Bgra32>(imagePath);
+        logger.LogInformation($"图片尺寸: {image.Width}×{image.Height}");
+
+        // 显示搜索范围信息
+        var (minCell, maxCell, searchCount) = DataToTextGridDecoder.GetSearchRangeInfo(image);
+        logger.LogInformation($"单元格搜索范围: {minCell}px - {maxCell}px ({searchCount}个尺寸)");
+        logger.LogInformation($"预期网格尺寸: {minCell * 65}×{minCell * 65}px - {maxCell * 65}×{maxCell * 65}px");
+
+        // 创建解码器
+        var decoder = new DataToTextGridDecoder();
+
+        // 执行解码并计时
+        var sw = Stopwatch.StartNew();
+        bool success = decoder.DecodeFromScreen(image);
+        sw.Stop();
+
+        logger.LogInformation($"解码耗时: {sw.Elapsed.TotalMilliseconds:F2}ms");
+
+        if (success)
+        {
+            logger.LogInformation("✓ 解码成功!");
+            logger.LogInformation($"元数据: {decoder.LastMetadata}");
+
+            // 打印前10个字段
+            logger.LogInformation("前10个字段:");
+            for (int i = 0; i < Math.Min(10, decoder.Fields.Length); i++)
+            {
+                logger.LogInformation($"  字段[{i:D3}] = {decoder.Fields[i]:D8} (0x{decoder.Fields[i]:X6})");
+            }
+        }
+        else
+        {
+            logger.LogError($"✗ 解码失败: {decoder.LastError}");
+            logger.LogWarning("开始详细诊断...");
+
+            // 执行详细诊断
+            DiagnoseGridLocation(logger, image);
+        }
+    }
+
+    /// <summary>
+    /// 诊断网格定位问题
+    /// </summary>
+    private static void DiagnoseGridLocation(Microsoft.Extensions.Logging.ILogger logger, Image<Bgra32> image)
+    {
+        logger.LogInformation("=== 网格定位诊断 ===");
+
+        int width = image.Width;
+        int height = image.Height;
+        int minCellSize = 4;
+        int maxCellSize = Math.Min(width, height) / 65;
+        maxCellSize = Math.Max(maxCellSize, minCellSize);
+        maxCellSize = Math.Min(maxCellSize, 100);
+
+        logger.LogInformation($"图片尺寸: {width}×{height}");
+        logger.LogInformation($"搜索范围: cellSize={minCellSize}-{maxCellSize}");
+
+        // 先尝试在图片中心采样一个3x3区域，看看像素值
+        logger.LogInformation("\n采样图片左上角 10×10 区域的像素:");
+        SampleRegion(image, 0, 0, 10, 10, logger);
+
+        // 尝试在不同单元格大小下查找角标记
+        for (int cellSize = minCellSize; cellSize <= maxCellSize; cellSize++)
+        {
+            int gridPixelSize = 65 * cellSize;
+            if (gridPixelSize > width || gridPixelSize > height)
+            {
+                logger.LogWarning($"cellSize={cellSize}: 网格尺寸{gridPixelSize}×{gridPixelSize}px 超出图片范围，跳过");
+                continue;
+            }
+
+            logger.LogInformation($"\n测试 cellSize={cellSize}px (网格尺寸={gridPixelSize}×{gridPixelSize}px)");
+
+            int step = Math.Max(1, cellSize / 3);
+            int foundCount = 0;
+
+            // 扫描整个图像
+            for (int y = 0; y <= height - gridPixelSize; y += step)
+            {
+                for (int x = 0; x <= width - gridPixelSize; x += step)
+                {
+                    // 测试左上角标记
+                    if (TestCornerMarker(image, x, y, cellSize, logger, verbose: false))
+                    {
+                        foundCount++;
+                        logger.LogInformation($"  找到疑似角标记 @ ({x}, {y})");
+
+                        // 详细查看这个位置的像素
+                        logger.LogInformation($"  详细检查位置 ({x}, {y}):");
+                        TestCornerMarker(image, x, y, cellSize, logger, verbose: true);
+
+                        // 验证完整的四个角
+                        bool allCornersValid = TestAllCorners(image, x, y, cellSize, logger);
+                        if (allCornersValid)
+                        {
+                            logger.LogInformation($"  ✓ 所有四个角都验证通过! 位置=({x}, {y}), cellSize={cellSize}");
+
+                            // 可视化这个位置
+                            VisualizeGrid(image, x, y, cellSize, $"found_grid_{cellSize}px.jpg");
+                            return;
+                        }
+                        else
+                        {
+                            logger.LogWarning($"  ✗ 其他角标记验证失败");
+                        }
+                    }
+                }
+            }
+
+            logger.LogInformation($"  cellSize={cellSize}: 找到 {foundCount} 个疑似位置");
+        }
+
+        logger.LogError("未能找到有效的网格位置");
+        logger.LogWarning("\n建议:");
+        logger.LogWarning("1. 检查游戏中 DataToText 插件是否正确显示");
+        logger.LogWarning("2. 确认网格是否在截图范围内");
+        logger.LogWarning("3. 检查网格渲染的颜色对比度");
+    }
+
+    /// <summary>
+    /// 采样图片区域的像素值
+    /// </summary>
+    private static void SampleRegion(Image<Bgra32> image, int startX, int startY, int width, int height, Microsoft.Extensions.Logging.ILogger logger)
+    {
+        for (int y = 0; y < height && startY + y < image.Height; y++)
+        {
+            string line = "";
+            for (int x = 0; x < width && startX + x < image.Width; x++)
+            {
+                var pixel = image[startX + x, startY + y];
+                int brightness = (pixel.R * 299 + pixel.G * 587 + pixel.B * 114) / 1000;
+                bool isBlack = IsPixelBlack(pixel);
+                line += isBlack ? "█" : "░";
+            }
+            logger.LogInformation($"  {line}");
+        }
+    }
+
+    /// <summary>
+    /// 测试单个角标记
+    /// </summary>
+    private static bool TestCornerMarker(Image<Bgra32> image, int startX, int startY, int cellSize,
+        Microsoft.Extensions.Logging.ILogger logger, bool verbose = false)
+    {
+        int markerWidth = 3 * cellSize;
+        int markerHeight = 3 * cellSize;
+        if (startX + markerWidth > image.Width || startY + markerHeight > image.Height)
+            return false;
+
+        int matchingSamples = 0;
+
+        for (int row = 0; row < 3; row++)
+        {
+            for (int col = 0; col < 3; col++)
+            {
+                bool shouldBeBlack = (row == 1 && col == 1);
+                int cellX = startX + col * cellSize;
+                int cellY = startY + row * cellSize;
+
+                // 中心点采样
+                int x = cellX + cellSize / 2;
+                int y = cellY + cellSize / 2;
+
+                if (x < image.Width && y < image.Height)
+                {
+                    var pixel = image[x, y];
+                    bool isBlack = IsPixelBlack(pixel);
+
+                    if (verbose)
+                    {
+                        int brightness = (pixel.R * 299 + pixel.G * 587 + pixel.B * 114) / 1000;
+                        string expected = shouldBeBlack ? "黑" : "白";
+                        string actual = isBlack ? "黑" : "白";
+                        string match = shouldBeBlack == isBlack ? "✓" : "✗";
+                        logger.LogInformation($"    [{row},{col}] @ ({x},{y}) RGB=({pixel.R},{pixel.G},{pixel.B}) " +
+                            $"亮度={brightness} 期望={expected} 实际={actual} {match}");
+                    }
+
+                    if (shouldBeBlack == isBlack)
+                        matchingSamples++;
+                }
+            }
+        }
+
+        return matchingSamples >= 8;
+    }
+
+    /// <summary>
+    /// 测试所有四个角标记
+    /// </summary>
+    private static bool TestAllCorners(Image<Bgra32> image, int gridX, int gridY, int cellSize,
+        Microsoft.Extensions.Logging.ILogger logger)
+    {
+        int gridPixelSize = 65 * cellSize;
+        int markerPixelSize = 3 * cellSize;
+
+        // 左上角
+        if (!TestCornerMarker(image, gridX, gridY, cellSize, logger, verbose: true))
+        {
+            logger.LogWarning("    左上角失败");
+            return false;
+        }
+
+        // 右上角
+        if (!TestCornerMarker(image, gridX + gridPixelSize - markerPixelSize, gridY, cellSize, logger, verbose: false))
+        {
+            logger.LogWarning("    右上角失败");
+            return false;
+        }
+
+        // 左下角
+        if (!TestCornerMarker(image, gridX, gridY + gridPixelSize - markerPixelSize, cellSize, logger, verbose: false))
+        {
+            logger.LogWarning("    左下角失败");
+            return false;
+        }
+
+        // 右下角
+        if (!TestCornerMarker(image, gridX + gridPixelSize - markerPixelSize,
+            gridY + gridPixelSize - markerPixelSize, cellSize, logger, verbose: false))
+        {
+            logger.LogWarning("    右下角失败");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 判断像素是否为黑色（与解码器中的逻辑一致）
+    /// </summary>
+    private static bool IsPixelBlack(Bgra32 pixel)
+    {
+        int brightness = (pixel.R * 299 + pixel.G * 587 + pixel.B * 114) / 1000;
+        if (brightness < 10)
+            return true;
+        if (brightness > 192)
+            return false;
+        return brightness < 128;
+    }
+
+    /// <summary>
+    /// 可视化找到的网格位置
+    /// </summary>
+    private static void VisualizeGrid(Image<Bgra32> image, int gridX, int gridY, int cellSize, string outputPath)
+    {
+        var visualImage = image.Clone();
+        int gridSize = 65 * cellSize;
+
+        // 在网格边界画红框
+        var red = new Bgra32(255, 0, 0, 255);
+
+        // 上边界
+        for (int x = gridX; x < gridX + gridSize && x < visualImage.Width; x++)
+        {
+            for (int t = 0; t < 3 && gridY + t < visualImage.Height; t++)
+                visualImage[x, gridY + t] = red;
+        }
+
+        // 下边界
+        for (int x = gridX; x < gridX + gridSize && x < visualImage.Width; x++)
+        {
+            for (int t = 0; t < 3 && gridY + gridSize - 1 - t >= 0; t++)
+                visualImage[x, gridY + gridSize - 1 - t] = red;
+        }
+
+        // 左边界
+        for (int y = gridY; y < gridY + gridSize && y < visualImage.Height; y++)
+        {
+            for (int t = 0; t < 3 && gridX + t < visualImage.Width; t++)
+                visualImage[gridX + t, y] = red;
+        }
+
+        // 右边界
+        for (int y = gridY; y < gridY + gridSize && y < visualImage.Height; y++)
+        {
+            for (int t = 0; t < 3 && gridX + gridSize - 1 - t >= 0; t++)
+                visualImage[gridX + gridSize - 1 - t, y] = red;
+        }
+
+        visualImage.SaveAsJpeg(outputPath);
+        Console.WriteLine($"可视化图片已保存: {outputPath}");
     }
 }

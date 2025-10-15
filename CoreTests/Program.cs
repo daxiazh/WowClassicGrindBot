@@ -261,26 +261,39 @@ internal sealed class Program
 
     private static void Test_DataToTextDecoder()
     {
-        using Test_DataToTextDecoder test = new(logger, screen);
+        // ===== 模式选择 =====
+        bool useOfflineTest = true; // 设置为 true 使用离线测试，false 使用实时测试
 
-        int count = 100;
-        Log.Logger.Information($"开始DataToText解码测试 ({count}次采样)...");
+        if (useOfflineTest)
+        {
+            // 离线测试：使用保存的调试图片
+            Log.Logger.Information("使用离线测试模式");
+            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "datatotext_debug.jpg");
+        }
+        else
+        {
+            // 实时测试：从游戏窗口捕获
+            using Test_DataToTextDecoder test = new(logger, screen);
 
-        screen.Enabled = true;
+            int count = 100;
+            Log.Logger.Information($"开始DataToText解码测试 ({count}次采样)...");
 
-        // 方式1: 持续监控模式 (实时显示每次解码结果)
-        // test.ContinuousMonitor(intervalMs: 500, count: 20);
+            screen.Enabled = true;
 
-        // 方式2: 性能测试模式 (统计分析)
-        test.PerformanceTest(count: count);
+            // 方式1: 持续监控模式 (实时显示每次解码结果)
+            // test.ContinuousMonitor(intervalMs: 500, count: 20);
 
-        // 方式3: 单次测试 + 保存调试截图
-        // double elapsed = test.Execute();
-        // test.SaveDebugImage("datatotext_debug.jpg");
-        // Log.Logger.Information($"单次解码耗时: {elapsed:F2}ms");
+            // 方式2: 性能测试模式 (统计分析)
+            // test.PerformanceTest(count: count);
 
-        screen.Enabled = false;
+            // 方式3: 单次测试 + 保存调试截图
+            double elapsed = test.Execute();
+            test.SaveDebugImage("datatotext_debug.jpg");
+            Log.Logger.Information($"单次解码耗时: {elapsed:F2}ms");
 
-        Log.Logger.Information("DataToText解码测试完成");
+            screen.Enabled = false;
+
+            Log.Logger.Information("DataToText解码测试完成");
+        }
     }
 }
