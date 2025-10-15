@@ -14,7 +14,7 @@ local GE = DataToTextGridEncoder
 
 -- 常量定义
 local GRID_SIZE = 65
-local CORNER_MARKER_SIZE = 3
+local CORNER_MARKER_SIZE = 7  -- QR码 Finder Pattern 尺寸
 local BITS_PER_FIELD = 24
 local TOTAL_FIELDS = 108
 local VERSION = 1
@@ -72,11 +72,11 @@ local CORNER_MAX_COL = CORNER_MARKER_SIZE
 local CORNER_MIN_COL = GRID_SIZE - CORNER_MARKER_SIZE + 1
 
 local function InCorner(row, col)
-    -- 上半部分（前3行）
+    -- 上半部分（前7行）
     if row <= CORNER_MAX_ROW then
         return col <= CORNER_MAX_COL or col >= CORNER_MIN_COL
     end
-    -- 下半部分（后3行）
+    -- 下半部分（后7行）
     if row >= CORNER_MIN_ROW then
         return col <= CORNER_MAX_COL or col >= CORNER_MIN_COL
     end
@@ -157,38 +157,55 @@ function GE.CreateEmptyGrid()
     return grid
 end
 
--- 添加角标记
+-- 添加角标记 - QR码 Finder Pattern (7×7)
 function GE.AddCornerMarkers(grid)
-    local size = CORNER_MARKER_SIZE
+    local size = CORNER_MARKER_SIZE  -- 7
     local max = GRID_SIZE
 
-    -- 3×3 角标记图案（中心白色，周围黑色）
-    local function AddMarker(startRow, startCol)
-        for row = 0, size - 1 do
-            for col = 0, size - 1 do
-                local r = startRow + row
-                local c = startCol + col
-                -- 中心白色，周围黑色
-                if row == 1 and col == 1 then
-                    grid[r][c] = 0  -- 白色
-                else
-                    grid[r][c] = 1  -- 黑色
-                end
+    -- 7×7 QR码定位图形 (Finder Pattern)
+    -- 比例: 1:1:3:1:1 的嵌套正方形
+    -- █ █ █ █ █ █ █
+    -- █ ░ ░ ░ ░ ░ █
+    -- █ ░ █ █ █ ░ █
+    -- █ ░ █ █ █ ░ █
+    -- █ ░ █ █ █ ░ █
+    -- █ ░ ░ ░ ░ ░ █
+    -- █ █ █ █ █ █ █
+    local function AddFinderPattern(startRow, startCol)
+        -- 外层黑框 (7×7)
+        for i = 0, 6 do
+            grid[startRow + i][startCol] = 1         -- 左边
+            grid[startRow + i][startCol + 6] = 1     -- 右边
+            grid[startRow][startCol + i] = 1         -- 上边
+            grid[startRow + 6][startCol + i] = 1     -- 下边
+        end
+        
+        -- 内层白框 (5×5区域设为白色)
+        for i = 1, 5 do
+            for j = 1, 5 do
+                grid[startRow + i][startCol + j] = 0
+            end
+        end
+        
+        -- 中心黑块 (3×3)
+        for i = 2, 4 do
+            for j = 2, 4 do
+                grid[startRow + i][startCol + j] = 1
             end
         end
     end
 
     -- 左上角
-    AddMarker(1, 1)
+    AddFinderPattern(1, 1)
 
     -- 右上角
-    AddMarker(1, max - size + 1)
+    AddFinderPattern(1, max - size + 1)
 
     -- 左下角
-    AddMarker(max - size + 1, 1)
+    AddFinderPattern(max - size + 1, 1)
 
-    -- 右下角
-    AddMarker(max - size + 1, max - size + 1)
+    -- 右下角 (可选,为了对称性保留)
+    AddFinderPattern(max - size + 1, max - size + 1)
 end
 
 -- 填充数据到网格
