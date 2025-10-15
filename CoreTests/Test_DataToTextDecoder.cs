@@ -64,6 +64,9 @@ internal sealed class Test_DataToTextDecoder : IDisposable
     /// <returns>解码耗时(毫秒)</returns>
     public double Execute()
     {
+        // 更新屏幕截图（这是关键！）
+        screen.Update();
+
         long startTime = Stopwatch.GetTimestamp();
 
         // 从WowScreenDXGI获取屏幕截图
