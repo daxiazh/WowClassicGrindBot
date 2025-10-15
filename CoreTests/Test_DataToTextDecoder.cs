@@ -376,23 +376,35 @@ internal sealed class Test_DataToTextDecoder : IDisposable
     }
 
     /// <summary>
-    /// 测试单个角标记
+    /// 测试单个7×7 Finder Pattern角标记
     /// </summary>
     private static bool TestCornerMarker(Image<Bgra32> image, int startX, int startY, int cellSize,
         Microsoft.Extensions.Logging.ILogger logger, bool verbose = false)
     {
-        int markerWidth = 3 * cellSize;
-        int markerHeight = 3 * cellSize;
+        int markerWidth = 7 * cellSize;
+        int markerHeight = 7 * cellSize;
         if (startX + markerWidth > image.Width || startY + markerHeight > image.Height)
             return false;
 
         int matchingSamples = 0;
+        int totalSamples = 0;
 
-        for (int row = 0; row < 3; row++)
+        for (int row = 0; row < 7; row++)
         {
-            for (int col = 0; col < 3; col++)
+            for (int col = 0; col < 7; col++)
             {
-                bool shouldBeBlack = (row == 1 && col == 1);
+                // 7×7 QR码 Finder Pattern:
+                // 外层黑框 (row/col == 0 或 6)
+                // 内层白框 (1 <= row/col <= 5 且不在中心)
+                // 中心黑块 (2 <= row/col <= 4)
+                bool shouldBeBlack;
+                if (row == 0 || row == 6 || col == 0 || col == 6)
+                    shouldBeBlack = true;  // 外层黑框
+                else if (row >= 2 && row <= 4 && col >= 2 && col <= 4)
+                    shouldBeBlack = true;  // 中心黑块
+                else
+                    shouldBeBlack = false; // 内层白框
+
                 int cellX = startX + col * cellSize;
                 int cellY = startY + row * cellSize;
 
@@ -404,6 +416,7 @@ internal sealed class Test_DataToTextDecoder : IDisposable
                 {
                     var pixel = image[x, y];
                     bool isBlack = IsPixelBlack(pixel);
+                    totalSamples++;
 
                     if (verbose)
                     {
@@ -421,17 +434,18 @@ internal sealed class Test_DataToTextDecoder : IDisposable
             }
         }
 
-        return matchingSamples >= 8;
+        // 要求至少90%的采样点匹配
+        return matchingSamples >= (totalSamples * 9 / 10);
     }
 
     /// <summary>
-    /// 测试所有四个角标记
+    /// 测试所有四个7×7角标记
     /// </summary>
     private static bool TestAllCorners(Image<Bgra32> image, int gridX, int gridY, int cellSize,
         Microsoft.Extensions.Logging.ILogger logger)
     {
         int gridPixelSize = 65 * cellSize;
-        int markerPixelSize = 3 * cellSize;
+        int markerPixelSize = 7 * cellSize;
 
         // 左上角
         if (!TestCornerMarker(image, gridX, gridY, cellSize, logger, verbose: true))
@@ -470,12 +484,7 @@ internal sealed class Test_DataToTextDecoder : IDisposable
     /// </summary>
     private static bool IsPixelBlack(Bgra32 pixel)
     {
-        int brightness = (pixel.R * 299 + pixel.G * 587 + pixel.B * 114) / 1000;
-        if (brightness < 10)
-            return true;
-        if (brightness > 192)
-            return false;
-        return brightness < 128;
+        return pixel.R < 40 && pixel.G < 40 && pixel.B < 40;
     }
 
     /// <summary>

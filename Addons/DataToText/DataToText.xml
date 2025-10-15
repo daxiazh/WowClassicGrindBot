@@ -60,7 +60,7 @@ xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interfac
       <!-- Grid Display Frame -->
       <Frame name="DataToText_GridFrame">
         <Size>
-          <AbsDimension x="200" y="200"/>
+          <AbsDimension x="480" y="440"/>
         </Size>
         <Anchors>
           <Anchor point="TOPLEFT">
@@ -76,7 +76,7 @@ xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interfac
                 <Anchor point="TOPLEFT"/>
                 <Anchor point="BOTTOMRIGHT"/>
               </Anchors>
-              <Color r="0" g="0" b="0" a="1"/>
+              <Color r="1" g="1" b="1" a="1"/>
             </Texture>
           </Layer>
           <Layer level="OVERLAY">
@@ -88,12 +88,12 @@ xsi:schemaLocation="http://www.blizzard.com/wow/ui/ C:\Projects\WoW\Bin\Interfac
       <!-- Data Display EditBox -->
       <EditBox name="DataToText_DataEditBox" autoFocus="false" multiLine="true">
         <Size>
-          <AbsDimension x="550" y="340"/>
+          <AbsDimension x="280" y="400"/>
         </Size>
         <Anchors>
           <Anchor point="TOPLEFT">
             <Offset>
-              <AbsDimension x="520" y="-35"/>
+              <AbsDimension x="505" y="-35"/>
             </Offset>
           </Anchor>
         </Anchors>

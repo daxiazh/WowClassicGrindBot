@@ -38,6 +38,7 @@ internal sealed class Program
         var logConfig = new LoggerConfiguration()
             .WriteTo.File("names.log")
             .WriteTo.Debug()
+            .WriteTo.Console()
             .CreateLogger();
 
         Log.Logger = logConfig;
@@ -48,23 +49,7 @@ internal sealed class Program
             builder.ClearProviders().AddSerilog();
         });
 
-        // its expected to have at least 2 DataFrame 
-        DataFrame[] mockFrames =
-        [
-            new DataFrame(0, 0, 0),
-            new DataFrame(1, 0, 0),
-        ];
-
-        cts = new CancellationTokenSource();
-        process = new(cts, Options.Create<StartupConfigPid>(new() { Id = -1 }));
-        screen = new WowScreenDXGI(loggerFactory.CreateLogger<WowScreenDXGI>(), process, mockFrames);
-
-        //Test_NPCNameFinder();
-        //Test_Input();
-        //Test_CursorGrabber();
-        //Test_CursorCompare();
-        //Test_MinimapNodeFinder();
-        //Test_FindTargetByCursor();
+        // 直接调用离线测试,不需要创建 WowProcess 和 WowScreenDXGI
         Test_DataToTextDecoder();
 
         Environment.Exit(0);

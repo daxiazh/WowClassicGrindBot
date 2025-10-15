@@ -88,13 +88,13 @@ function GR.RenderGrid(grid, gridFrame)
         local idx = 1
         local rowData = grid[row]
         for col = 1, gridSize do
-            -- 为每个字符添加颜色代码（1=白色，0=黑色）
+            -- 为每个字符添加颜色代码（1=黑色，0=白色）
             if rowData[col] == 1 then
-                rowChars[idx] = COLOR_WHITE
+                rowChars[idx] = COLOR_BLACK
                 rowChars[idx + 1] = CHAR_BLOCK
                 rowChars[idx + 2] = COLOR_RESET
             else
-                rowChars[idx] = COLOR_BLACK
+                rowChars[idx] = COLOR_WHITE
                 rowChars[idx + 1] = CHAR_BLOCK
                 rowChars[idx + 2] = COLOR_RESET
             end
