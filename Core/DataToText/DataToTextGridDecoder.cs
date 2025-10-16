@@ -134,27 +134,43 @@ public sealed class DataToTextGridDecoder
         int cellSize = (int)Math.Round(firstPattern.EstimatedModuleSize);
         System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 找到第一个角 @ ({firstPattern.CenterX:F1}, {firstPattern.CenterY:F1}), CellSize={cellSize}px");
 
-        // 步骤 2: 在第一个角附近搜索第二个角并计算网格大小
-        var (secondPattern, gridSize) = FindSecondCornerAndCalculateGridSize(screenImage, firstPattern, cellSize);
-        if (secondPattern == null)
+        // 步骤 2: 在第一个角的同一行向右搜索第二个角
+        FinderPattern? topRightPattern = FindPatternInRow(screenImage, firstPattern, cellSize);
+        if (topRightPattern == null)
         {
-            System.Diagnostics.Debug.WriteLine("[FindGridInScreen] 未找到第二个角");
+            System.Diagnostics.Debug.WriteLine("[FindGridInScreen] 未找到同行的第二个角");
             return null;
         }
 
-        System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 找到第二个角 @ ({secondPattern.CenterX:F1}, {secondPattern.CenterY:F1}), GridSize={gridSize}×{gridSize}");
+        // 步骤 3: 在第一个角的同一列向下搜索第三个角
+        FinderPattern? bottomLeftPattern = FindPatternInColumn(screenImage, firstPattern, cellSize);
+        if (bottomLeftPattern == null)
+        {
+            System.Diagnostics.Debug.WriteLine("[FindGridInScreen] 未找到同列的第三个角");
+            return null;
+        }
 
-        // 步骤 3: 根据两个角计算网格原点
-        (int gridX, int gridY) = CalculateGridOrigin(firstPattern, secondPattern, gridSize, cellSize);
+        // 步骤 4: 计算网格大小和原点
+        int horizontalDistance = (int)Math.Abs(topRightPattern.CenterX - firstPattern.CenterX);
+        int verticalDistance = (int)Math.Abs(bottomLeftPattern.CenterY - firstPattern.CenterY);
+        int gridSizeH = (int)Math.Round((float)horizontalDistance / cellSize);
+        int gridSizeV = (int)Math.Round((float)verticalDistance / cellSize);
+
+        // 验证两个方向的网格大小一致
+        if (Math.Abs(gridSizeH - gridSizeV) > 2)
+        {
+            System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 网格大小不一致: H={gridSizeH}, V={gridSizeV}");
+            return null;
+        }
+
+        int gridSize = (gridSizeH + gridSizeV) / 2; // 取平均
+        System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 找到三个角, GridSize={gridSize}×{gridSize}");
+
+        // Finder Pattern 中心在 (3.5, 3.5) 个模块位置
+        float finderCenterOffset = 3.5f * cellSize;
+        int gridX = (int)Math.Round(Math.Min(firstPattern.CenterX, topRightPattern.CenterX) - finderCenterOffset);
+        int gridY = (int)Math.Round(Math.Min(firstPattern.CenterY, bottomLeftPattern.CenterY) - finderCenterOffset);
         System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 计算网格原点: ({gridX}, {gridY})");
-
-        // 步骤 4: 验证其他两个角
-        bool verified = VerifyOtherTwoCorners(screenImage, gridX, gridY, gridSize, cellSize);
-        if (!verified)
-        {
-            System.Diagnostics.Debug.WriteLine("[FindGridInScreen] 其他角验证失败");
-            return null;
-        }
 
         System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 成功定位网格: Grid={gridSize}×{gridSize}, Cell={cellSize}px");
 
@@ -222,15 +238,21 @@ public sealed class DataToTextGridDecoder
     /// <summary>
     /// 提取一行的 run-length 序列
     /// </summary>
+    /// <param name="startX">起始 X 坐标（默认0）</param>
     /// <returns>(runs, startsWithBlack)</returns>
-    private static (List<int> runs, bool startsWithBlack) ExtractRunLengths(Image<Bgra32> image, int y, int width)
+    private static (List<int> runs, bool startsWithBlack) ExtractRunLengths(Image<Bgra32> image, int y, int width, int startX = 0)
     {
         List<int> runs = new();
-        bool startsWithBlack = IsPixelBlack(image[0, y]);
+        
+        // 边界检查
+        if (startX < 0 || startX >= width || y < 0 || y >= image.Height)
+            return (runs, false);
+        
+        bool startsWithBlack = IsPixelBlack(image[startX, y]);
         bool currentIsBlack = startsWithBlack;
         int runLength = 0;
 
-        for (int x = 0; x < width; x++)
+        for (int x = startX; x < width; x++)
         {
             bool isBlack = IsPixelBlack(image[x, y]);
             
@@ -502,171 +524,137 @@ public sealed class DataToTextGridDecoder
     }
 
     /// <summary>
-    /// 在第一个角附近搜索第二个角并计算网格大小
+    /// 在同一行向右搜索下一个 Finder Pattern
     /// </summary>
-    private static (FinderPattern? secondPattern, int gridSize) FindSecondCornerAndCalculateGridSize(
-        Image<Bgra32> image, FinderPattern firstPattern, int cellSize)
+    private static FinderPattern? FindPatternInRow(
+        Image<Bgra32> image, FinderPattern anchor, int cellSize)
     {
-        const int MIN_GRID_SIZE = 30; // 最小网格尺寸
-        const int MAX_GRID_SIZE = 200; // 最大网格尺寸
-        const int TOLERANCE = 5; // 搜索容差（像素）
+        const int MIN_GRID_SIZE = 30;
+        const int MAX_GRID_SIZE = 200;
+        const int TOLERANCE = 5;
 
-        int centerX = (int)firstPattern.CenterX;
-        int centerY = (int)firstPattern.CenterY;
+        int centerX = (int)anchor.CenterX;
+        int centerY = (int)anchor.CenterY;
         int minDistance = MIN_GRID_SIZE * cellSize;
 
-        // 策略 A: 在同一行搜索（水平方向）
         for (int dy = -TOLERANCE; dy <= TOLERANCE; dy++)
         {
             int searchY = centerY + dy;
             if (searchY < 0 || searchY >= image.Height) continue;
 
-            var (rawRuns, startsWithBlack) = ExtractRunLengths(image, searchY, image.Width);
+            // 从 anchor 右侧开始搜索，避免找到 anchor 自身
+            int searchStartX = centerX + cellSize * 5; // 跳过 anchor 区域
+            if (searchStartX >= image.Width) continue;
+            
+            var (rawRuns, startsWithBlack) = ExtractRunLengths(image, searchY, image.Width, searchStartX);
 
             for (int i = 0; i <= rawRuns.Count - 5; i++)
             {
-                // 窗口必须从黑色 run 开始
                 bool currentIsBlack = startsWithBlack ? (i % 2 == 0) : (i % 2 == 1);
                 if (!currentIsBlack) continue;
 
-                // 尝试不同窗口大小
-                for (int windowSize = 5; windowSize <= Math.Min(9, rawRuns.Count - i); windowSize += 2)
+                // 目前的实现中 FontString 一定会有缝隙，所以我们只考虑9个 Run List 的情况
+                var windowSize = 9;
+                if (rawRuns.Count - i < windowSize)
+                    continue; // 不够9个了，跳过这个起点
                 {
                     int[] window = rawRuns.Skip(i).Take(windowSize).ToArray();
                     int[]? merged = TryMergeGapsInWindow(window);
 
                     if (merged != null && IsFinderPatternRatio(merged))
                     {
-                        int endX = CalculateRunEndPosition(rawRuns, i + windowSize - 1);
-                        float patternCenterX = endX - merged[4] - merged[3] - merged[2] / 2.0f;
+                        int endOffset = CalculateRunEndPosition(rawRuns, i + windowSize - 1);
+                        float patternCenterX = searchStartX + endOffset - merged[4] - merged[3] - merged[2] / 2.0f;
 
-                        // 跳过第一个角本身
-                        if (Math.Abs(patternCenterX - centerX) < cellSize * 5) continue;
-
-                        // 距离必须大于最小网格
-                        int distance = (int)Math.Abs(patternCenterX - centerX);
+                        // 必须在右侧且距离合理
+                        if (patternCenterX <= centerX + cellSize * 5) continue;
+                        int distance = (int)(patternCenterX - centerX);
                         if (distance < minDistance) continue;
+
+                        int gridSize = (int)Math.Round((float)distance / cellSize);
+                        if (gridSize < MIN_GRID_SIZE || gridSize > MAX_GRID_SIZE) continue;
 
                         int estimatedHeight = merged.Sum();
                         var (success, preciseCenterY) = VerifyVerticalPattern(image, (int)patternCenterX, searchY, estimatedHeight);
                         if (success)
                         {
-                            int gridSize = (int)Math.Round((float)distance / cellSize);
-                            if (gridSize >= MIN_GRID_SIZE && gridSize <= MAX_GRID_SIZE)
-                            {
-                                float moduleSize = merged.Sum() / 7.0f;
-                                return (new FinderPattern(patternCenterX, preciseCenterY, moduleSize), gridSize);
-                            }
+                            float moduleSize = merged.Sum() / 7.0f;
+                            return new FinderPattern(patternCenterX, preciseCenterY, moduleSize);
                         }
                     }
                 }
             }
         }
 
-        // 策略 B: 在同一列搜索（垂直方向）
+        return null;
+    }
+
+    /// <summary>
+    /// 在同一列向下搜索下一个 Finder Pattern
+    /// </summary>
+    private static FinderPattern? FindPatternInColumn(
+        Image<Bgra32> image, FinderPattern anchor, int cellSize)
+    {
+        const int MIN_GRID_SIZE = 30;
+        const int MAX_GRID_SIZE = 200;
+        const int TOLERANCE = 5;
+
+        int centerX = (int)anchor.CenterX;
+        int centerY = (int)anchor.CenterY;
+        int minDistance = MIN_GRID_SIZE * cellSize;
+
         for (int dx = -TOLERANCE; dx <= TOLERANCE; dx++)
         {
             int searchX = centerX + dx;
             if (searchX < 0 || searchX >= image.Width) continue;
 
-            var (rawRuns, startsWithBlack) = ExtractRunLengthsVertical(image, searchX, 0, image.Height);
+            // 从 anchor 下方开始搜索，避免找到 anchor 自身
+            int searchStartY = centerY + cellSize * 5; // 跳过 anchor 区域
+            if (searchStartY >= image.Height) continue;
+            
+            var (rawRuns, startsWithBlack) = ExtractRunLengthsVertical(image, searchX, searchStartY, image.Height);
 
             for (int i = 0; i <= rawRuns.Count - 5; i++)
             {
-                // 窗口必须从黑色 run 开始
                 bool currentIsBlack = startsWithBlack ? (i % 2 == 0) : (i % 2 == 1);
                 if (!currentIsBlack) continue;
 
-                // 尝试不同窗口大小
-                for (int windowSize = 5; windowSize <= Math.Min(9, rawRuns.Count - i); windowSize += 2)
+                // 目前的实现中 FontString 一定会有缝隙，所以我们只考虑9个 Run List 的情况
+                var windowSize = 9;
+                if (rawRuns.Count - i < windowSize)
+                    continue; // 不够9个了，跳过这个起点
                 {
                     int[] window = rawRuns.Skip(i).Take(windowSize).ToArray();
                     int[]? merged = TryMergeGapsInWindow(window);
 
                     if (merged != null && IsFinderPatternRatio(merged))
                     {
-                        int endY = CalculateRunEndPosition(rawRuns, i + windowSize - 1);
-                        float patternCenterY = endY - merged[4] - merged[3] - merged[2] / 2.0f;
+                        int endOffset = CalculateRunEndPosition(rawRuns, i + windowSize - 1);
+                        float patternCenterY = searchStartY + endOffset - merged[4] - merged[3] - merged[2] / 2.0f;
 
-                        // 跳过第一个角本身
-                        if (Math.Abs(patternCenterY - centerY) < cellSize * 5) continue;
-
-                        int distance = (int)Math.Abs(patternCenterY - centerY);
+                        // 必须在下方且距离合理
+                        if (patternCenterY <= centerY + cellSize * 5) continue;
+                        int distance = (int)(patternCenterY - centerY);
                         if (distance < minDistance) continue;
+
+                        int gridSize = (int)Math.Round((float)distance / cellSize);
+                        if (gridSize < MIN_GRID_SIZE || gridSize > MAX_GRID_SIZE) continue;
 
                         int estimatedWidth = merged.Sum();
                         var (success, preciseCenterX) = VerifyHorizontalPattern(image, searchX, (int)patternCenterY, estimatedWidth);
                         if (success)
                         {
-                            int gridSize = (int)Math.Round((float)distance / cellSize);
-                            if (gridSize >= MIN_GRID_SIZE && gridSize <= MAX_GRID_SIZE)
-                            {
-                                float moduleSize = merged.Sum() / 7.0f;
-                                return (new FinderPattern(preciseCenterX, patternCenterY, moduleSize), gridSize);
-                            }
+                            float moduleSize = merged.Sum() / 7.0f;
+                            return new FinderPattern(preciseCenterX, patternCenterY, moduleSize);
                         }
                     }
                 }
             }
         }
 
-        return (null, 0);
+        return null;
     }
 
-    /// <summary>
-    /// 根据两个角计算网格原点
-    /// </summary>
-    private static (int gridX, int gridY) CalculateGridOrigin(
-        FinderPattern first, FinderPattern second, int gridSize, int cellSize)
-    {
-        // Finder Pattern 中心在 (3.5, 3.5) 个模块位置
-        float finderCenterOffset = 3.5f * cellSize;
-
-        // 判断两个角的相对位置
-        bool isHorizontal = Math.Abs(first.CenterY - second.CenterY) < Math.Abs(first.CenterX - second.CenterX);
-
-        if (isHorizontal)
-        {
-            // 同一行：topLeft + topRight 或 bottomLeft + bottomRight
-            int gridX = (int)Math.Round(Math.Min(first.CenterX, second.CenterX) - finderCenterOffset);
-            int gridY = (int)Math.Round(Math.Min(first.CenterY, second.CenterY) - finderCenterOffset);
-            return (gridX, gridY);
-        }
-        else
-        {
-            // 同一列：topLeft + bottomLeft 或 topRight + bottomRight
-            int gridX = (int)Math.Round(Math.Min(first.CenterX, second.CenterX) - finderCenterOffset);
-            int gridY = (int)Math.Round(Math.Min(first.CenterY, second.CenterY) - finderCenterOffset);
-            return (gridX, gridY);
-        }
-    }
-
-    /// <summary>
-    /// 验证其他两个角
-    /// </summary>
-    private static bool VerifyOtherTwoCorners(Image<Bgra32> image, int gridX, int gridY, int gridSize, int cellSize)
-    {
-        // Finder Pattern 中心在 (3.5, 3.5) 个模块位置
-        float finderCenterOffset = 3.5f * cellSize;
-        float gridPixelSize = gridSize * cellSize;
-
-        // 计算四个角的位置
-        (int topLeftX, int topLeftY) = ((int)(gridX + finderCenterOffset), (int)(gridY + finderCenterOffset));
-        (int topRightX, int topRightY) = ((int)(gridX + gridPixelSize - finderCenterOffset), (int)(gridY + finderCenterOffset));
-        (int bottomLeftX, int bottomLeftY) = ((int)(gridX + finderCenterOffset), (int)(gridY + gridPixelSize - finderCenterOffset));
-        (int bottomRightX, int bottomRightY) = ((int)(gridX + gridPixelSize - finderCenterOffset), (int)(gridY + gridPixelSize - finderCenterOffset));
-
-        // 验证四个角（至少 3/4 通过）
-        int validCount = 0;
-        if (VerifyFinderPatternAt(image, topLeftX, topLeftY, cellSize)) validCount++;
-        if (VerifyFinderPatternAt(image, topRightX, topRightY, cellSize)) validCount++;
-        if (VerifyFinderPatternAt(image, bottomLeftX, bottomLeftY, cellSize)) validCount++;
-        if (VerifyFinderPatternAt(image, bottomRightX, bottomRightY, cellSize)) validCount++;
-
-        System.Diagnostics.Debug.WriteLine($"[VerifyOtherTwoCorners] 验证结果: {validCount}/4 个角有效");
-
-        return validCount >= 3; // 至少 3 个角验证通过
-    }
 
     /// <summary>
     /// 验证指定位置是否存在 Finder Pattern（采样验证）
