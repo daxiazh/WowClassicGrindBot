@@ -36,9 +36,10 @@ internal sealed class Program
     public static void Main()
     {
         var logConfig = new LoggerConfiguration()
-            .WriteTo.File("names.log")
+            .MinimumLevel.Debug()  // 设置最小日志级别为 Debug
+            .WriteTo.File("names.log", restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug)
             .WriteTo.Debug()
-            .WriteTo.Console()
+            .WriteTo.Console(restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug)
             .CreateLogger();
 
         Log.Logger = logConfig;
@@ -46,7 +47,10 @@ internal sealed class Program
 
         loggerFactory = LoggerFactory.Create(builder =>
         {
-            builder.ClearProviders().AddSerilog();
+            builder
+                .ClearProviders()
+                .AddSerilog()
+                .SetMinimumLevel(LogLevel.Debug);  // 设置 LoggerFactory 的最小级别为 Debug
         });
 
         // 直接调用离线测试,不需要创建 WowProcess 和 WowScreenDXGI
@@ -253,12 +257,14 @@ internal sealed class Program
         {
             // 离线测试：使用保存的调试图片
             Log.Logger.Information("使用离线测试模式");
-            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "Xnip2025-10-16_11-29-22.tga");
+            var decoderLogger = loggerFactory.CreateLogger<Core.DataToText.DataToTextGridDecoder>();
+            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "Xnip2025-10-16_11-29-22.tga", decoderLogger);
         }
         else
         {
             // 实时测试：从游戏窗口捕获
-            using Test_DataToTextDecoder test = new(logger, screen);
+            var decoderLogger = loggerFactory.CreateLogger<Core.DataToText.DataToTextGridDecoder>();
+            using Test_DataToTextDecoder test = new(logger, decoderLogger, screen);
 
             int count = 100;
             Log.Logger.Information($"开始DataToText解码测试 ({count}次采样)...");

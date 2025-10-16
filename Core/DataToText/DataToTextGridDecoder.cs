@@ -5,6 +5,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 
 namespace Core.DataToText;
 
@@ -14,6 +15,8 @@ namespace Core.DataToText;
 /// </summary>
 public sealed class DataToTextGridDecoder
 {
+    private readonly ILogger<DataToTextGridDecoder>? logger;
+    
     // 网格常量
     private const int CORNER_MARKER_SIZE = 7;  // QR码 Finder Pattern 尺寸
     private const int QUIET_ZONE_SIZE = 1;     // Finder Pattern 周围的静区宽度
@@ -22,7 +25,6 @@ public sealed class DataToTextGridDecoder
     // 数据格式常量
     private const int METADATA_BYTES = 4;
     private const int FIELD_COUNT = 108;
-    private const int BITS_PER_FIELD = 24;
     private const int CRC32_BYTES = 4;
     private const int DATA_BYTES = FIELD_COUNT * 3; // 108 fields × 3 bytes
 
@@ -34,6 +36,15 @@ public sealed class DataToTextGridDecoder
     private GridLocation? cachedLocation;
     private int cacheHitCount;
     private const int CACHE_VALIDATION_THRESHOLD = 10; // 每10帧验证一次缓存
+
+    /// <summary>
+    /// 构造函数
+    /// </summary>
+    /// <param name="logger">可选的日志记录器</param>
+    public DataToTextGridDecoder(ILogger<DataToTextGridDecoder>? logger = null)
+    {
+        this.logger = logger;
+    }
 
     /// <summary>
     /// 解码后的字段数据 (108个24位整数)
@@ -82,7 +93,7 @@ public sealed class DataToTextGridDecoder
             }
 
             // 2. 全屏搜索网格位置
-            GridLocation? location = FindGridInScreen(screenImage);
+            GridLocation? location = FindGridInScreen(screenImage, logger);
             if (location == null)
             {
                 LastError = "未能在屏幕中找到DataToText网格";
@@ -112,29 +123,30 @@ public sealed class DataToTextGridDecoder
     /// 在屏幕中搜索DataToText网格 - 优化版（渐进式定位）
     /// 假设：屏幕中只有一个网格，完整显示
     /// </summary>
-    private static GridLocation? FindGridInScreen(Image<Bgra32> screenImage)
+    private static GridLocation? FindGridInScreen(Image<Bgra32> screenImage, ILogger<DataToTextGridDecoder>? logger)
     {
         int width = screenImage.Width;
         int height = screenImage.Height;
 
-        System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 开始搜索 {width}×{height} 屏幕");
+        logger?.LogDebug("[FindGridInScreen] 开始搜索 {Width}×{Height} 屏幕", width, height);
 
         // 步骤 1: 跳行全屏搜索第一个 Finder Pattern
         FinderPattern? firstPattern = FindFirstFinderPattern(screenImage);
         if (firstPattern == null)
         {
-            System.Diagnostics.Debug.WriteLine("[FindGridInScreen] 未找到任何 Finder Pattern");
+            logger?.LogDebug("[FindGridInScreen] 未找到任何 Finder Pattern");
             return null;
         }
 
         int cellSize = (int)Math.Round(firstPattern.EstimatedModuleSize);
-        System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 找到第一个角 @ ({firstPattern.CenterX:F1}, {firstPattern.CenterY:F1}), CellSize={cellSize}px");
+        logger?.LogDebug("[FindGridInScreen] 找到第一个角 @ ({CenterX:F1}, {CenterY:F1}), CellSize={CellSize}px", 
+            firstPattern.CenterX, firstPattern.CenterY, cellSize);
 
         // 步骤 2: 在第一个角的同一行向右搜索第二个角
         FinderPattern? topRightPattern = FindPatternInRow(screenImage, firstPattern, cellSize);
         if (topRightPattern == null)
         {
-            System.Diagnostics.Debug.WriteLine("[FindGridInScreen] 未找到同行的第二个角");
+            logger?.LogDebug("[FindGridInScreen] 未找到同行的第二个角");
             return null;
         }
 
@@ -142,7 +154,7 @@ public sealed class DataToTextGridDecoder
         FinderPattern? bottomLeftPattern = FindPatternInColumn(screenImage, firstPattern, cellSize);
         if (bottomLeftPattern == null)
         {
-            System.Diagnostics.Debug.WriteLine("[FindGridInScreen] 未找到同列的第三个角");
+            logger?.LogDebug("[FindGridInScreen] 未找到同列的第三个角");
             return null;
         }
 
@@ -162,20 +174,20 @@ public sealed class DataToTextGridDecoder
         // 验证两个方向的网格大小一致
         if (Math.Abs(gridSizeH - gridSizeV) > 2)
         {
-            System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 网格大小不一致: H={gridSizeH}, V={gridSizeV}");
+            logger?.LogDebug("[FindGridInScreen] 网格大小不一致: H={GridSizeH}, V={GridSizeV}", gridSizeH, gridSizeV);
             return null;
         }
 
         int gridSize = (gridSizeH + gridSizeV) / 2; // 取平均
-        System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 找到三个角, GridSize={gridSize}×{gridSize}");
+        logger?.LogDebug("[FindGridInScreen] 找到三个角, GridSize={GridSize}×{GridSize}", gridSize, gridSize);
 
         // Finder Pattern 中心在 (3.5, 3.5) 个模块位置
         float finderCenterOffset = 3.5f * cellSize;
         int gridX = (int)Math.Round(Math.Min(firstPattern.CenterX, topRightPattern.CenterX) - finderCenterOffset);
         int gridY = (int)Math.Round(Math.Min(firstPattern.CenterY, bottomLeftPattern.CenterY) - finderCenterOffset);
-        System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 计算网格原点: ({gridX}, {gridY})");
+        logger?.LogDebug("[FindGridInScreen] 计算网格原点: ({GridX}, {GridY})", gridX, gridY);
 
-        System.Diagnostics.Debug.WriteLine($"[FindGridInScreen] 成功定位网格: Grid={gridSize}×{gridSize}, Cell={cellSize}px");
+        logger?.LogInformation("[FindGridInScreen] 成功定位网格: Grid={GridSize}×{GridSize}, Cell={CellSize}px", gridSize, gridSize, cellSize);
 
         return new GridLocation
         {
@@ -194,8 +206,6 @@ public sealed class DataToTextGridDecoder
         int width = image.Width;
         int height = image.Height;
         int stepSize = 3; // 跳行步长（Finder Pattern 高度约 7×cellSize ≈ 28-70px）
-
-        System.Diagnostics.Debug.WriteLine($"[FindFirstFinderPattern] 跳行扫描 {width}×{height}（步长={stepSize}）");
 
         for (int y = 0; y < height; y += stepSize)
         {
@@ -791,14 +801,32 @@ public sealed class DataToTextGridDecoder
     /// </summary>
     private bool TryDecodeAtLocation(Image<Bgra32> image, GridLocation location)
     {
+        logger?.LogDebug("[Decode] GridSize={GridSize}, CellSize={CellSize}, Origin=({X}, {Y})", 
+            location.GridSize, location.CellSize, location.X, location.Y);
+        
         // 1. 采样网格数据
         byte[,] grid = SampleGrid(image, location);
 
         // 2. 提取位流 (跳过角标记)
+        int totalCells = location.GridSize * location.GridSize;
+        int markerCells = 4 * CORNER_TOTAL_SIZE * CORNER_TOTAL_SIZE;
+        int expectedDataCells = totalCells - markerCells;
+        
         byte[] bits = ExtractBits(grid, location.GridSize);
+        logger?.LogDebug("[Decode] Expected DataCells={Expected}, Actual bits.Length={Actual}", 
+            expectedDataCells, bits.Length);
 
         // 3. 位转字节
         byte[] bytes = BitsToBytes(bits);
+        int expectedByteCount = METADATA_BYTES + DATA_BYTES + CRC32_BYTES;
+        logger?.LogDebug("[Decode] bytes.Length={BytesLength}, Expected={Expected}", 
+            bytes.Length, expectedByteCount);
+        
+        // 输出前 32 字节的十六进制
+        if (bytes.Length >= 32)
+        {
+            logger?.LogDebug("[Decode] First 32 bytes: {Bytes}", BitConverter.ToString(bytes, 0, 32));
+        }
 
         // 4. 验证数据完整性
         if (bytes.Length < METADATA_BYTES + DATA_BYTES + CRC32_BYTES)
@@ -815,6 +843,8 @@ public sealed class DataToTextGridDecoder
             Reserved1 = bytes[2],
             Reserved2 = bytes[3]
         };
+        logger?.LogDebug("[Decode] Metadata: Version={Version}, FieldCount={FieldCount}", 
+            LastMetadata.Version, LastMetadata.FieldCount);
 
         // 6. 验证版本和字段数
         if (LastMetadata.FieldCount != FIELD_COUNT)
@@ -824,6 +854,10 @@ public sealed class DataToTextGridDecoder
         }
 
         // 7. 验证CRC32
+        int crcStartIndex = METADATA_BYTES + DATA_BYTES;
+        logger?.LogDebug("[Decode] CRC32 position: index={Index}, bytes={B0:X2}-{B1:X2}-{B2:X2}-{B3:X2}", 
+            crcStartIndex, bytes[crcStartIndex], bytes[crcStartIndex+1], bytes[crcStartIndex+2], bytes[crcStartIndex+3]);
+        
         ReadOnlySpan<byte> dataForCrc = bytes.AsSpan(0, METADATA_BYTES + DATA_BYTES);
         uint calculatedCrc = CalculateCRC32(dataForCrc);
         uint storedCrc = BinaryPrimitives.ReadUInt32BigEndian(
@@ -831,6 +865,9 @@ public sealed class DataToTextGridDecoder
 
         if (calculatedCrc != storedCrc)
         {
+            logger?.LogWarning("[Decode] CRC32校验失败: 计算={Calculated:X8}, 存储={Stored:X8}", calculatedCrc, storedCrc);
+            logger?.LogDebug("[Decode] CRC 数据范围: 0 到 {End} 字节 (元数据 + 数据 = {Meta} + {Data})", 
+                METADATA_BYTES + DATA_BYTES, METADATA_BYTES, DATA_BYTES);
             LastError = $"CRC32校验失败: 计算={calculatedCrc:X8}, 存储={storedCrc:X8}";
             return false;
         }
