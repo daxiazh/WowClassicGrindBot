@@ -151,10 +151,17 @@ public sealed class DataToTextGridDecoder
         }
 
         // 步骤 4: 计算网格大小和原点
+        // Finder Pattern 中心在 (3.5, 3.5) 个模块位置，即第 4 个单元格 (1-indexed)
+        // 两个 Finder 中心之间的距离 = gridSize - 2*4 = gridSize - 8
+        // 因此: gridSize = centerDistance + 8
         int horizontalDistance = (int)Math.Abs(topRightPattern.CenterX - firstPattern.CenterX);
         int verticalDistance = (int)Math.Abs(bottomLeftPattern.CenterY - firstPattern.CenterY);
-        int gridSizeH = (int)Math.Round((float)horizontalDistance / cellSize);
-        int gridSizeV = (int)Math.Round((float)verticalDistance / cellSize);
+        int centerDistanceH = (int)Math.Round((float)horizontalDistance / cellSize);
+        int centerDistanceV = (int)Math.Round((float)verticalDistance / cellSize);
+        
+        const int FINDER_CENTER_CELL = 4; // Finder Pattern 中心在第 4 个单元格
+        int gridSizeH = centerDistanceH + 2 * FINDER_CENTER_CELL;
+        int gridSizeV = centerDistanceV + 2 * FINDER_CENTER_CELL;
 
         // 验证两个方向的网格大小一致
         if (Math.Abs(gridSizeH - gridSizeV) > 2)
