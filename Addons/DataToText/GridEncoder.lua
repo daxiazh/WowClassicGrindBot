@@ -15,6 +15,7 @@ local GE = DataToTextGridEncoder
 -- 常量定义
 local GRID_SIZE = 65
 local CORNER_MARKER_SIZE = 7  -- QR码 Finder Pattern 尺寸
+local QUIET_ZONE_SIZE = 1     -- Finder Pattern 周围的静区宽度
 local BITS_PER_FIELD = 24
 local TOTAL_FIELDS = 108
 local VERSION = 1
@@ -65,18 +66,19 @@ local function BytesToBits(bytes)
     return bits
 end
 
--- 检查是否在角标记区域（优化版本）
-local CORNER_MAX_ROW = CORNER_MARKER_SIZE
-local CORNER_MIN_ROW = GRID_SIZE - CORNER_MARKER_SIZE + 1
-local CORNER_MAX_COL = CORNER_MARKER_SIZE
-local CORNER_MIN_COL = GRID_SIZE - CORNER_MARKER_SIZE + 1
+-- 检查是否在角标记区域（包含静区）
+local CORNER_TOTAL_SIZE = CORNER_MARKER_SIZE + QUIET_ZONE_SIZE  -- 7 + 1 = 8
+local CORNER_MAX_ROW = CORNER_TOTAL_SIZE
+local CORNER_MIN_ROW = GRID_SIZE - CORNER_TOTAL_SIZE + 1
+local CORNER_MAX_COL = CORNER_TOTAL_SIZE
+local CORNER_MIN_COL = GRID_SIZE - CORNER_TOTAL_SIZE + 1
 
 local function InCorner(row, col)
-    -- 上半部分（前7行）
+    -- 上半部分（前8行：7行Finder + 1行静区）
     if row <= CORNER_MAX_ROW then
         return col <= CORNER_MAX_COL or col >= CORNER_MIN_COL
     end
-    -- 下半部分（后7行）
+    -- 下半部分（后8行）
     if row >= CORNER_MIN_ROW then
         return col <= CORNER_MAX_COL or col >= CORNER_MIN_COL
     end
@@ -157,20 +159,22 @@ function GE.CreateEmptyGrid()
     return grid
 end
 
--- 添加角标记 - QR码 Finder Pattern (7×7)
+-- 添加角标记 - QR码 Finder Pattern (7×7) + 静区 (1格)
 function GE.AddCornerMarkers(grid)
-    local size = CORNER_MARKER_SIZE  -- 7
+    local finderSize = CORNER_MARKER_SIZE  -- 7
+    local totalSize = CORNER_TOTAL_SIZE    -- 8 (7 + 1)
     local max = GRID_SIZE
 
-    -- 7×7 QR码定位图形 (Finder Pattern)
+    -- 7×7 QR码定位图形 (Finder Pattern) + 1格白色静区
     -- 比例: 1:1:3:1:1 的嵌套正方形
-    -- █ █ █ █ █ █ █
-    -- █ ░ ░ ░ ░ ░ █
-    -- █ ░ █ █ █ ░ █
-    -- █ ░ █ █ █ ░ █
-    -- █ ░ █ █ █ ░ █
-    -- █ ░ ░ ░ ░ ░ █
-    -- █ █ █ █ █ █ █
+    -- █ █ █ █ █ █ █ ░  ← 第8列/行为静区
+    -- █ ░ ░ ░ ░ ░ █ ░
+    -- █ ░ █ █ █ ░ █ ░
+    -- █ ░ █ █ █ ░ █ ░
+    -- █ ░ █ █ █ ░ █ ░
+    -- █ ░ ░ ░ ░ ░ █ ░
+    -- █ █ █ █ █ █ █ ░
+    -- ░ ░ ░ ░ ░ ░ ░ ░  ← 静区行
     local function AddFinderPattern(startRow, startCol)
         -- 外层黑框 (7×7)
         for i = 0, 6 do
@@ -193,19 +197,21 @@ function GE.AddCornerMarkers(grid)
                 grid[startRow + i][startCol + j] = 1
             end
         end
+        
+        -- 静区已经在 CreateEmptyGrid() 中初始化为白色，无需额外设置
     end
 
-    -- 左上角
+    -- 左上角 (Finder Pattern占据1-7行/列，第8行/列为静区)
     AddFinderPattern(1, 1)
 
-    -- 右上角
-    AddFinderPattern(1, max - size + 1)
+    -- 右上角 (从第58列开始，占据58-64列，第57列为静区)
+    AddFinderPattern(1, max - totalSize + 1)
 
-    -- 左下角
-    AddFinderPattern(max - size + 1, 1)
+    -- 左下角 (从第58行开始，占据58-64行，第57行为静区)
+    AddFinderPattern(max - totalSize + 1, 1)
 
-    -- 右下角 (可选,为了对称性保留)
-    AddFinderPattern(max - size + 1, max - size + 1)
+    -- 右下角 (从第58行58列开始)
+    AddFinderPattern(max - totalSize + 1, max - totalSize + 1)
 end
 
 -- 填充数据到网格
@@ -259,14 +265,14 @@ function GE.EncodeToGrid(fields)
         totalBits = getn(bits),
         usedBits = usedBits,
         gridSize = GRID_SIZE,
-        capacity = GRID_SIZE * GRID_SIZE - 4 * CORNER_MARKER_SIZE * CORNER_MARKER_SIZE
+        capacity = GRID_SIZE * GRID_SIZE - 4 * CORNER_TOTAL_SIZE * CORNER_TOTAL_SIZE
     }
 end
 
 -- 获取网格容量信息
 function GE.GetCapacityInfo()
     local totalCells = GRID_SIZE * GRID_SIZE
-    local markerCells = 4 * CORNER_MARKER_SIZE * CORNER_MARKER_SIZE
+    local markerCells = 4 * CORNER_TOTAL_SIZE * CORNER_TOTAL_SIZE  -- 包含静区
     local dataCells = totalCells - markerCells
 
     local metadataBits = 32

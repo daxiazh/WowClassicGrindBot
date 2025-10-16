@@ -253,7 +253,7 @@ internal sealed class Program
         {
             // 离线测试：使用保存的调试图片
             Log.Logger.Information("使用离线测试模式");
-            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "datatotext_debug.jpg");
+            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "Xnip2025-10-16_11-29-22.tga");
         }
         else
         {
