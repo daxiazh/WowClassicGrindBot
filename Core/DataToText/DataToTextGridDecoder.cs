@@ -204,7 +204,8 @@ public sealed class DataToTextGridDecoder
                         int endX = CalculateRunEndPosition(rawRuns, i + windowSize - 1);
                         float centerX = endX - merged[4] - merged[3] - merged[2] / 2.0f;
 
-                        var (success, preciseCenterY) = VerifyVerticalPattern(image, (int)centerX, y, merged);
+                        int estimatedHeight = merged.Sum();
+                        var (success, preciseCenterY) = VerifyVerticalPattern(image, (int)centerX, y, estimatedHeight);
                         if (success)
                         {
                             float moduleSize = merged.Sum() / 7.0f;
@@ -354,13 +355,12 @@ public sealed class DataToTextGridDecoder
     /// <summary>
     /// 垂直方向验证 Finder Pattern（使用 run-length + 窗口合并）
     /// </summary>
+    /// <param name="estimatedHeight">估算的 Finder Pattern 高度（用于确定搜索范围）</param>
     /// <returns>(success, preciseCenterY) - 成功标志和精确的 Y 中心坐标</returns>
     private static (bool success, float preciseCenterY) VerifyVerticalPattern(
-        Image<Bgra32> image, int centerX, int centerY, int[] horizontalCounts)
+        Image<Bgra32> image, int centerX, int centerY, int estimatedHeight)
     {
         // 从 centerY 向上下扫描，提取垂直 run-length
-        // 估算搜索范围（基于水平 counts）
-        int estimatedHeight = horizontalCounts.Sum();
         int searchRadius = estimatedHeight * 2; // 留出足够余量
 
         int startY = Math.Max(0, centerY - searchRadius);
@@ -417,9 +417,10 @@ public sealed class DataToTextGridDecoder
     /// <summary>
     /// 水平方向验证 Finder Pattern（使用 run-length + 窗口合并）
     /// </summary>
+    /// <param name="estimatedWidth">估算的 Finder Pattern 宽度（用于优化，当前未使用）</param>
     /// <returns>(success, preciseCenterX) - 成功标志和精确的 X 中心坐标</returns>
     private static (bool success, float preciseCenterX) VerifyHorizontalPattern(
-        Image<Bgra32> image, int centerX, int centerY, int[] verticalCounts)
+        Image<Bgra32> image, int centerX, int centerY, int estimatedWidth)
     {
         // 提取整行的水平 run-length
         var (rawRuns, startsWithBlack) = ExtractRunLengths(image, centerY, image.Width);
@@ -546,7 +547,8 @@ public sealed class DataToTextGridDecoder
                         int distance = (int)Math.Abs(patternCenterX - centerX);
                         if (distance < minDistance) continue;
 
-                        var (success, preciseCenterY) = VerifyVerticalPattern(image, (int)patternCenterX, searchY, merged);
+                        int estimatedHeight = merged.Sum();
+                        var (success, preciseCenterY) = VerifyVerticalPattern(image, (int)patternCenterX, searchY, estimatedHeight);
                         if (success)
                         {
                             int gridSize = (int)Math.Round((float)distance / cellSize);
@@ -592,7 +594,8 @@ public sealed class DataToTextGridDecoder
                         int distance = (int)Math.Abs(patternCenterY - centerY);
                         if (distance < minDistance) continue;
 
-                        var (success, preciseCenterX) = VerifyHorizontalPattern(image, searchX, (int)patternCenterY, merged);
+                        int estimatedWidth = merged.Sum();
+                        var (success, preciseCenterX) = VerifyHorizontalPattern(image, searchX, (int)patternCenterY, estimatedWidth);
                         if (success)
                         {
                             int gridSize = (int)Math.Round((float)distance / cellSize);
