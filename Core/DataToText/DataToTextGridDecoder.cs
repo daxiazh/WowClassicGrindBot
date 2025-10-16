@@ -15,13 +15,9 @@ namespace Core.DataToText;
 public sealed class DataToTextGridDecoder
 {
     // 网格常量
-    private const int GRID_SIZE = 65;
     private const int CORNER_MARKER_SIZE = 7;  // QR码 Finder Pattern 尺寸
     private const int QUIET_ZONE_SIZE = 1;     // Finder Pattern 周围的静区宽度
     private const int CORNER_TOTAL_SIZE = CORNER_MARKER_SIZE + QUIET_ZONE_SIZE;  // 8 (7 + 1)
-    private const int TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
-    private const int MARKER_CELLS = 4 * CORNER_TOTAL_SIZE * CORNER_TOTAL_SIZE;  // 包含静区
-    private const int DATA_CELLS = TOTAL_CELLS - MARKER_CELLS;
 
     // 数据格式常量
     private const int METADATA_BYTES = 4;
@@ -795,11 +791,11 @@ public sealed class DataToTextGridDecoder
     /// </summary>
     private bool TryDecodeAtLocation(Image<Bgra32> image, GridLocation location)
     {
-        // 1. 采样网格数据 (65×65)
+        // 1. 采样网格数据
         byte[,] grid = SampleGrid(image, location);
 
         // 2. 提取位流 (跳过角标记)
-        byte[] bits = ExtractBits(grid);
+        byte[] bits = ExtractBits(grid, location.GridSize);
 
         // 3. 位转字节
         byte[] bytes = BitsToBytes(bits);
@@ -853,15 +849,16 @@ public sealed class DataToTextGridDecoder
     }
 
     /// <summary>
-    /// 从图像中采样65×65网格
+    /// 从图像中采样网格
     /// </summary>
     private static byte[,] SampleGrid(Image<Bgra32> image, GridLocation location)
     {
-        byte[,] grid = new byte[GRID_SIZE, GRID_SIZE];
+        int gridSize = location.GridSize;
+        byte[,] grid = new byte[gridSize, gridSize];
 
-        for (int row = 0; row < GRID_SIZE; row++)
+        for (int row = 0; row < gridSize; row++)
         {
-            for (int col = 0; col < GRID_SIZE; col++)
+            for (int col = 0; col < gridSize; col++)
             {
                 // 采样单元格中心点
                 int x = location.X + col * location.CellSize + location.CellSize / 2;
@@ -883,18 +880,22 @@ public sealed class DataToTextGridDecoder
     }
 
     /// <summary>
-    /// 从65×65网格中提取位流 (跳过角标记)
+    /// 从网格中提取位流 (跳过角标记)
     /// </summary>
-    private static byte[] ExtractBits(byte[,] grid)
+    private static byte[] ExtractBits(byte[,] grid, int gridSize)
     {
-        byte[] bits = new byte[DATA_CELLS];
+        int totalCells = gridSize * gridSize;
+        int markerCells = 4 * CORNER_TOTAL_SIZE * CORNER_TOTAL_SIZE;
+        int dataCells = totalCells - markerCells;
+        
+        byte[] bits = new byte[dataCells];
         int bitIndex = 0;
 
-        for (int row = 0; row < GRID_SIZE; row++)
+        for (int row = 0; row < gridSize; row++)
         {
-            for (int col = 0; col < GRID_SIZE; col++)
+            for (int col = 0; col < gridSize; col++)
             {
-                if (!IsInCorner(row, col))
+                if (!IsInCorner(row, col, gridSize))
                 {
                     bits[bitIndex++] = grid[row, col];
                 }
@@ -908,17 +909,17 @@ public sealed class DataToTextGridDecoder
     /// 检查单元格是否在角标记区域（包含静区）
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsInCorner(int row, int col)
+    private static bool IsInCorner(int row, int col, int gridSize)
     {
         // 上半部分（前8行：7行Finder + 1行静区）
         if (row < CORNER_TOTAL_SIZE)
         {
-            return col < CORNER_TOTAL_SIZE || col >= GRID_SIZE - CORNER_TOTAL_SIZE;
+            return col < CORNER_TOTAL_SIZE || col >= gridSize - CORNER_TOTAL_SIZE;
         }
         // 下半部分（后8行）
-        if (row >= GRID_SIZE - CORNER_TOTAL_SIZE)
+        if (row >= gridSize - CORNER_TOTAL_SIZE)
         {
-            return col < CORNER_TOTAL_SIZE || col >= GRID_SIZE - CORNER_TOTAL_SIZE;
+            return col < CORNER_TOTAL_SIZE || col >= gridSize - CORNER_TOTAL_SIZE;
         }
         return false;
     }
@@ -1012,8 +1013,10 @@ public sealed class DataToTextGridDecoder
         int width = screenImage.Width;
         int height = screenImage.Height;
 
+        // 注意: 这里使用 65 作为估算值，实际网格大小会动态检测
         int minCellSize = 4;
-        int maxCellSize = Math.Min(width, height) / GRID_SIZE;
+        int estimatedGridSize = 65; // 典型网格大小
+        int maxCellSize = Math.Min(width, height) / estimatedGridSize;
         maxCellSize = Math.Max(maxCellSize, minCellSize);
         maxCellSize = Math.Min(maxCellSize, 16);
 
