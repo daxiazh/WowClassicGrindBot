@@ -260,6 +260,23 @@ internal sealed class Test_DataToTextDecoder : IDisposable
 
         logger.LogInformation($"解码耗时: {sw.Elapsed.TotalMilliseconds:F2}ms");
 
+        // 保存采样点可视化调试图
+        if (decoder.LastGridLocation is { } gridLocation && decoder.LastSampledGrid != null)
+        {
+            string debugImagePath = Path.Combine(
+                Path.GetDirectoryName(imagePath) ?? ".",
+                "sampling_debug_" + Path.GetFileName(imagePath)
+            );
+            DataToTextGridDecoder.SaveSamplingVisualization(
+                image,
+                gridLocation,
+                decoder.LastSampledGrid,
+                debugImagePath
+            );
+            logger.LogInformation($"已保存采样点可视化调试图: {debugImagePath}");
+            logger.LogInformation("  亮绿色=黑色单元格(bit=1), 洋红色=白色单元格(bit=0)");
+        }
+
         if (success)
         {
             logger.LogInformation("✓ 解码成功!");

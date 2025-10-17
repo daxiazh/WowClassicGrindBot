@@ -67,6 +67,16 @@ public sealed class DataToTextGridDecoder
     public string? LastError { get; private set; }
 
     /// <summary>
+    /// 上一次解码的网格位置信息（用于调试）
+    /// </summary>
+    public GridLocation? LastGridLocation { get; private set; }
+
+    /// <summary>
+    /// 上一次采样的网格数据（用于调试）
+    /// </summary>
+    public byte[,]? LastSampledGrid { get; private set; }
+
+    /// <summary>
     /// 从屏幕图像中定位并解码网格数据
     /// </summary>
     /// <param name="screenImage">完整屏幕截图</param>
@@ -181,19 +191,49 @@ public sealed class DataToTextGridDecoder
         int gridSize = (gridSizeH + gridSizeV) / 2; // 取平均
         logger?.LogDebug("[FindGridInScreen] 找到三个角, GridSize={GridSize}×{GridSize}", gridSize, gridSize);
 
-        // Finder Pattern 中心在 (3.5, 3.5) 个模块位置
-        float finderCenterOffset = 3.5f * cellSize;
-        int gridX = (int)Math.Round(Math.Min(firstPattern.CenterX, topRightPattern.CenterX) - finderCenterOffset);
-        int gridY = (int)Math.Round(Math.Min(firstPattern.CenterY, bottomLeftPattern.CenterY) - finderCenterOffset);
-        logger?.LogDebug("[FindGridInScreen] 计算网格原点: ({GridX}, {GridY})", gridX, gridY);
+        // === 使用三个 Finder Pattern 进行坐标校准 ===
+        // QR 码使用 Timing Pattern 来精确定位每个模块,我们也使用类似的方法:
+        // 利用两个 Finder Pattern 中心之间的实际像素距离来校准单元格尺寸
+        
+        // 两个 Finder Pattern 中心之间的理论单元格数 = gridSize - 2*4 = gridSize - 8
+        // (因为 Finder Pattern 中心在第 4 个单元格)
+        int theoreticalCellsBetweenH = gridSize - 8;
+        int theoreticalCellsBetweenV = gridSize - 8;
+        
+        // 计算校准后的单元格尺寸
+        float calibratedCellSizeX = theoreticalCellsBetweenH > 0 
+            ? (float)horizontalDistance / theoreticalCellsBetweenH 
+            : cellSize;
+        float calibratedCellSizeY = theoreticalCellsBetweenV > 0 
+            ? (float)verticalDistance / theoreticalCellsBetweenV 
+            : cellSize;
+        
+        logger?.LogDebug("[FindGridInScreen] 坐标校准: 水平距离={H}px, 垂直距离={V}px", horizontalDistance, verticalDistance);
+        logger?.LogDebug("[FindGridInScreen] 校准后单元格尺寸: X={CellSizeX:F2}px, Y={CellSizeY:F2}px (原始={Original}px)", 
+            calibratedCellSizeX, calibratedCellSizeY, cellSize);
+        
+        // Finder Pattern 中心在 (3.5, 3.5) 个单元格位置
+        // 使用校准后的单元格尺寸计算网格原点
+        float finderCenterOffsetX = 3.5f * calibratedCellSizeX;
+        float finderCenterOffsetY = 3.5f * calibratedCellSizeY;
+        
+        // 计算网格逻辑原点（grid[0][0] 的左上角，对应 Lua grid[1][1]）
+        // 直接使用第一个(左上角)Finder Pattern 的坐标
+        int gridX = (int)Math.Round(firstPattern.CenterX - finderCenterOffsetX);
+        int gridY = (int)Math.Round(firstPattern.CenterY - finderCenterOffsetY);
+        logger?.LogDebug("[FindGridInScreen] 计算网格原点: ({GridX}, {GridY}) 基于第一个Finder Pattern ({FPX:F1}, {FPY:F1})", 
+            gridX, gridY, firstPattern.CenterX, firstPattern.CenterY);
 
-        logger?.LogInformation("[FindGridInScreen] 成功定位网格: Grid={GridSize}×{GridSize}, Cell={CellSize}px", gridSize, gridSize, cellSize);
+        logger?.LogInformation("[FindGridInScreen] 成功定位网格: Grid={GridSize}×{GridSize}, Cell={CellSize}px, CalX={CalX:F2}px, CalY={CalY:F2}px", 
+            gridSize, gridSize, cellSize, calibratedCellSizeX, calibratedCellSizeY);
 
         return new GridLocation
         {
             X = gridX,
             Y = gridY,
             CellSize = cellSize,
+            CalibratedCellSizeX = calibratedCellSizeX,
+            CalibratedCellSizeY = calibratedCellSizeY,
             GridSize = gridSize
         };
     }
@@ -804,8 +844,14 @@ public sealed class DataToTextGridDecoder
         logger?.LogDebug("[Decode] GridSize={GridSize}, CellSize={CellSize}, Origin=({X}, {Y})", 
             location.GridSize, location.CellSize, location.X, location.Y);
         
+        // 保存位置信息用于调试
+        LastGridLocation = location;
+        
         // 1. 采样网格数据
         byte[,] grid = SampleGrid(image, location);
+        
+        // 保存采样结果用于调试
+        LastSampledGrid = grid;
 
         // 2. 提取位流 (跳过角标记)
         // 计算需要的位数：元数据 + 数据 + CRC32
@@ -916,6 +962,27 @@ public sealed class DataToTextGridDecoder
     }
 
     /// <summary>
+    /// 计算单元格中心坐标（使用浮点数避免累积误差）
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static (int x, int y) GetCellCenter(GridLocation location, int row, int col)
+    {
+        // 使用通过三个 Finder Pattern 校准后的单元格尺寸
+        // 这样可以补偿 Lua FontString 渲染的非均匀间距
+        float calibratedCellSizeX = location.CalibratedCellSizeX;
+        float calibratedCellSizeY = location.CalibratedCellSizeY;
+        
+        float halfCellX = calibratedCellSizeX / 2.0f;
+        float halfCellY = calibratedCellSizeY / 2.0f;
+        
+        // 四舍五入到最近的整数像素
+        int x = (int)Math.Round(location.X + col * calibratedCellSizeX + halfCellX);
+        int y = (int)Math.Round(location.Y + row * calibratedCellSizeY + halfCellY);
+        
+        return (x, y);
+    }
+
+    /// <summary>
     /// 从图像中采样网格
     /// </summary>
     private static byte[,] SampleGrid(Image<Bgra32> image, GridLocation location)
@@ -927,9 +994,8 @@ public sealed class DataToTextGridDecoder
         {
             for (int col = 0; col < gridSize; col++)
             {
-                // 采样单元格中心点
-                int x = location.X + col * location.CellSize + location.CellSize / 2;
-                int y = location.Y + row * location.CellSize + location.CellSize / 2;
+                // 获取单元格中心点
+                var (x, y) = GetCellCenter(location, row, col);
 
                 // 边界检查
                 if (x >= image.Width || y >= image.Height)
@@ -1024,6 +1090,54 @@ public sealed class DataToTextGridDecoder
     }
 
     /// <summary>
+    /// 保存采样点可视化调试图
+    /// 在每个单元格中心绘制4×4标记: 亮绿色=黑色单元格, 洋红色=白色单元格
+    /// </summary>
+    public static void SaveSamplingVisualization(Image<Bgra32> originalImage, GridLocation location, byte[,] sampledGrid, string outputPath = "sampling_debug.jpg")
+    {
+        // 克隆原图用于绘制
+        using var debugImage = originalImage.Clone();
+        int gridSize = location.GridSize;
+
+        // 定义标记颜色 (BGR格式，使用高对比度颜色)
+        var greenMarker = new Bgra32(0, 255, 0, 255);    // 亮绿色 - 标记黑色单元格(bit=1)
+        var magentaMarker = new Bgra32(255, 0, 255, 255); // 洋红色 - 标记白色单元格(bit=0)
+
+        // 标记大小 (4×4 更明显)
+        int markerSize = 4;
+        int markerOffset = -markerSize / 2; // 居中偏移
+
+        for (int row = 0; row < gridSize; row++)
+        {
+            for (int col = 0; col < gridSize; col++)
+            {
+                // 使用统一的坐标计算函数
+                var (centerX, centerY) = GetCellCenter(location, row, col);
+
+                // 选择颜色: 黑色单元格用亮绿色标记, 白色单元格用洋红色标记
+                var markerColor = sampledGrid[row, col] == 1 ? greenMarker : magentaMarker;
+
+                // 绘制4×4标记 (居中在采样点)
+                for (int dy = 0; dy < markerSize; dy++)
+                {
+                    for (int dx = 0; dx < markerSize; dx++)
+                    {
+                        int x = centerX + markerOffset + dx;
+                        int y = centerY + markerOffset + dy;
+
+                        if (x >= 0 && x < debugImage.Width && y >= 0 && y < debugImage.Height)
+                        {
+                            debugImage[x, y] = markerColor;
+                        }
+                    }
+                }
+            }
+        }
+
+        debugImage.SaveAsJpeg(outputPath);
+    }
+
+    /// <summary>
     /// 计算CRC32校验码
     /// </summary>
     private static uint CalculateCRC32(ReadOnlySpan<byte> data)
@@ -1100,9 +1214,11 @@ public sealed class GridLocation
     public int X { get; init; }
     public int Y { get; init; }
     public int CellSize { get; init; }
+    public float CalibratedCellSizeX { get; init; }  // 通过 Finder Pattern 校准的 X 方向单元格尺寸
+    public float CalibratedCellSizeY { get; init; }  // 通过 Finder Pattern 校准的 Y 方向单元格尺寸
     public int GridSize { get; init; }  // 动态检测的网格大小 (如 65×65)
 
-    public override string ToString() => $"({X}, {Y}) Grid={GridSize}×{GridSize} CellSize={CellSize}px";
+    public override string ToString() => $"({X}, {Y}) Grid={GridSize}×{GridSize} Cell={CellSize}px CalX={CalibratedCellSizeX:F2}px CalY={CalibratedCellSizeY:F2}px";
 }
 
 /// <summary>
