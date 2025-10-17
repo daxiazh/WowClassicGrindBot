@@ -53,6 +53,13 @@ internal sealed class Program
                 .SetMinimumLevel(LogLevel.Debug);  // 设置 LoggerFactory 的最小级别为 Debug
         });
 
+        // 运行 CRC32 验证测试
+        DataToText.Test_CRC32.RunAllTests(logger);
+        
+        Log.Logger.Information("");
+        Log.Logger.Information("========================================");
+        Log.Logger.Information("");
+        
         // 直接调用离线测试,不需要创建 WowProcess 和 WowScreenDXGI
         Test_DataToTextDecoder();
 
@@ -258,7 +265,7 @@ internal sealed class Program
             // 离线测试：使用保存的调试图片
             Log.Logger.Information("使用离线测试模式");
             var decoderLogger = loggerFactory.CreateLogger<Core.DataToText.DataToTextGridDecoder>();
-            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "Xnip2025-10-16_11-29-22.tga", decoderLogger);
+            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "/Users/zhanghua/Downloads/Xnip2025-10-17_11-08-42.jpg", decoderLogger);
         }
         else
         {
