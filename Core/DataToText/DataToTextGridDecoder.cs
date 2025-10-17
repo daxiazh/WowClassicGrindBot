@@ -808,19 +808,33 @@ public sealed class DataToTextGridDecoder
         byte[,] grid = SampleGrid(image, location);
 
         // 2. 提取位流 (跳过角标记)
+        // 计算需要的位数：元数据 + 数据 + CRC32
+        int requiredBits = (METADATA_BYTES + DATA_BYTES + CRC32_BYTES) * 8; // 2656 bits
+        
         int totalCells = location.GridSize * location.GridSize;
         int markerCells = 4 * CORNER_TOTAL_SIZE * CORNER_TOTAL_SIZE;
-        int expectedDataCells = totalCells - markerCells;
+        int availableDataCells = totalCells - markerCells;
         
-        byte[] bits = ExtractBits(grid, location.GridSize);
-        logger?.LogDebug("[Decode] Expected DataCells={Expected}, Actual bits.Length={Actual}", 
-            expectedDataCells, bits.Length);
+        // 只提取需要的位数
+        byte[] bits = ExtractBits(grid, location.GridSize, requiredBits);
+        logger?.LogDebug("[Decode] 可用数据单元格={Available}, 需要位数={Required}, 实际提取={Actual}", 
+            availableDataCells, requiredBits, bits.Length);
+        logger?.LogDebug("[Decode] 跳过的角标记单元格数: {MarkerCells}", markerCells);
+        
+        // 输出前64个bits用于诊断
+        if (bits.Length >= 64)
+        {
+            logger?.LogDebug("[Decode] 前64个bits: {Bits}", string.Join("", bits.Take(64)));
+        }
 
         // 3. 位转字节
         byte[] bytes = BitsToBytes(bits);
         int expectedByteCount = METADATA_BYTES + DATA_BYTES + CRC32_BYTES;
+        int expectedBits = expectedByteCount * 8; // 2656 bits
         logger?.LogDebug("[Decode] bytes.Length={BytesLength}, Expected={Expected}", 
             bytes.Length, expectedByteCount);
+        logger?.LogDebug("[Decode] 期望总位数: {ExpectedBits}, 实际位数: {ActualBits}", 
+            expectedBits, bits.Length);
         
         // 输出前 32 字节的十六进制
         if (bytes.Length >= 32)
@@ -919,18 +933,17 @@ public sealed class DataToTextGridDecoder
     /// <summary>
     /// 从网格中提取位流 (跳过角标记)
     /// </summary>
-    private static byte[] ExtractBits(byte[,] grid, int gridSize)
+    /// <param name="grid">采样的网格数据</param>
+    /// <param name="gridSize">网格大小</param>
+    /// <param name="maxBits">最多提取的位数（用于限制提取范围）</param>
+    private static byte[] ExtractBits(byte[,] grid, int gridSize, int maxBits)
     {
-        int totalCells = gridSize * gridSize;
-        int markerCells = 4 * CORNER_TOTAL_SIZE * CORNER_TOTAL_SIZE;
-        int dataCells = totalCells - markerCells;
-        
-        byte[] bits = new byte[dataCells];
+        byte[] bits = new byte[maxBits];
         int bitIndex = 0;
 
-        for (int row = 0; row < gridSize; row++)
+        for (int row = 0; row < gridSize && bitIndex < maxBits; row++)
         {
-            for (int col = 0; col < gridSize; col++)
+            for (int col = 0; col < gridSize && bitIndex < maxBits; col++)
             {
                 if (!IsInCorner(row, col, gridSize))
                 {
