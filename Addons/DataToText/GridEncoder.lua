@@ -76,20 +76,45 @@ end
 
 -- 检查是否在角标记区域（包含静区）
 local CORNER_TOTAL_SIZE = CORNER_MARKER_SIZE + QUIET_ZONE_SIZE  -- 7 + 1 = 8
+local CORNER_FINDER_RIGHT_COL = GRID_SIZE - CORNER_MARKER_SIZE + 1
+local CORNER_FINDER_BOTTOM_ROW = GRID_SIZE - CORNER_MARKER_SIZE + 1
 local CORNER_MAX_ROW = CORNER_TOTAL_SIZE
 local CORNER_MIN_ROW = GRID_SIZE - CORNER_TOTAL_SIZE + 1
 local CORNER_MAX_COL = CORNER_TOTAL_SIZE
 local CORNER_MIN_COL = GRID_SIZE - CORNER_TOTAL_SIZE + 1
 
 local function InCorner(row, col)
-    -- 上半部分（前8行：7行Finder + 1行静区）
-    if row <= CORNER_MAX_ROW then
-        return col <= CORNER_MAX_COL or col >= CORNER_MIN_COL
+    -- 跳过整条外边界（第65行/第65列）作为白色留边
+    if row == GRID_SIZE or col == GRID_SIZE then
+        return true
     end
-    -- 下半部分（后8行）
-    if row >= CORNER_MIN_ROW then
-        return col <= CORNER_MAX_COL or col >= CORNER_MIN_COL
+
+    -- 需要跳过的区域包括：7×7 Finder Pattern + 定向静区
+    -- 
+    -- 左上角：Finder(1-7,1-7) + 静区(第8行,第8列)
+    -- 占据区域：1-8行, 1-8列
+    if row <= CORNER_MAX_ROW and col <= CORNER_MAX_COL then
+        return true
     end
+    
+    -- 右上角：Finder(1-7,58-64) + 静区(第8行, 第57列)
+    -- 占据区域：1-8行, 57-65列（包含左侧静区第57列）
+    if row <= CORNER_MAX_ROW and col >= CORNER_MIN_COL - 1 then
+        return true
+    end
+    
+    -- 左下角：Finder(58-64,1-7) + 静区(第57行, 第8列)
+    -- 占据区域：57-65行（包含上侧静区第57行）, 1-8列
+    if row >= CORNER_MIN_ROW - 1 and col <= CORNER_MAX_COL then
+        return true
+    end
+    
+    -- 右下角：Finder(58-64,58-64) + 静区(第57行, 第57列)
+    -- 占据区域：57-65行, 57-65列
+    if row >= CORNER_MIN_ROW - 1 and col >= CORNER_MIN_COL - 1 then
+        return true
+    end
+    
     return false
 end
 
@@ -164,23 +189,27 @@ function GE.CreateEmptyGrid()
     return grid
 end
 
--- 添加角标记 - QR码 Finder Pattern (7×7) + 静区 (1格)
+-- 添加角标记 - QR码 Finder Pattern (7×7) + 定向静区 (1格)
+-- 静区只在朝向数据区域的方向上存在
 function GE.AddCornerMarkers(grid)
     local finderSize = CORNER_MARKER_SIZE  -- 7
-    local totalSize = CORNER_TOTAL_SIZE    -- 8 (7 + 1)
-    local max = GRID_SIZE
+    local max = GRID_SIZE  -- 65
 
-    -- 7×7 QR码定位图形 (Finder Pattern) + 1格白色静区
+    -- 7×7 QR码定位图形 (Finder Pattern) + 定向静区
     -- 比例: 1:1:3:1:1 的嵌套正方形
-    -- █ █ █ █ █ █ █ ░  ← 第8列/行为静区
-    -- █ ░ ░ ░ ░ ░ █ ░
-    -- █ ░ █ █ █ ░ █ ░
-    -- █ ░ █ █ █ ░ █ ░
-    -- █ ░ █ █ █ ░ █ ░
-    -- █ ░ ░ ░ ░ ░ █ ░
-    -- █ █ █ █ █ █ █ ░
-    -- ░ ░ ░ ░ ░ ░ ░ ░  ← 静区行
-    local function AddFinderPattern(startRow, startCol)
+    -- 
+    -- 左上角布局:          右上角布局:
+    -- █ █ █ █ █ █ █ ░     ░ █ █ █ █ █ █ █
+    -- █ ░ ░ ░ ░ ░ █ ░     ░ █ ░ ░ ░ ░ ░ █
+    -- █ ░ █ █ █ ░ █ ░     ░ █ ░ █ █ █ ░ █
+    -- █ ░ █ █ █ ░ █ ░     ░ █ ░ █ █ █ ░ █
+    -- █ ░ █ █ █ ░ █ ░     ░ █ ░ █ █ █ ░ █
+    -- █ ░ ░ ░ ░ ░ █ ░     ░ █ ░ ░ ░ ░ ░ █
+    -- █ █ █ █ █ █ █ ░     ░ █ █ █ █ █ █ █
+    -- ░ ░ ░ ░ ░ ░ ░ ░     ░ ░ ░ ░ ░ ░ ░ ░ 
+    
+    -- 通用 Finder Pattern 绘制函数
+    local function DrawFinderPattern(startRow, startCol)
         -- 外层黑框 (7×7)
         for i = 0, 6 do
             grid[startRow + i][startCol] = 1         -- 左边
@@ -202,21 +231,43 @@ function GE.AddCornerMarkers(grid)
                 grid[startRow + i][startCol + j] = 1
             end
         end
-        
-        -- 静区已经在 CreateEmptyGrid() 中初始化为白色，无需额外设置
     end
+    
+    -- 通用静区填充函数
+    local function FillQuietZone(startRow, startCol, endRow, endCol)
+        for r = startRow, endRow do
+            for c = startCol, endCol do
+                if r >= 1 and r <= max and c >= 1 and c <= max then
+                    grid[r][c] = 0  -- 白色
+                end
+            end
+        end
+    end
+        
+    -- 左上角：Finder(1-7,1-7) + 右静区(1-8,8) + 下静区(8,1-8)
+    DrawFinderPattern(1, 1)    
+    FillQuietZone(1, CORNER_TOTAL_SIZE, CORNER_TOTAL_SIZE, CORNER_TOTAL_SIZE)
+    FillQuietZone(CORNER_TOTAL_SIZE, 1, CORNER_TOTAL_SIZE, CORNER_TOTAL_SIZE)
+    
+    local finderRightCol = GRID_SIZE - CORNER_MARKER_SIZE + 1;
+    -- 右上角：Finder(1-7,59-65) + 左静区(1-8,58) + 下静区(8,58-65)
+    DrawFinderPattern(1, finderRightCol) -- 59 - 65 列
+    local topRightFinderCol = GRID_SIZE - CORNER_TOTAL_SIZE + 1
+    FillQuietZone(1, topRightFinderCol, CORNER_TOTAL_SIZE, topRightFinderCol)
+    FillQuietZone(CORNER_TOTAL_SIZE, topRightFinderCol, CORNER_TOTAL_SIZE, GRID_SIZE)
+    
+   -- 左下角：Finder(59-65,1-7) + 上静区(58,1-8) + 右静区(59-65,8)
+   local bottomFinderRow = GRID_SIZE - CORNER_MARKER_SIZE + 1  -- 59
+   DrawFinderPattern(bottomFinderRow, 1)
+   local bottomQuietRow = GRID_SIZE - CORNER_TOTAL_SIZE + 1    -- 58
+   FillQuietZone(bottomQuietRow, 1, bottomQuietRow, CORNER_TOTAL_SIZE)
+   FillQuietZone(bottomFinderRow, CORNER_TOTAL_SIZE, GRID_SIZE, CORNER_TOTAL_SIZE)
+   
+   -- 右下角：Finder(59-65,59-65) + 上静区(58,58-65) + 左静区(59-65,58)
+   DrawFinderPattern(bottomFinderRow, finderRightCol)
+   FillQuietZone(bottomQuietRow, topRightFinderCol, bottomQuietRow, GRID_SIZE)
+   FillQuietZone(bottomQuietRow, topRightFinderCol, GRID_SIZE, topRightFinderCol)
 
-    -- 左上角 (Finder Pattern占据1-7行/列，第8行/列为静区)
-    AddFinderPattern(1, 1)
-
-    -- 右上角 (从第58列开始，占据58-64列，第57列为静区)
-    AddFinderPattern(1, max - totalSize + 1)
-
-    -- 左下角 (从第58行开始，占据58-64行，第57行为静区)
-    AddFinderPattern(max - totalSize + 1, 1)
-
-    -- 右下角 (从第58行58列开始)
-    AddFinderPattern(max - totalSize + 1, max - totalSize + 1)
 end
 
 -- 填充数据到网格

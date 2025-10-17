@@ -1038,21 +1038,45 @@ public sealed class DataToTextGridDecoder
     }
 
     /// <summary>
-    /// 检查单元格是否在角标记区域（包含静区）
+    /// 检查单元格是否在角标记区域（包含定向静区）
+    /// 定向静区：静区只在朝向数据区的方向，会扩展到角标记区域外1格
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsInCorner(int row, int col, int gridSize)
     {
-        // 上半部分（前8行：7行Finder + 1行静区）
-        if (row < CORNER_TOTAL_SIZE)
+        int cornerMaxRow = CORNER_TOTAL_SIZE;  // 8
+        int cornerMinRow = gridSize - CORNER_TOTAL_SIZE;  // 57 (for 65x65)
+        int cornerMaxCol = CORNER_TOTAL_SIZE;  // 8
+        int cornerMinCol = gridSize - CORNER_TOTAL_SIZE;  // 57 (for 65x65)
+        
+        // 左上角：Finder(0-6,0-6) + 静区(第7行,第7列)
+        // 占据区域：0-7行, 0-7列
+        if (row < cornerMaxRow && col < cornerMaxCol)
         {
-            return col < CORNER_TOTAL_SIZE || col >= gridSize - CORNER_TOTAL_SIZE;
+            return true;
         }
-        // 下半部分（后8行）
-        if (row >= gridSize - CORNER_TOTAL_SIZE)
+        
+        // 右上角：Finder(0-6,57-63) + 静区(第7行, 第56列)
+        // 占据区域：0-7行, 56-64列（包含左侧静区第56列）
+        if (row < cornerMaxRow && col >= cornerMinCol - 1)
         {
-            return col < CORNER_TOTAL_SIZE || col >= gridSize - CORNER_TOTAL_SIZE;
+            return true;
         }
+        
+        // 左下角：Finder(57-63,0-6) + 静区(第56行, 第7列)
+        // 占据区域：56-64行（包含上侧静区第56行）, 0-7列
+        if (row >= cornerMinRow - 1 && col < cornerMaxCol)
+        {
+            return true;
+        }
+        
+        // 右下角：Finder(57-63,57-63) + 静区(第56行, 第56列)
+        // 占据区域：56-64行, 56-64列
+        if (row >= cornerMinRow - 1 && col >= cornerMinCol - 1)
+        {
+            return true;
+        }
+        
         return false;
     }
 
