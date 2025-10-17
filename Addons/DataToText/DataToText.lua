@@ -140,6 +140,9 @@ local function UpdateDisplay()
 
     -- 2. 编码为65×65网格（含CRC32）
     local grid, stats = GE.EncodeToGrid(fields)
+    
+    -- 2.1 获取原始字节数组（用于十六进制显示）
+    local bytes = GE.PackFieldsToBytes(fields)
 
     if enableProfiling then
         t2 = GetTime()
@@ -162,8 +165,8 @@ local function UpdateDisplay()
 
     -- 4. 更新EditBox文本显示（简洁清晰版本）
     local textLines = {
-        "DataToText v2.0",
-        "===============",
+        "DataToText " .. GE.VERSION_STRING,
+        "========================",
         "",
     }
 
@@ -172,6 +175,14 @@ local function UpdateDisplay()
     table.insert(textLines, string.format("Size: %d bytes", stats.totalBytes))
     table.insert(textLines, string.format("Grid: %dx%d", stats.gridSize, stats.gridSize))
     table.insert(textLines, string.format("Used: %.1f%%", stats.usedBits / stats.capacity * 100))
+    
+    -- CRC32 显示（最后4字节）
+    local crcStartIdx = stats.totalBytes - 3
+    local crc32_b1 = bytes[crcStartIdx]
+    local crc32_b2 = bytes[crcStartIdx + 1]
+    local crc32_b3 = bytes[crcStartIdx + 2]
+    local crc32_b4 = bytes[crcStartIdx + 3]
+    table.insert(textLines, string.format("CRC32: %02X-%02X-%02X-%02X", crc32_b1, crc32_b2, crc32_b3, crc32_b4))
     table.insert(textLines, "")
 
     -- 关键游戏数据
@@ -210,6 +221,15 @@ local function UpdateDisplay()
     end
 
     table.insert(textLines, "")
+    table.insert(textLines, "=== Encoded Bytes ===")
+    table.insert(textLines, string.format("Total: %d bytes", stats.totalBytes))
+    table.insert(textLines, "")
+    
+    -- 添加十六进制转储
+    local hexDump = GE.BytesToHexDump(bytes)
+    table.insert(textLines, hexDump)
+    
+    table.insert(textLines, "")
     table.insert(textLines, "=== Sample Fields ===")
 
     -- 只显示前5个字段的值
@@ -242,6 +262,8 @@ SlashCmdList["DATATOTEXT"] = function(msg)
         T.TestUTF8Encoding()
     elseif msg == "crc32" then
         T.TestCRC32()
+    elseif msg == "crcenc" then
+        T.TestCRC32Encoding()
     elseif msg == "profile" or msg == "perf" then
         enableProfiling = not enableProfiling
         if enableProfiling then
@@ -262,7 +284,8 @@ SlashCmdList["DATATOTEXT"] = function(msg)
         DataToText_Print("/dtt capacity - 显示网格容量信息")
         DataToText_Print("/dtt test - 运行所有测试")
         DataToText_Print("/dtt utf8 - UTF-8编码测试")
-        DataToText_Print("/dtt crc32 - CRC32测试")
+        DataToText_Print("/dtt crc32 - CRC32算法测试")
+        DataToText_Print("/dtt crcenc - CRC32编码诊断")
         DataToText_Print("/dtt help - 显示此帮助")
     elseif msg == "" then
         if DataToTextFrame:IsShown() then

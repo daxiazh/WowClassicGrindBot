@@ -118,53 +118,73 @@ end
 
 -- 测试 CRC32 校验功能
 function T.TestCRC32()
-    Print("===== CRC32 校验测试 =====")
+    Print("===== CRC32 算法验证测试 (Lua) =====")
 
     local passed = 0
     local failed = 0
+    
+    -- 辅助函数: 格式化为 0x%08X
+    local function FormatCRC(crc)
+        return string.format("0x%08X", crc)
+    end
 
-    -- 测试1: 空字符串
-    local result = U.CalculateCRC32("")
-    if result == 0 then
-        Print("✓ CalculateCRC32('') = 0")
+    -- 测试1: 空字符串 (expected: 0x00000000)
+    local crc1 = U.CalculateCRC32("")
+    Print("Test 1 - Empty string: " .. FormatCRC(crc1) .. " (预期: 0x00000000)")
+    if crc1 == 0 then
         passed = passed + 1
     else
-        Print("✗ CalculateCRC32('') | 期望: 0, 实际: " .. result)
+        Print("  ✗ 与预期值不符！")
         failed = failed + 1
     end
 
-    -- 测试2: 简单字符串 "ABC"
-    local crc1 = U.CalculateCRC32("ABC")
-    Print("  CalculateCRC32('ABC') = " .. crc1)
+    -- 测试2: 标准测试向量 "123456789" (expected: 0xCBF43926 = 3421780262)
+    local crc2 = U.CalculateCRC32("123456789")
+    Print("Test 2 - '123456789': " .. FormatCRC(crc2) .. " (预期: 0xCBF43926)")
+    if crc2 == 3421780262 then
+        passed = passed + 1
+    else
+        Print("  ✗ 与预期值不符！")
+        failed = failed + 1
+    end
+
+    -- 测试3: "Hello World"
+    local crc3 = U.CalculateCRC32("Hello World")
+    Print("Test 3 - 'Hello World': " .. FormatCRC(crc3))
     passed = passed + 1
 
-    -- 测试3: 不同的字符串应该有不同的 CRC32
-    local crc2 = U.CalculateCRC32("XYZ")
-    if crc1 ~= crc2 then
-        Print("✓ CalculateCRC32('ABC') != CalculateCRC32('XYZ')")
-        passed = passed + 1
-    else
-        Print("✗ 不同字符串产生了相同的 CRC32")
-        failed = failed + 1
-    end
-
-    -- 测试4: 相同字符串应该产生相同的 CRC32
-    local crc3 = U.CalculateCRC32("ABC")
-    if crc1 == crc3 then
-        Print("✓ 相同字符串产生相同 CRC32")
-        passed = passed + 1
-    else
-        Print("✗ 相同字符串产生了不同的 CRC32")
-        failed = failed + 1
-    end
-
-    -- 测试5: 长字符串
-    local longStr = string.rep("A", 328)  -- 328字节数据（与GridEncoder大小相同）
-    local crc4 = U.CalculateCRC32(longStr)
-    Print("  CalculateCRC32(328字节) = " .. crc4)
+    -- 测试4: 二进制数据 [01 02 03 04 05]
+    local str4 = string.char(1, 2, 3, 4, 5)
+    local crc4 = U.CalculateCRC32(str4)
+    Print("Test 4 - Binary [01 02 03 04 05]: " .. FormatCRC(crc4))
     passed = passed + 1
 
+    -- 测试5: 只有元数据 [01 6C 00 00]
+    local str5 = string.char(1, 108, 0, 0)
+    local crc5 = U.CalculateCRC32(str5)
+    Print("Test 5 - Metadata [01 6C 00 00]: " .. FormatCRC(crc5))
+    passed = passed + 1
+
+    -- 测试6: 328 字节全 0
+    local str6 = string.rep(string.char(0), 328)
+    local crc6 = U.CalculateCRC32(str6)
+    Print("Test 6 - 328 bytes of zeros: " .. FormatCRC(crc6))
+    passed = passed + 1
+
+    -- 测试7: 顺序字节 0, 1, 2, ..., 255, 0, 1, ...
+    local bytes7 = {}
+    for i = 0, 327 do
+        bytes7[i + 1] = string.char(math.fmod(i, 256))
+    end
+    local str7 = table.concat(bytes7)
+    local crc7 = U.CalculateCRC32(str7)
+    Print("Test 7 - Sequential 328 bytes: " .. FormatCRC(crc7))
+    passed = passed + 1
+
+    Print("=== 测试完成 ===")
     Print("结果: " .. passed .. " 通过, " .. failed .. " 失败")
+    Print("请对比 C# 测试输出")
+    
     return failed == 0
 end
 
@@ -232,6 +252,57 @@ function T.TestFieldCollector()
 
     Print("结果: " .. passed .. " 通过, " .. failed .. " 失败")
     return failed == 0
+end
+
+-- 测试 CRC32 实际编码值
+function T.TestCRC32Encoding()
+    Print("===== CRC32 编码诊断测试 =====")
+    
+    local FC = DataToTextFieldCollector
+    local GE = DataToTextGridEncoder
+    
+    -- 收集实际字段
+    local fields = FC.CollectAllFields()
+    
+    -- 打包为字节数组
+    local bytes = GE.PackFieldsToBytes(fields)
+    
+    -- 显示前 328 字节的十六进制
+    Print("前32字节:")
+    for i = 1, 32 do
+        Print(string.format("  bytes[%d] = 0x%02X (%d)", i, bytes[i], bytes[i]))
+    end
+    
+    -- 手动重新计算 CRC32（只用前 328 字节）
+    local dataBytes = {}
+    for i = 1, 328 do
+        dataBytes[i] = bytes[i]
+    end
+    
+    -- 转换为字符串
+    local byteString = ""
+    for i = 1, 328 do
+        byteString = byteString .. string.char(dataBytes[i])
+    end
+    
+    local calculatedCRC = U.CalculateCRC32(byteString)
+    
+    -- 读取存储的 CRC32（最后4字节）
+    local storedCRC = bit.lshift(bytes[329], 24) + bit.lshift(bytes[330], 16) + 
+                      bit.lshift(bytes[331], 8) + bytes[332]
+    
+    Print(string.format("重新计算的 CRC32: 0x%08X", calculatedCRC))
+    Print(string.format("存储的 CRC32:     0x%08X", storedCRC))
+    Print(string.format("bytes[329-332]: %02X-%02X-%02X-%02X", 
+        bytes[329], bytes[330], bytes[331], bytes[332]))
+    
+    if calculatedCRC == storedCRC then
+        Print("✓ CRC32 匹配！")
+        return true
+    else
+        Print("✗ CRC32 不匹配！")
+        return false
+    end
 end
 
 -- 测试网格编码器

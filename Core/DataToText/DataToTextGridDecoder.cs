@@ -872,6 +872,13 @@ public sealed class DataToTextGridDecoder
         logger?.LogDebug("[Decode] CRC32 position: index={Index}, bytes={B0:X2}-{B1:X2}-{B2:X2}-{B3:X2}", 
             crcStartIndex, bytes[crcStartIndex], bytes[crcStartIndex+1], bytes[crcStartIndex+2], bytes[crcStartIndex+3]);
         
+        // 输出用于 CRC 计算的完整数据（前 328 字节）
+        if (logger != null && logger.IsEnabled(LogLevel.Debug))
+        {
+            string hexDump = BitConverter.ToString(bytes, 0, METADATA_BYTES + DATA_BYTES);
+            logger.LogDebug("[Decode] 前328字节(用于CRC计算):\n{HexDump}", hexDump);
+        }
+        
         ReadOnlySpan<byte> dataForCrc = bytes.AsSpan(0, METADATA_BYTES + DATA_BYTES);
         uint calculatedCrc = CalculateCRC32(dataForCrc);
         uint storedCrc = BinaryPrimitives.ReadUInt32BigEndian(
@@ -882,6 +889,15 @@ public sealed class DataToTextGridDecoder
             logger?.LogWarning("[Decode] CRC32校验失败: 计算={Calculated:X8}, 存储={Stored:X8}", calculatedCrc, storedCrc);
             logger?.LogDebug("[Decode] CRC 数据范围: 0 到 {End} 字节 (元数据 + 数据 = {Meta} + {Data})", 
                 METADATA_BYTES + DATA_BYTES, METADATA_BYTES, DATA_BYTES);
+            
+            // 输出前后几个字段的值用于诊断
+            logger?.LogDebug("[Decode] 前5个字段值: [{F0}] [{F1}] [{F2}] [{F3}] [{F4}]",
+                (bytes[4] << 16) | (bytes[5] << 8) | bytes[6],
+                (bytes[7] << 16) | (bytes[8] << 8) | bytes[9],
+                (bytes[10] << 16) | (bytes[11] << 8) | bytes[12],
+                (bytes[13] << 16) | (bytes[14] << 8) | bytes[15],
+                (bytes[16] << 16) | (bytes[17] << 8) | bytes[18]);
+            
             LastError = $"CRC32校验失败: 计算={calculatedCrc:X8}, 存储={storedCrc:X8}";
             return false;
         }

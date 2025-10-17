@@ -6,11 +6,19 @@
 -- - Lua 5.1 兼容（使用 bit 库）
 -- - 网格格式: 元数据(32 bits) + 数据(2592 bits) + CRC32(32 bits) + 纠错码(~400 bits)
 -- - 总容量: 3056 bits (382 bytes)
+--
+-- VERSION: 2.1.0 (2025-10-17)
+-- - 修复 CRC32 字节序 (Big-endian)
+-- - 7×7 Finder Pattern + 1格静区
+-- - 网格大小计算修复 (+8)
 ----------------------------------------------------------------------------
 
 -- 创建命名空间
 DataToTextGridEncoder = {}
 local GE = DataToTextGridEncoder
+
+-- 模块版本号
+GE.VERSION_STRING = "2.1.0"
 
 -- 常量定义
 local GRID_SIZE = 65
@@ -119,17 +127,14 @@ function GE.PackFieldsToBytes(fields)
     -- === CRC32 校验 (32 bits = 4 bytes) ===
 
     -- 将字节数组转换为字符串（用于CRC32计算）
-    -- 分4批处理,每批82字节,使用预缓存的函数
+    -- 注意: idx 此时指向下一个空位,所以实际字节数是 idx - 1 = 328
     local totalBytes = idx - 1
-    local byteString = strchar(
-        unpack(bytes, 1, 82)
-    ) .. strchar(
-        unpack(bytes, 83, 164)
-    ) .. strchar(
-        unpack(bytes, 165, 246)
-    ) .. strchar(
-        unpack(bytes, 247, totalBytes)
-    )
+    
+    -- 使用简单的逐字节拼接,避免 string.char(unpack()) 的参数限制
+    local byteString = ""
+    for i = 1, totalBytes do
+        byteString = byteString .. strchar(bytes[i])
+    end
 
     -- 计算前面所有数据的 CRC32
     local crc32 = DataToTextUtils.CalculateCRC32(byteString)
@@ -299,4 +304,25 @@ function GE.GetCapacityInfo()
 
         utilizationPercent = usedBits / dataCells * 100
     }
+end
+
+-- 将字节数组转换为十六进制转储字符串
+-- 格式: 每行16字节, 用 - 分隔, 类似 C# BitConverter.ToString() 输出
+function GE.BytesToHexDump(bytes)
+    local lines = {}
+    local totalBytes = table.getn(bytes)
+    local bytesPerLine = 16
+    
+    for i = 1, totalBytes, bytesPerLine do
+        local lineBytes = {}
+        local endIdx = math.min(i + bytesPerLine - 1, totalBytes)
+        
+        for j = i, endIdx do
+            table.insert(lineBytes, string.format("%02X", bytes[j]))
+        end
+        
+        table.insert(lines, table.concat(lineBytes, "-"))
+    end
+    
+    return table.concat(lines, "\n")
 end
