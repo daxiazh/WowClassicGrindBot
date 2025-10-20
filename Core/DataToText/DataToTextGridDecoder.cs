@@ -180,13 +180,14 @@ public sealed class DataToTextGridDecoder
             return null;
         }
         
-        if (Math.Abs(gridSizeH - gridSizeV) > 2)
+        // 水平和垂直方向的 gridSize 必须完全相等（正方形网格）
+        if (gridSizeH != gridSizeV)
         {
             logger?.LogDebug("[FindGridInScreen] Timing Pattern 检测的网格大小不一致: H={H}, V={V}", gridSizeH, gridSizeV);
             return null;
         }
         
-        int gridSize = (gridSizeH + gridSizeV) / 2;
+        int gridSize = gridSizeH;  // 或 gridSizeV，两者相等
         logger?.LogDebug("[FindGridInScreen] 通过 Timing Pattern 确定 GridSize={Size}×{Size}", gridSize, gridSize);
         
         float horizontalDistance = rightTopPattern.CenterX - leftTopPattern.CenterX;
@@ -199,8 +200,8 @@ public sealed class DataToTextGridDecoder
         int gridX = (int)Math.Round(leftTopPattern.CenterX - 3.5f * calibratedCellSizeX);
         int gridY = (int)Math.Round(leftTopPattern.CenterY - 3.5f * calibratedCellSizeY);
 
-        logger?.LogInformation("[FindGridInScreen] 成功定位: Grid={Size}×{Size}, Origin=({X},{Y}), Timing={Timing}", 
-            gridSize, gridSize, gridX, gridY, xCenters != null && yCenters != null ? "YES" : "PARTIAL");
+        logger?.LogInformation("[FindGridInScreen] 成功定位: Grid={Size}×{Size}, Origin=({X},{Y}), CenterPoints=({XCount},{YCount})", 
+            gridSize, gridSize, gridX, gridY, xCenters.Length, yCenters.Length);
 
         return new GridLocation
         {
@@ -210,8 +211,8 @@ public sealed class DataToTextGridDecoder
             CalibratedCellSizeX = calibratedCellSizeX,
             CalibratedCellSizeY = calibratedCellSizeY,
             GridSize = gridSize,
-            XCenters = xCenters,
-            YCenters = yCenters
+            XCenters = xCenters,  // Timing Pattern 已验证，必定非 null
+            YCenters = yCenters   // Timing Pattern 已验证，必定非 null
         };
     }
 
@@ -871,33 +872,14 @@ public sealed class DataToTextGridDecoder
 
     /// <summary>
     /// 计算单元格中心坐标
-    /// 优先使用 Timing Pattern 检测的中心点数组，回退到线性插值
+    /// 直接使用 Timing Pattern 检测的中心点数组（必定存在）
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static (int x, int y) GetCellCenter(GridLocation location, int row, int col)
     {
-        int centerX, centerY;
-        
-        // 如果有 Timing Pattern 检测的中心点数组，直接使用
-        if (location.XCenters != null && location.YCenters != null)
-        {
-            centerX = (int)Math.Round(location.XCenters[col]);
-            centerY = (int)Math.Round(location.YCenters[row]);
-        }
-        else
-        {
-            // 回退：使用通过三个 Finder Pattern 校准后的单元格尺寸
-            // 这样可以补偿 Lua FontString 渲染的非均匀间距
-            float calibratedCellSizeX = location.CalibratedCellSizeX;
-            float calibratedCellSizeY = location.CalibratedCellSizeY;
-            
-            float halfCellX = calibratedCellSizeX / 2.0f;
-            float halfCellY = calibratedCellSizeY / 2.0f;
-            
-            // 四舍五入到最近的整数像素
-            centerX = (int)Math.Round(location.X + col * calibratedCellSizeX + halfCellX);
-            centerY = (int)Math.Round(location.Y + row * calibratedCellSizeY + halfCellY);
-        }
+        // Timing Pattern 是核心功能，XCenters 和 YCenters 必定存在
+        int centerX = (int)Math.Round(location.XCenters![col]);
+        int centerY = (int)Math.Round(location.YCenters![row]);
         
         return (centerX, centerY);
     }
@@ -1185,8 +1167,8 @@ public sealed class GridLocation
     public float CalibratedCellSizeX { get; init; }  // 通过 Finder Pattern 校准的 X 方向单元格尺寸
     public float CalibratedCellSizeY { get; init; }  // 通过 Finder Pattern 校准的 Y 方向单元格尺寸
     public int GridSize { get; init; }  // 动态检测的网格大小 (如 65×65)
-    public float[]? XCenters { get; init; }  // X方向单元格中心点数组 (length = gridSize)
-    public float[]? YCenters { get; init; }  // Y方向单元格中心点数组 (length = gridSize)
+    public required float[] XCenters { get; init; }  // X方向单元格中心点数组 (length = gridSize)，Timing Pattern 必定提供
+    public required float[] YCenters { get; init; }  // Y方向单元格中心点数组 (length = gridSize)，Timing Pattern 必定提供
 
     public override string ToString() => $"({X}, {Y}) Grid={GridSize}×{GridSize} Cell={CellSize}px CalX={CalibratedCellSizeX:F2}px CalY={CalibratedCellSizeY:F2}px";
 }
