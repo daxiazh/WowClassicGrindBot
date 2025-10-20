@@ -83,6 +83,12 @@ local CORNER_MIN_ROW = GRID_SIZE - CORNER_TOTAL_SIZE + 1
 local CORNER_MAX_COL = CORNER_TOTAL_SIZE
 local CORNER_MIN_COL = GRID_SIZE - CORNER_TOTAL_SIZE + 1
 
+-- Timing Pattern \u5e38\u91cf
+local TIMING_PATTERN_ROW = 4  -- Timing Pattern \u6240\u5728\u884c\uff08Finder\u4e2d\u5fc3\u884c\uff09
+local TIMING_PATTERN_COL = 4  -- Timing Pattern \u6240\u5728\u5217\uff08Finder\u4e2d\u5fc3\u5217\uff09
+local TIMING_START = CORNER_TOTAL_SIZE + 1          -- 9 (\u5de6\u4fa7Finder\u540e\u7b2c\u4e00\u4e2acell)
+local TIMING_END = GRID_SIZE - CORNER_TOTAL_SIZE    -- 57 (\u53f3\u4fa7Finder\u524d\u6700\u540e\u4e00\u4e2acell)
+
 local function InCorner(row, col)
     -- 跳过整条外边界（第65行/第65列）作为白色留边
     if row == GRID_SIZE or col == GRID_SIZE then
@@ -116,6 +122,48 @@ local function InCorner(row, col)
     end
     
     return false
+end
+
+--- 判断是否是 Timing Pattern 位置
+local function IsTimingPattern(row, col)
+    -- 水平 Timing Pattern：第4行，从第9列到第57列
+    if row == TIMING_PATTERN_ROW and col >= TIMING_START and col <= TIMING_END then
+        return true
+    end
+    
+    -- 垂直 Timing Pattern：第4列，从第9行到第57行
+    if col == TIMING_PATTERN_COL and row >= TIMING_START and row <= TIMING_END then
+        return true
+    end
+    
+    return false
+end
+
+--- 添加 Timing Patterns 到网格
+local function AddTimingPatterns(grid)
+    -- 水平 Timing Pattern（第4行）：黑白交替
+    for col = TIMING_START, TIMING_END do
+        local offset = col - TIMING_START
+        if math.fmod(offset, 2) == 0 then
+            grid[TIMING_PATTERN_ROW][col] = 1  -- 黑色
+        else
+            grid[TIMING_PATTERN_ROW][col] = 0  -- 白色
+        end
+    end
+    
+    -- 垂直 Timing Pattern（第4列）：黑白交替
+    for row = TIMING_START, TIMING_END do
+        local offset = row - TIMING_START
+        if math.fmod(offset, 2) == 0 then
+            grid[row][TIMING_PATTERN_COL] = 1  -- 黑色
+        else
+            grid[row][TIMING_PATTERN_COL] = 0  -- 白色
+        end
+    end
+    
+    -- 注意：grid[4][4] 是左上 Finder 的中心黑点
+    -- Timing Pattern 会覆盖它，但由于 Finder 中心本身就是黑色，
+    -- Timing Pattern 从黑色开始，所以不影响
 end
 
 ----------------------------------------------------------------------------
@@ -275,10 +323,10 @@ function GE.FillDataToGrid(grid, bits)
     local bitIndex = 1
     local totalBits = getn(bits)
 
-    -- 逐行逐列填充（跳过角标记）
+    -- 逐行逐列填充（跳过角标记和Timing Pattern）
     for row = 1, GRID_SIZE do
         for col = 1, GRID_SIZE do
-            if not InCorner(row, col) then
+            if not InCorner(row, col) and not IsTimingPattern(row, col) then
                 if bitIndex <= totalBits then
                     grid[row][col] = bits[bitIndex]
                     bitIndex = bitIndex + 1
@@ -310,8 +358,11 @@ function GE.EncodeToGrid(fields)
 
     -- 4. 添加角标记
     GE.AddCornerMarkers(grid)
+    
+    -- 5. 添加 Timing Patterns
+    AddTimingPatterns(grid)
 
-    -- 5. 填充数据
+    -- 6. 填充数据
     local usedBits = GE.FillDataToGrid(grid, bits)
 
     -- 返回网格和统计信息
@@ -321,7 +372,7 @@ function GE.EncodeToGrid(fields)
         totalBits = getn(bits),
         usedBits = usedBits,
         gridSize = GRID_SIZE,
-        capacity = GRID_SIZE * GRID_SIZE - 4 * CORNER_TOTAL_SIZE * CORNER_TOTAL_SIZE
+        capacity = GRID_SIZE * GRID_SIZE - 4 * CORNER_TOTAL_SIZE * CORNER_TOTAL_SIZE - (2 * (TIMING_END - TIMING_START + 1) - 1)
     }
 end
 
@@ -329,7 +380,8 @@ end
 function GE.GetCapacityInfo()
     local totalCells = GRID_SIZE * GRID_SIZE
     local markerCells = 4 * CORNER_TOTAL_SIZE * CORNER_TOTAL_SIZE  -- 包含静区
-    local dataCells = totalCells - markerCells
+    local timingPatternCells = 2 * (TIMING_END - TIMING_START + 1) - 1  -- 两条Timing Pattern，减去重复的交点
+    local dataCells = totalCells - markerCells - timingPatternCells
 
     local metadataBits = 32
     local fieldBits = TOTAL_FIELDS * BITS_PER_FIELD

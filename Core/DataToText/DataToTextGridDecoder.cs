@@ -172,14 +172,27 @@ public sealed class DataToTextGridDecoder
         // Finder Pattern 中心在 (3.5, 3.5) 个模块位置，即第 4 个单元格 (1-indexed)
         // 两个 Finder 中心之间的距离 = gridSize - 2*4 = gridSize - 8
         // 因此: gridSize = centerDistance + 8
-        int horizontalDistance = (int)Math.Abs(topRightPattern.CenterX - firstPattern.CenterX);
-        int verticalDistance = (int)Math.Abs(bottomLeftPattern.CenterY - firstPattern.CenterY);
-        int centerDistanceH = (int)Math.Round((float)horizontalDistance / cellSize);
-        int centerDistanceV = (int)Math.Round((float)verticalDistance / cellSize);
+        float horizontalDistance = topRightPattern.CenterX - firstPattern.CenterX;
+        float verticalDistance = bottomLeftPattern.CenterY - firstPattern.CenterY;
+        
+        // 验证 Finder Pattern 的位置关系：topRight 必须在 first 右侧，bottomLeft 必须在 first 下方
+        if (horizontalDistance <= 0)
+        {
+            logger?.LogWarning("[FindGridInScreen] Finder Pattern位置错误: topRight在first左侧 (H={H})", horizontalDistance);
+            return null;
+        }
+        if (verticalDistance <= 0)
+        {
+            logger?.LogWarning("[FindGridInScreen] Finder Pattern位置错误: bottomLeft在first上方 (V={V})", verticalDistance);
+            return null;
+        }
+        
+        float centerDistanceH = horizontalDistance / firstPattern.EstimatedModuleSizeX;
+        float centerDistanceV = verticalDistance / firstPattern.EstimatedModuleSizeY;
         
         const int FINDER_CENTER_CELL = 4; // Finder Pattern 中心在第 4 个单元格
-        int gridSizeH = centerDistanceH + 2 * FINDER_CENTER_CELL;
-        int gridSizeV = centerDistanceV + 2 * FINDER_CENTER_CELL;
+        int gridSizeH = (int)Math.Round(centerDistanceH + 2 * FINDER_CENTER_CELL);
+        int gridSizeV = (int)Math.Round(centerDistanceV + 2 * FINDER_CENTER_CELL);
 
         // 验证两个方向的网格大小一致
         if (Math.Abs(gridSizeH - gridSizeV) > 2)
@@ -202,10 +215,10 @@ public sealed class DataToTextGridDecoder
         
         // 计算校准后的单元格尺寸
         float calibratedCellSizeX = theoreticalCellsBetweenH > 0 
-            ? (float)horizontalDistance / theoreticalCellsBetweenH 
+            ? horizontalDistance / theoreticalCellsBetweenH 
             : cellSize;
         float calibratedCellSizeY = theoreticalCellsBetweenV > 0 
-            ? (float)verticalDistance / theoreticalCellsBetweenV 
+            ? verticalDistance / theoreticalCellsBetweenV 
             : cellSize;
         
         logger?.LogDebug("[FindGridInScreen] 坐标校准: 水平距离={H}px, 垂直距离={V}px", horizontalDistance, verticalDistance);
@@ -274,11 +287,12 @@ public sealed class DataToTextGridDecoder
                         float centerX = endX - merged[4] - merged[3] - merged[2] / 2.0f;
 
                         int estimatedHeight = merged.Sum();
-                        var (success, preciseCenterY) = VerifyVerticalPattern(image, (int)centerX, y, estimatedHeight);
+                        var (success, preciseCenterY, verticalMerged) = VerifyVerticalPattern(image, (int)centerX, y, estimatedHeight);
                         if (success)
                         {
-                            float moduleSize = merged.Sum() / 7.0f;
-                            return new FinderPattern(centerX, preciseCenterY, moduleSize);
+                            float moduleSizeX = merged.Sum() / 7.0f;
+                            float moduleSizeY = verticalMerged?.Sum() / 7.0f ?? moduleSizeX;
+                            return new FinderPattern(centerX, preciseCenterY, moduleSizeX, moduleSizeY);
                         }
                     }
                 }
@@ -431,8 +445,8 @@ public sealed class DataToTextGridDecoder
     /// 垂直方向验证 Finder Pattern（使用 run-length + 窗口合并）
     /// </summary>
     /// <param name="estimatedHeight">估算的 Finder Pattern 高度（用于确定搜索范围）</param>
-    /// <returns>(success, preciseCenterY) - 成功标志和精确的 Y 中心坐标</returns>
-    private static (bool success, float preciseCenterY) VerifyVerticalPattern(
+    /// <returns>(success, preciseCenterY, verticalMerged) - 成功标志、精确的 Y 中心坐标和垂直方向合并后的runs</returns>
+    private static (bool success, float preciseCenterY, int[]? verticalMerged) VerifyVerticalPattern(
         Image<Bgra32> image, int centerX, int centerY, int estimatedHeight)
     {
         // 从 centerY 向上下扫描，提取垂直 run-length
@@ -443,7 +457,7 @@ public sealed class DataToTextGridDecoder
 
         // 提取垂直 run-length
         var (rawRuns, startsWithBlack) = ExtractRunLengthsVertical(image, centerX, startY, endY + 1);
-        if (rawRuns.Count < 5) return (false, 0);
+        if (rawRuns.Count < 5) return (false, 0, null);
 
         // 遍历所有可能的窗口，寻找包含 centerY 的 Finder Pattern
         int currentY = startY;
@@ -461,7 +475,7 @@ public sealed class DataToTextGridDecoder
             // for (int windowSize = 5; windowSize <= Math.Min(9, rawRuns.Count - i); windowSize += 2)
             var windowSize = 9;
             if(rawRuns.Count - i < windowSize)
-                return (false, 0);   // 不够9个了, 目前的实现中一定会有缝隙, 所以我们只考虑9个 Run List 的情况
+                return (false, 0, null);   // 不够9个了, 目前的实现中一定会有缝隙, 所以我们只考虑9个 Run List 的情况
             {
                 // 计算窗口覆盖的范围
                 int windowEnd = currentY;
@@ -478,7 +492,7 @@ public sealed class DataToTextGridDecoder
                     {
                         // 计算精确的 centerY
                         float preciseCenterY = windowEnd - merged[4] - merged[3] - merged[2] / 2.0f;
-                        return (true, preciseCenterY);
+                        return (true, preciseCenterY, merged);
                     }
                 }
             }
@@ -486,20 +500,20 @@ public sealed class DataToTextGridDecoder
             currentY += rawRuns[i];
         }
 
-        return (false, 0);
+        return (false, 0, null);
     }
 
     /// <summary>
     /// 水平方向验证 Finder Pattern（使用 run-length + 窗口合并）
     /// </summary>
     /// <param name="estimatedWidth">估算的 Finder Pattern 宽度（用于优化，当前未使用）</param>
-    /// <returns>(success, preciseCenterX) - 成功标志和精确的 X 中心坐标</returns>
-    private static (bool success, float preciseCenterX) VerifyHorizontalPattern(
+    /// <returns>(success, preciseCenterX, horizontalMerged) - 成功标志、精确的 X 中心坐标和水平方向合并后的runs</returns>
+    private static (bool success, float preciseCenterX, int[]? horizontalMerged) VerifyHorizontalPattern(
         Image<Bgra32> image, int centerX, int centerY, int estimatedWidth)
     {
         // 提取整行的水平 run-length
         var (rawRuns, startsWithBlack) = ExtractRunLengths(image, centerY, image.Width);
-        if (rawRuns.Count < 5) return (false, 0);
+        if (rawRuns.Count < 5) return (false, 0, null);
 
         // 遍历所有可能的窗口，寻找包含 centerX 的 Finder Pattern
         int currentX = 0;
@@ -531,7 +545,7 @@ public sealed class DataToTextGridDecoder
                     {
                         // 计算精确的 centerX
                         float preciseCenterX = windowEnd - merged[4] - merged[3] - merged[2] / 2.0f;
-                        return (true, preciseCenterX);
+                        return (true, preciseCenterX, merged);
                     }
                 }
             }
@@ -539,7 +553,7 @@ public sealed class DataToTextGridDecoder
             currentX += rawRuns[i];
         }
 
-        return (false, 0);
+        return (false, 0, null);
     }
 
     /// <summary>
@@ -628,11 +642,12 @@ public sealed class DataToTextGridDecoder
                         if (gridSize < MIN_GRID_SIZE || gridSize > MAX_GRID_SIZE) continue;
 
                         int estimatedHeight = merged.Sum();
-                        var (success, preciseCenterY) = VerifyVerticalPattern(image, (int)patternCenterX, searchY, estimatedHeight);
+                        var (success, preciseCenterY, verticalMerged) = VerifyVerticalPattern(image, (int)patternCenterX, searchY, estimatedHeight);
                         if (success)
                         {
-                            float moduleSize = merged.Sum() / 7.0f;
-                            return new FinderPattern(patternCenterX, preciseCenterY, moduleSize);
+                            float moduleSizeX = merged.Sum() / 7.0f;
+                            float moduleSizeY = verticalMerged?.Sum() / 7.0f ?? moduleSizeX;
+                            return new FinderPattern(patternCenterX, preciseCenterY, moduleSizeX, moduleSizeY);
                         }
                     }
                 }
@@ -694,11 +709,12 @@ public sealed class DataToTextGridDecoder
                         if (gridSize < MIN_GRID_SIZE || gridSize > MAX_GRID_SIZE) continue;
 
                         int estimatedWidth = merged.Sum();
-                        var (success, preciseCenterX) = VerifyHorizontalPattern(image, searchX, (int)patternCenterY, estimatedWidth);
+                        var (success, preciseCenterX, horizontalMerged) = VerifyHorizontalPattern(image, searchX, (int)patternCenterY, estimatedWidth);
                         if (success)
                         {
-                            float moduleSize = merged.Sum() / 7.0f;
-                            return new FinderPattern(preciseCenterX, patternCenterY, moduleSize);
+                            float moduleSizeY = merged.Sum() / 7.0f;
+                            float moduleSizeX = horizontalMerged?.Sum() / 7.0f ?? moduleSizeY;
+                            return new FinderPattern(preciseCenterX, patternCenterY, moduleSizeX, moduleSizeY);
                         }
                     }
                 }
@@ -816,11 +832,14 @@ public sealed class DataToTextGridDecoder
     private static GridLocation? CalculateGridLocation((FinderPattern topLeft, FinderPattern topRight, FinderPattern bottomLeft) triangle)
     {
         // 计算 cellSize (从 Finder Pattern 的模块大小)
-        float avgModuleSize = (triangle.topLeft.EstimatedModuleSize +
-                              triangle.topRight.EstimatedModuleSize +
-                              triangle.bottomLeft.EstimatedModuleSize) / 3.0f;
+        float avgModuleSizeX = (triangle.topLeft.EstimatedModuleSizeX +
+                              triangle.topRight.EstimatedModuleSizeX +
+                              triangle.bottomLeft.EstimatedModuleSizeX) / 3.0f;
+        float avgModuleSizeY = (triangle.topLeft.EstimatedModuleSizeY +
+                              triangle.topRight.EstimatedModuleSizeY +
+                              triangle.bottomLeft.EstimatedModuleSizeY) / 3.0f;
 
-        int cellSize = (int)Math.Round(avgModuleSize);
+        int cellSize = (int)Math.Round((avgModuleSizeX + avgModuleSizeY) / 2.0f);
 
         // 网格左上角 = topLeft Finder Pattern 的左上角
         // Finder Pattern 中心在 (3.5, 3.5) 个模块位置
@@ -1266,13 +1285,22 @@ internal sealed class FinderPattern
 {
     public float CenterX { get; init; }
     public float CenterY { get; init; }
-    public float EstimatedModuleSize { get; init; }
+    public float EstimatedModuleSizeX { get; init; }
+    public float EstimatedModuleSizeY { get; init; }
+    
+    public float EstimatedModuleSize => (EstimatedModuleSizeX + EstimatedModuleSizeY) / 2.0f;
 
-    public FinderPattern(float centerX, float centerY, float moduleSize)
+    public FinderPattern(float centerX, float centerY, float moduleSizeX, float moduleSizeY)
     {
         CenterX = centerX;
         CenterY = centerY;
-        EstimatedModuleSize = moduleSize;
+        EstimatedModuleSizeX = moduleSizeX;
+        EstimatedModuleSizeY = moduleSizeY;
+    }
+    
+    public FinderPattern(float centerX, float centerY, float moduleSize)
+        : this(centerX, centerY, moduleSize, moduleSize)
+    {
     }
 
     /// <summary>
@@ -1284,4 +1312,7 @@ internal sealed class FinderPattern
         float dy = CenterY - other.CenterY;
         return MathF.Sqrt(dx * dx + dy * dy);
     }
+    
+    public override string ToString() =>
+        $"Center=({CenterX:F1}, {CenterY:F1}), ModuleSize=({EstimatedModuleSizeX:F2}, {EstimatedModuleSizeY:F2})";
 }
