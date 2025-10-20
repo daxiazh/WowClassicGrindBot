@@ -84,7 +84,7 @@ local CORNER_MAX_COL = CORNER_TOTAL_SIZE
 local CORNER_MIN_COL = GRID_SIZE - CORNER_TOTAL_SIZE + 1
 
 -- Timing Pattern \u5e38\u91cf
-local TIMING_PATTERN_ROW = 4  -- Timing Pattern \u6240\u5728\u884c\uff08Finder\u4e2d\u5fc3\u884c\uff09
+local TIMING_PATTERN_ROW = 3  -- Timing Pattern \u6240\u5728\u884c\uff08Finder\u4e2d\u5fc3\u884c\uff09
 local TIMING_PATTERN_COL = 4  -- Timing Pattern \u6240\u5728\u5217\uff08Finder\u4e2d\u5fc3\u5217\uff09
 local TIMING_START = CORNER_TOTAL_SIZE + 1          -- 9 (\u5de6\u4fa7Finder\u540e\u7b2c\u4e00\u4e2acell)
 local TIMING_END = GRID_SIZE - CORNER_TOTAL_SIZE    -- 57 (\u53f3\u4fa7Finder\u524d\u6700\u540e\u4e00\u4e2acell)
