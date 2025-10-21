@@ -161,7 +161,7 @@ public sealed class DataToTextGridDecoder
         var (verticalRuns, vStartsWithBlack) = ExtractRunLengthsVertical(screenImage, centerCol, 0, screenImage.Height);
 
         // 步骤 3: 在垂直 runs 中查找左下 Finder Pattern，并获取清理后的 runs
-        var bottomResult = FindThirdFinderInVerticalRuns(verticalRuns, vStartsWithBlack, leftTopPattern, screenImage, centerCol);
+        var bottomResult = FindThirdFinderInVerticalRuns(verticalRuns, vStartsWithBlack, leftTopPattern, screenImage, centerCol, logger);
         if (bottomResult == null)
         {
             logger?.LogDebug("[FindGridInScreen] 未在同列找到左下 Finder");
@@ -227,7 +227,7 @@ public sealed class DataToTextGridDecoder
         int width = image.Width;
         int height = image.Height;
         int stepSize = 3;
-        List<int> mergedRuns = new(); 
+        List<float> mergedRuns = new();  // 使用 float 保持精度，避免舍入误差累积 
 
         for (int y = 0; y < height; y += stepSize)
         {
@@ -270,7 +270,7 @@ public sealed class DataToTextGridDecoder
                                 mergedRuns.Add(leftPixelSize);
                                 mergedRuns.Add(merged[0]);
                                 mergedRuns.Add(merged[1]);
-                                var middleSize = merged[2] / 3;
+                                var middleSize = merged[2] / 3.0f;  // 浮点数除法，保持精度
                                 mergedRuns.Add(middleSize);
                                 mergedRuns.Add(middleSize);
                                 mergedRuns.Add(middleSize);
@@ -290,7 +290,7 @@ public sealed class DataToTextGridDecoder
                                 // 添加第二个 Finder 的 9 个 cells
                                 mergedRuns.Add(merged[0]);
                                 mergedRuns.Add(merged[1]);
-                                var middleSize2 = merged[2] / 3;
+                                var middleSize2 = merged[2] / 3.0f;  // 浮点数除法，保持精度
                                 mergedRuns.Add(middleSize2);
                                 mergedRuns.Add(middleSize2);
                                 mergedRuns.Add(middleSize2);
@@ -303,6 +303,15 @@ public sealed class DataToTextGridDecoder
                                 var gridSize = mergedRuns.Count - 1;
                                 var xCenters = new float[gridSize];
                                 var totalSize = (float)mergedRuns[0];  // 起始偏移
+                                
+                                // 调试：输出前10个和后10个 runs
+                                if (logger != null && logger.IsEnabled(LogLevel.Debug))
+                                {
+                                    var first10 = string.Join(", ", mergedRuns.Take(Math.Min(10, mergedRuns.Count)));
+                                    var last10 = string.Join(", ", mergedRuns.Skip(Math.Max(0, mergedRuns.Count - 10)));
+                                    logger.LogDebug("[FindFindersAndTimingPattern] mergedRuns.Count={Count}, First10=[{First}], Last10=[{Last}]", 
+                                        mergedRuns.Count, first10, last10);
+                                }
                                 
                                 for (int j = 1; j < mergedRuns.Count; j++)
                                 {
@@ -347,10 +356,10 @@ public sealed class DataToTextGridDecoder
     /// <returns>(pattern, gridSize, yCenters) 或 null</returns>
     private static (FinderPattern pattern, int gridSize, float[] yCenters)? FindThirdFinderInVerticalRuns(
         List<int> runs, bool startsWithBlack, FinderPattern firstPattern, 
-        Image<Bgra32> image, int col)
+        Image<Bgra32> image, int col, ILogger<DataToTextGridDecoder>? logger)
     {
         FinderPattern? topFinder = null;
-        List<int> mergedRuns = new();
+        List<float> mergedRuns = new();  // 使用 float 保持精度，避免舍入误差累积
         int firstEndRunIndex = -1;
 
         for (int i = 0; i <= runs.Count - 9; i++)
@@ -391,7 +400,7 @@ public sealed class DataToTextGridDecoder
                             // 拆分 Finder Pattern 为 9 个 cells (中间 3×3 黑色块拆分为 3 个 cell)
                             mergedRuns.Add(merged[0]);
                             mergedRuns.Add(merged[1]);
-                            var middleSize = merged[2] / 3;
+                            var middleSize = merged[2] / 3.0f;  // 浮点数除法，保持精度
                             mergedRuns.Add(middleSize);
                             mergedRuns.Add(middleSize);
                             mergedRuns.Add(middleSize);
@@ -414,7 +423,7 @@ public sealed class DataToTextGridDecoder
                             // 添加第二个 Finder 的 9 个 cells
                             mergedRuns.Add(merged[0]);
                             mergedRuns.Add(merged[1]);
-                            var middleSize2 = merged[2] / 3;
+                            var middleSize2 = merged[2] / 3.0f;  // 浮点数除法，保持精度
                             mergedRuns.Add(middleSize2);
                             mergedRuns.Add(middleSize2);
                             mergedRuns.Add(middleSize2);
@@ -425,6 +434,15 @@ public sealed class DataToTextGridDecoder
                             var gridSize = mergedRuns.Count - 1;
                             var yCenters = new float[gridSize];
                             var totalSize = (float)mergedRuns[0];  // 起始偏移
+                            
+                            // 调试：输出前10个和后10个 runs
+                            if (logger != null && logger.IsEnabled(LogLevel.Debug))
+                            {
+                                var first10 = string.Join(", ", mergedRuns.Take(Math.Min(10, mergedRuns.Count)));
+                                var last10 = string.Join(", ", mergedRuns.Skip(Math.Max(0, mergedRuns.Count - 10)));
+                                logger.LogDebug("[FindThirdFinderInVerticalRuns] mergedRuns.Count={Count}, First10=[{First}], Last10=[{Last}]", 
+                                    mergedRuns.Count, first10, last10);
+                            }
                             
                             for (int j = 1; j < mergedRuns.Count; j++)
                             {
@@ -878,8 +896,8 @@ public sealed class DataToTextGridDecoder
     private static (int x, int y) GetCellCenter(GridLocation location, int row, int col)
     {
         // Timing Pattern 是核心功能，XCenters 和 YCenters 必定存在
-        int centerX = (int)Math.Round(location.XCenters![col]);
-        int centerY = (int)Math.Round(location.YCenters![row]);
+        int centerX = (int)Math.Round(location.XCenters[col]);
+        int centerY = (int)Math.Round(location.YCenters[row]);
         
         return (centerX, centerY);
     }
