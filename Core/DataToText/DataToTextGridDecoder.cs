@@ -229,7 +229,10 @@ public sealed class DataToTextGridDecoder
     {
         int width = image.Width;
         int height = image.Height;
-        int stepSize = 3;
+        // 动态调整步进：小图片用更密集扫描，避免跳过Timing Pattern行
+        // 超大图(>1200px): step=3, 大图(600-1200px): step=2, 中小图(<600px): step=1
+        int stepSize = height > 1200 ? 3 : (height > 600 ? 2 : 1);
+
         List<float> mergedRuns = new();  // 使用 float 保持精度，避免舍入误差累积 
 
         for (int y = 0; y < height; y += stepSize)
@@ -535,7 +538,7 @@ public sealed class DataToTextGridDecoder
         };
         
         const int TARGET_RUN_COUNT = 5;
-        const float GAP_THRESHOLD_RATIO = 0.2f; // 间隙 < 前黑色块的 1/5
+        const float GAP_THRESHOLD_RATIO = 0.3f; // 间隙 < 前黑色块的 1/3
         
         int[] merged = new int[TARGET_RUN_COUNT];
         int mergedIdx = 0;
@@ -556,7 +559,10 @@ public sealed class DataToTextGridDecoder
                         return null; // 缺少后续黑色 run
                     
                     int prevBlack = window[i - 1];
-                    if (window[i] * 0.5f >= prevBlack * GAP_THRESHOLD_RATIO) // 间隙的一半参于比较
+                    int nextBlack = window[i + 1];
+                    // 间隙应该相对于前后两个黑色块的总和来判断
+                    int totalBlack = prevBlack + nextBlack;
+                    if (window[i] >= totalBlack * GAP_THRESHOLD_RATIO) // 间隙相对于总黑色块
                         return null; // 不满足间隙条件
                     
                     // 合并: 前黑 + 间隙 + 后黑
@@ -1050,14 +1056,17 @@ public sealed class DataToTextGridDecoder
 
     /// <summary>
     /// 判断像素是否为黑色
-    /// 简单阈值判断,考虑JPEG压缩误差
+    /// 使用感知亮度公式，考虑JPEG压缩误差和抗锯齿灰色边缘
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsPixelBlack(Bgra32 pixel)
     {
-        // FontString 渲染的黑色非常接近纯黑
-        // 使用更严格的阈值: 所有通道都 < 30
-        return pixel.R < 30 && pixel.G < 30 && pixel.B < 30;
+        // 使用感知亮度公式（ITU-R BT.601标准）
+        // 亮度 = 0.299×R + 0.587×G + 0.114×B
+        // JPEG压缩后，FontString渲染会产生抗锯齿灰色边缘(亮度约150)
+        // 阈值设为128（中等灰度），低于此值视为黑色
+        float luminance = 0.299f * pixel.R + 0.587f * pixel.G + 0.114f * pixel.B;
+        return luminance < 128f;
     }
 
     /// <summary>

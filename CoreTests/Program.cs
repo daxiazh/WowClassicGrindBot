@@ -15,6 +15,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 #pragma warning disable 0162
@@ -23,6 +24,13 @@ namespace CoreTests;
 
 internal sealed class Program
 {
+    // Windows API 用于设置控制台代码页
+    [DllImport("kernel32.dll")]
+    private static extern bool SetConsoleOutputCP(uint wCodePageID);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool SetConsoleCP(uint wCodePageID);
+
     private static Microsoft.Extensions.Logging.ILogger logger;
     private static ILoggerFactory loggerFactory;
 
@@ -35,6 +43,13 @@ internal sealed class Program
 
     public static void Main()
     {
+        // 设置控制台输出编码为 UTF-8，解决 Windows 控制台中文乱码问题
+        // 65001 是 UTF-8 的代码页
+        SetConsoleOutputCP(65001);
+        SetConsoleCP(65001);
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
+        Console.InputEncoding = System.Text.Encoding.UTF8;
+
         var logConfig = new LoggerConfiguration()
             .MinimumLevel.Debug()  // 设置最小日志级别为 Debug
             .WriteTo.File("names.log", restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug)
@@ -54,7 +69,7 @@ internal sealed class Program
         });
 
         // 运行 CRC32 验证测试
-        DataToText.Test_CRC32.RunAllTests(logger);
+        // DataToText.Test_CRC32.RunAllTests(logger);
         
         Log.Logger.Information("");
         Log.Logger.Information("========================================");
@@ -265,11 +280,21 @@ internal sealed class Program
             // 离线测试：使用保存的调试图片
             Log.Logger.Information("使用离线测试模式");
             var decoderLogger = loggerFactory.CreateLogger<Core.DataToText.DataToTextGridDecoder>();
-            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "/Users/zhanghua/Downloads/Xnip2025-10-21_14-23-16.jpg", decoderLogger);
+            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "Z:\\Xnip2025-10-21_15-09-52.jpg", decoderLogger);
         }
         else
         {
             // 实时测试：从游戏窗口捕获
+            // 初始化依赖对象（仅实时测试需要）
+            DataFrame[] mockFrames =
+            [
+                new DataFrame(0, 0, 0),
+                new DataFrame(1, 0, 0),
+            ];
+            cts = new CancellationTokenSource();
+            process = new(cts, Options.Create<StartupConfigPid>(new() { Id = -1 }));
+            screen = new WowScreenDXGI(loggerFactory.CreateLogger<WowScreenDXGI>(), process, mockFrames);
+            
             var decoderLogger = loggerFactory.CreateLogger<Core.DataToText.DataToTextGridDecoder>();
             using Test_DataToTextDecoder test = new(logger, decoderLogger, screen);
 
