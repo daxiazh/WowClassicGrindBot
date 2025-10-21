@@ -265,7 +265,7 @@ internal sealed class Program
             // 离线测试：使用保存的调试图片
             Log.Logger.Information("使用离线测试模式");
             var decoderLogger = loggerFactory.CreateLogger<Core.DataToText.DataToTextGridDecoder>();
-            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "/Users/zhanghua/Downloads/Xnip2025-10-21_11-12-10.jpg", decoderLogger);
+            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "/Users/zhanghua/Downloads/Xnip2025-10-21_14-23-16.jpg", decoderLogger);
         }
         else
         {

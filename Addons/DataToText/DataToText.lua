@@ -220,75 +220,78 @@ local function UpdateDisplay()
         table.insert(textLines, string.format("Bag: %d/%d", freeSlots, totalSlots))
     end
 
-    table.insert(textLines, "")
-    table.insert(textLines, "=== DEBUG INFO (Lua Encoding) ===")
-    table.insert(textLines, "")
-    
-    -- 1. 网格容量统计
-    local totalCells = stats.gridSize * stats.gridSize
-    local cornerCells = 4 * 8 * 8  -- 4个角标记，每个8×8
-    local timingCells = 2 * (57 - 9 + 1) - 1  -- 水平49 + 垂直49 - 重叠1 = 97
-    local availableCells = totalCells - cornerCells - timingCells
-    
-    table.insert(textLines, "[Grid Capacity]")
-    table.insert(textLines, string.format("  GridSize: %dx%d = %d cells", stats.gridSize, stats.gridSize, totalCells))
-    table.insert(textLines, string.format("  Corner Skip: 4×8×8 = %d cells", cornerCells))
-    table.insert(textLines, string.format("  Timing Skip: %d cells (H:49 + V:49 - overlap:1)", timingCells))
-    table.insert(textLines, string.format("  Available: %d - %d - %d = %d cells", totalCells, cornerCells, timingCells, availableCells))
-    table.insert(textLines, string.format("  Used: %d bits (%.1f%%)", stats.usedBits, stats.usedBits * 100.0 / availableCells))
-    table.insert(textLines, "")
-    
-    -- 2. 编码数据统计
-    table.insert(textLines, "[Encoding Stats]")
-    table.insert(textLines, string.format("  Total Bytes: %d (metadata:4 + data:324 + crc:4)", stats.totalBytes))
-    table.insert(textLines, string.format("  Total Bits: %d", stats.totalBits))
-    table.insert(textLines, string.format("  Metadata: Version=%d, FieldCount=%d", bytes[1], bytes[2]))
-    
-    -- CRC32 (最后4字节)
-    local crc1, crc2, crc3, crc4 = bytes[329], bytes[330], bytes[331], bytes[332]
-    table.insert(textLines, string.format("  CRC32: 0x%02X%02X%02X%02X", crc1, crc2, crc3, crc4))
-    table.insert(textLines, "")
-    
-    -- 3. 前64个bits（前8个字节）
-    table.insert(textLines, "[First 64 bits]")
-    local bits = {}
-    for i = 1, 8 do
-        local byte = bytes[i]
-        for b = 7, 0, -1 do
-            table.insert(bits, bit.band(bit.rshift(byte, b), 1))
+    -- ============ 调试信息（可通过 DEBUG_MODE 开关控制） ============
+    if GE.DEBUG_MODE then
+        table.insert(textLines, "")
+        table.insert(textLines, "=== DEBUG INFO (Lua Encoding) ===")
+        table.insert(textLines, "")
+        
+        -- 1. 网格容量统计
+        local totalCells = stats.gridSize * stats.gridSize
+        local cornerCells = 4 * 8 * 8  -- 4个角标记，每个8×8
+        local timingCells = 2 * (57 - 9 + 1) - 1  -- 水平49 + 垂直49 - 重叠1 = 97
+        local availableCells = totalCells - cornerCells - timingCells
+        
+        table.insert(textLines, "[Grid Capacity]")
+        table.insert(textLines, string.format("  GridSize: %dx%d = %d cells", stats.gridSize, stats.gridSize, totalCells))
+        table.insert(textLines, string.format("  Corner Skip: 4×8×8 = %d cells", cornerCells))
+        table.insert(textLines, string.format("  Timing Skip: %d cells (H:49 + V:49 - overlap:1)", timingCells))
+        table.insert(textLines, string.format("  Available: %d - %d - %d = %d cells", totalCells, cornerCells, timingCells, availableCells))
+        table.insert(textLines, string.format("  Used: %d bits (%.1f%%)", stats.usedBits, stats.usedBits * 100.0 / availableCells))
+        table.insert(textLines, "")
+        
+        -- 2. 编码数据统计
+        table.insert(textLines, "[Encoding Stats]")
+        table.insert(textLines, string.format("  Total Bytes: %d (metadata:4 + data:324 + crc:4)", stats.totalBytes))
+        table.insert(textLines, string.format("  Total Bits: %d", stats.totalBits))
+        table.insert(textLines, string.format("  Metadata: Version=%d, FieldCount=%d", bytes[1], bytes[2]))
+        
+        -- CRC32 (最后4字节)
+        local crc1, crc2, crc3, crc4 = bytes[329], bytes[330], bytes[331], bytes[332]
+        table.insert(textLines, string.format("  CRC32: 0x%02X%02X%02X%02X", crc1, crc2, crc3, crc4))
+        table.insert(textLines, "")
+        
+        -- 3. 前64个bits（前8个字节）
+        table.insert(textLines, "[First 64 bits]")
+        local bits = {}
+        for i = 1, 8 do
+            local byte = bytes[i]
+            for b = 7, 0, -1 do
+                table.insert(bits, bit.band(bit.rshift(byte, b), 1))
+            end
         end
-    end
-    table.insert(textLines, string.format("  %s", table.concat(bits, "")))
-    table.insert(textLines, "")
-    
-    -- 4. 前32字节（十六进制）
-    table.insert(textLines, "[First 32 bytes]")
-    local first32 = {}
-    for i = 1, 32 do
-        table.insert(first32, string.format("%02X", bytes[i]))
-    end
-    table.insert(textLines, string.format("  %s", table.concat(first32, "-")))
-    table.insert(textLines, "")
-    
-    -- 5. 前328字节（用于CRC计算）
-    table.insert(textLines, "[First 328 bytes for CRC32]")
-    for lineStart = 1, 328, 16 do
-        local lineEnd = math.min(lineStart + 15, 328)
-        local lineBytes = {}
-        for i = lineStart, lineEnd do
-            table.insert(lineBytes, string.format("%02X", bytes[i]))
+        table.insert(textLines, string.format("  %s", table.concat(bits, "")))
+        table.insert(textLines, "")
+        
+        -- 4. 前32字节（十六进制）
+        table.insert(textLines, "[First 32 bytes]")
+        local first32 = {}
+        for i = 1, 32 do
+            table.insert(first32, string.format("%02X", bytes[i]))
         end
-        table.insert(textLines, string.format("  %s", table.concat(lineBytes, "-")))
-    end
-    table.insert(textLines, "")
-    
-    -- 6. 前10个字段值
-    table.insert(textLines, "[First 10 Fields]")
-    for i = 0, 9 do
-        if fields[i] ~= nil then
-            table.insert(textLines, string.format("  [%d] = %d", i, fields[i]))
+        table.insert(textLines, string.format("  %s", table.concat(first32, "-")))
+        table.insert(textLines, "")
+        
+        -- 5. 前328字节（用于CRC计算）
+        table.insert(textLines, "[First 328 bytes for CRC32]")
+        for lineStart = 1, 328, 16 do
+            local lineEnd = math.min(lineStart + 15, 328)
+            local lineBytes = {}
+            for i = lineStart, lineEnd do
+                table.insert(lineBytes, string.format("%02X", bytes[i]))
+            end
+            table.insert(textLines, string.format("  %s", table.concat(lineBytes, "-")))
         end
-    end
+        table.insert(textLines, "")
+        
+        -- 6. 前10个字段值
+        table.insert(textLines, "[First 10 Fields]")
+        for i = 0, 9 do
+            if fields[i] ~= nil then
+                table.insert(textLines, string.format("  [%d] = %d", i, fields[i]))
+            end
+        end
+    end  -- if GE.DEBUG_MODE
 
     table.insert(textLines, "")
     table.insert(textLines, "/dtt help - Commands")

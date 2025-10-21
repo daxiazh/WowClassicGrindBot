@@ -20,6 +20,11 @@ local GE = DataToTextGridEncoder
 -- 模块版本号
 GE.VERSION_STRING = "2.1.0"
 
+-- ============ 调试开关 ============
+-- 改为 true 启用详细调试信息输出
+local DEBUG_MODE = false
+GE.DEBUG_MODE = DEBUG_MODE  -- 导出供其他模块使用
+
 -- 常量定义
 local GRID_SIZE = 65
 local CORNER_MARKER_SIZE = 7  -- QR码 Finder Pattern 尺寸

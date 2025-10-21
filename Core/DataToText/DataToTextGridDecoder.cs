@@ -17,6 +17,9 @@ public sealed class DataToTextGridDecoder
 {
     private readonly ILogger<DataToTextGridDecoder>? logger;
     
+    // 调试开关 - 改为 true 启用详细调试日志
+    private const bool ENABLE_DEBUG_LOGGING = false;
+    
     // 网格常量
     private const int CORNER_MARKER_SIZE = 7;  // QR码 Finder Pattern 尺寸
     private const int QUIET_ZONE_SIZE = 1;     // Finder Pattern 周围的静区宽度
@@ -305,7 +308,7 @@ public sealed class DataToTextGridDecoder
                                 var totalSize = (float)mergedRuns[0];  // 起始偏移
                                 
                                 // 调试：输出前10个和后10个 runs
-                                if (logger != null && logger.IsEnabled(LogLevel.Debug))
+                                if (ENABLE_DEBUG_LOGGING && logger != null && logger.IsEnabled(LogLevel.Debug))
                                 {
                                     var first10 = string.Join(", ", mergedRuns.Take(Math.Min(10, mergedRuns.Count)));
                                     var last10 = string.Join(", ", mergedRuns.Skip(Math.Max(0, mergedRuns.Count - 10)));
@@ -436,7 +439,7 @@ public sealed class DataToTextGridDecoder
                             var totalSize = (float)mergedRuns[0];  // 起始偏移
                             
                             // 调试：输出前10个和后10个 runs
-                            if (logger != null && logger.IsEnabled(LogLevel.Debug))
+                            if (ENABLE_DEBUG_LOGGING && logger != null && logger.IsEnabled(LogLevel.Debug))
                             {
                                 var first10 = string.Join(", ", mergedRuns.Take(Math.Min(10, mergedRuns.Count)));
                                 var last10 = string.Join(", ", mergedRuns.Skip(Math.Max(0, mergedRuns.Count - 10)));
