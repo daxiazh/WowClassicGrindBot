@@ -90,12 +90,8 @@ local TIMING_START = CORNER_TOTAL_SIZE + 1          -- 9 (\u5de6\u4fa7Finder\u54
 local TIMING_END = GRID_SIZE - CORNER_TOTAL_SIZE    -- 57 (\u53f3\u4fa7Finder\u524d\u6700\u540e\u4e00\u4e2acell)
 
 local function InCorner(row, col)
-    -- 跳过整条外边界（第65行/第65列）作为白色留边
-    if row == GRID_SIZE or col == GRID_SIZE then
-        return true
-    end
-
     -- 需要跳过的区域包括：7×7 Finder Pattern + 定向静区
+    -- 角标记是 8×8 区域（7×7 Finder + 1格面向数据区的静区）
     -- 
     -- 左上角：Finder(1-7,1-7) + 静区(第8行,第8列)
     -- 占据区域：1-8行, 1-8列
