@@ -6,8 +6,10 @@ using Serilog;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace CoreTests;
@@ -171,12 +173,12 @@ internal sealed class Test_DataToTextDecoder : IDisposable
     }
 
     /// <summary>
-    /// 性能压力测试
+    /// 性能压力测试（实时模式：从游戏窗口截图）
     /// </summary>
     /// <param name="count">测试次数</param>
     public void PerformanceTest(int count = 50)
     {
-        logger.LogInformation($"开始性能测试 ({count}次)");
+        logger.LogInformation($"开始性能测试 - 实时模式 ({count}次)");
 
         double[] times = new double[count];
         int successfulDecodes = 0;
@@ -190,15 +192,147 @@ internal sealed class Test_DataToTextDecoder : IDisposable
             Thread.Sleep(50); // 短暂延迟避免过载
         }
 
+        PrintPerformanceStatistics(times, successfulDecodes, count);
+    }
+
+    /// <summary>
+    /// 离线性能测试：使用保存的图片进行纯解码性能测试
+    /// 隔离I/O和截图影响，专注于解码算法性能
+    /// </summary>
+    /// <param name="imagePath">测试图片路径</param>
+    /// <param name="count">测试次数</param>
+    public static void OfflinePerformanceTest(
+        Microsoft.Extensions.Logging.ILogger logger,
+        string imagePath,
+        ILogger<DataToTextGridDecoder>? decoderLogger = null,
+        int count = 100)
+    {
+        if (!File.Exists(imagePath))
+        {
+            logger.LogError($"测试图片不存在: {imagePath}");
+            return;
+        }
+
+        logger.LogInformation($"=== 离线性能测试: {Path.GetFileName(imagePath)} ===");
+        logger.LogInformation($"样本数: {count}");
+
+        // 预加载图片（避免I/O影响测试）
+        using var image = Image.Load<Bgra32>(imagePath);
+        logger.LogInformation($"图片尺寸: {image.Width}×{image.Height}");
+
+        // 创建解码器
+        decoderLogger ??= Microsoft.Extensions.Logging.Abstractions.NullLogger<DataToTextGridDecoder>.Instance;
+        var decoder = new DataToTextGridDecoder(decoderLogger);
+
+        // 预热（避免JIT编译影响）
+        logger.LogInformation("预热中...");
+        for (int i = 0; i < 5; i++)
+        {
+            decoder.DecodeFromScreen(image);
+        }
+
+        // 性能测试
+        logger.LogInformation($"开始性能测试 ({count}次)...");
+        List<double> cacheHitTimes = new();
+        List<double> cacheMissTimes = new();
+        int successfulDecodes = 0;
+
+        for (int i = 0; i < count; i++)
+        {
+            var sw = Stopwatch.StartNew();
+            bool success = decoder.DecodeFromScreen(image);
+            sw.Stop();
+
+            double elapsed = sw.Elapsed.TotalMilliseconds;
+            
+            if (success)
+            {
+                successfulDecodes++;
+                
+                // 根据缓存状态分组记录
+                if (decoder.LastDecodeUsedCache)
+                    cacheHitTimes.Add(elapsed);
+                else
+                    cacheMissTimes.Add(elapsed);
+            }
+        }
+
+        // 输出总体统计
+        logger.LogInformation("");
+        logger.LogInformation("=== 离线性能测试结果 ===");
+        logger.LogInformation($"样本数: {count}");
+        logger.LogInformation($"成功率: {successfulDecodes * 100.0 / count:F1}%");
+        logger.LogInformation($"缓存命中: {cacheHitTimes.Count}次");
+        logger.LogInformation($"缓存未命中: {cacheMissTimes.Count}次");
+        logger.LogInformation("");
+
+        // 输出缓存命中统计
+        if (cacheHitTimes.Count > 0)
+        {
+            PrintCacheStatistics(logger, cacheHitTimes.ToArray(), "缓存命中");
+            logger.LogInformation("");
+        }
+
+        // 输出缓存未命中统计
+        if (cacheMissTimes.Count > 0)
+        {
+            PrintCacheStatistics(logger, cacheMissTimes.ToArray(), "缓存未命中(全屏搜索)");
+        }
+    }
+
+    /// <summary>
+    /// 打印缓存分组统计信息（用于离线性能测试）
+    /// </summary>
+    /// <param name="logger">日志记录器</param>
+    /// <param name="times">耗时数组</param>
+    /// <param name="groupName">分组名称</param>
+    private static void PrintCacheStatistics(
+        Microsoft.Extensions.Logging.ILogger logger,
+        double[] times,
+        string groupName)
+    {
+        if (times.Length == 0)
+            return;
+
+        Array.Sort(times);
+        int count = times.Length;
+        double min = times[0];
+        double max = times[^1];
+        double avg = times.Sum() / count;
+        double median = times[count / 2];
+        double p95 = count > 1 ? times[(int)(count * 0.95)] : times[0];
+        double p99 = count > 1 ? times[(int)(count * 0.99)] : times[0];
+        
+        // 标准差和变异系数
+        double variance = times.Select(t => Math.Pow(t - avg, 2)).Sum() / count;
+        double stdDev = Math.Sqrt(variance);
+        double cv = avg > 0 ? (stdDev / avg * 100) : 0;
+
+        logger.LogInformation($"=== {groupName}统计 ({count}次) ===");
+        logger.LogInformation($"最小值: {min:F2}ms");
+        logger.LogInformation($"最大值: {max:F2}ms");
+        logger.LogInformation($"平均值: {avg:F2}ms");
+        logger.LogInformation($"中位数: {median:F2}ms");
+        logger.LogInformation($"P95: {p95:F2}ms");
+        logger.LogInformation($"P99: {p99:F2}ms");
+        logger.LogInformation($"标准差: {stdDev:F2}ms");
+        logger.LogInformation($"变异系数: {cv:F1}% (越低越稳定)");
+    }
+
+    /// <summary>
+    /// 打印性能统计信息（复用逻辑）
+    /// </summary>
+    private static void PrintPerformanceStatistics(
+        Microsoft.Extensions.Logging.ILogger logger,
+        double[] times,
+        int successfulDecodes,
+        int count)
+    {
         // 统计分析
         Array.Sort(times);
         double min = times[0];
         double max = times[^1];
-        double avg = 0;
-        for (int i = 0; i < count; i++)
-            avg += times[i];
-        avg /= count;
-
+        double avg = times.Sum() / count;
         double median = times[count / 2];
         double p95 = times[(int)(count * 0.95)];
         double p99 = times[(int)(count * 0.99)];
@@ -212,6 +346,14 @@ internal sealed class Test_DataToTextDecoder : IDisposable
         logger.LogInformation($"中位数: {median:F2}ms");
         logger.LogInformation($"P95: {p95:F2}ms");
         logger.LogInformation($"P99: {p99:F2}ms");
+    }
+
+    /// <summary>
+    /// 打印性能统计信息（实例方法重载）
+    /// </summary>
+    private void PrintPerformanceStatistics(double[] times, int successfulDecodes, int count)
+    {
+        PrintPerformanceStatistics(logger, times, successfulDecodes, count);
     }
 
     /// <summary>

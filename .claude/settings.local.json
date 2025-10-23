@@ -4,7 +4,14 @@
       "WebSearch",
       "WebFetch(domain:www.nuget.org)",
       "WebFetch(domain:github.com)",
-      "Read(//c/Users/zhanghua/Documents/wow-clean/Interface/AddOns/**)"
+      "Read(//c/Users/zhanghua/Documents/wow-clean/Interface/AddOns/**)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "Bash(cat:*)",
+      "Bash(dotnet build:*)",
+      "Bash(git log:*)",
+      "Bash(if [ -f \"/mnt/z/Xnip2025-10-21_15-13-43.jpg\" ])",
+      "Bash(fi:*)",
+      "Bash(dotnet run:*)"
     ],
     "deny": [],
     "ask": []

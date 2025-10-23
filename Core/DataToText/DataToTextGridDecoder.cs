@@ -84,6 +84,11 @@ public sealed class DataToTextGridDecoder
     public byte[,]? LastSampledGrid { get; private set; }
 
     /// <summary>
+    /// 上一次解码是否使用了缓存位置
+    /// </summary>
+    public bool LastDecodeUsedCache { get; private set; }
+
+    /// <summary>
     /// 从屏幕图像中定位并解码网格数据
     /// </summary>
     /// <param name="screenImage">完整屏幕截图</param>
@@ -92,6 +97,7 @@ public sealed class DataToTextGridDecoder
     {
         LastDecodeSuccess = false;
         LastError = null;
+        LastDecodeUsedCache = false;
 
         try
         {
@@ -102,6 +108,7 @@ public sealed class DataToTextGridDecoder
                 {
                     cacheHitCount++;
                     LastDecodeSuccess = true;
+                    LastDecodeUsedCache = true;  // 使用了缓存
                     return true;
                 }
                 // 缓存失效，清除并重新搜索
@@ -110,6 +117,7 @@ public sealed class DataToTextGridDecoder
             }
 
             // 2. 全屏搜索网格位置
+            LastDecodeUsedCache = false;  // 需要全屏搜索
             GridLocation? location = FindGridInScreen(screenImage, logger);
             if (location == null)
             {
@@ -203,7 +211,7 @@ public sealed class DataToTextGridDecoder
         int gridX = (int)Math.Round(leftTopPattern.CenterX - 3.5f * calibratedCellSizeX);
         int gridY = (int)Math.Round(leftTopPattern.CenterY - 3.5f * calibratedCellSizeY);
 
-        logger?.LogInformation("[FindGridInScreen] 成功定位: Grid={Size}×{Size}, Origin=({X},{Y}), CenterPoints=({XCount},{YCount})", 
+        logger?.LogDebug("[FindGridInScreen] 成功定位: Grid={Size}×{Size}, Origin=({X},{Y}), CenterPoints=({XCount},{YCount})", 
             gridSize, gridSize, gridX, gridY, xCenters.Length, yCenters.Length);
 
         return new GridLocation

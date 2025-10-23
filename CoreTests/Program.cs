@@ -51,7 +51,8 @@ internal sealed class Program
         Console.InputEncoding = System.Text.Encoding.UTF8;
 
         var logConfig = new LoggerConfiguration()
-            .MinimumLevel.Debug()  // 设置最小日志级别为 Debug
+            // .MinimumLevel.Debug()  // 设置最小日志级别为 Debug
+            .MinimumLevel.Information()
             .WriteTo.File("names.log", restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug)
             .WriteTo.Debug()
             .WriteTo.Console(restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug)
@@ -274,13 +275,24 @@ internal sealed class Program
     {
         // ===== 模式选择 =====
         bool useOfflineTest = true; // 设置为 true 使用离线测试，false 使用实时测试
+        bool usePerformanceTest = true; // 设置为 true 使用性能测试模式
 
         if (useOfflineTest)
         {
             // 离线测试：使用保存的调试图片
             Log.Logger.Information("使用离线测试模式");
             var decoderLogger = loggerFactory.CreateLogger<Core.DataToText.DataToTextGridDecoder>();
-            CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "Z:\\Xnip2025-10-21_15-09-52.jpg", decoderLogger);
+            
+            if (usePerformanceTest)
+            {
+                // 离线性能测试（纯解码性能，隔离I/O影响）
+                CoreTests.Test_DataToTextDecoder.OfflinePerformanceTest(logger, "C:\\Users\\zhanghua\\Documents\\Xnip2025-10-23_09-56-33.jpg", decoderLogger, count: 100);
+            }
+            else
+            {
+                // 离线功能测试（单次解码验证）
+                CoreTests.Test_DataToTextDecoder.TestWithDebugImage(logger, "C:\\Users\\zhanghua\\Documents\\Xnip2025-10-23_09-56-33.jpg", decoderLogger);
+            }
         }
         else
         {
@@ -303,16 +315,21 @@ internal sealed class Program
 
             screen.Enabled = true;
 
-            // 方式1: 持续监控模式 (实时显示每次解码结果)
-            // test.ContinuousMonitor(intervalMs: 500, count: 20);
+            if (usePerformanceTest)
+            {
+                // 方式1: 性能测试模式（包含截图开销）
+                test.PerformanceTest(count: count);
+            }
+            else
+            {
+                // 方式2: 持续监控模式 (实时显示每次解码结果)
+                // test.ContinuousMonitor(intervalMs: 500, count: 20);
 
-            // 方式2: 性能测试模式 (统计分析)
-            // test.PerformanceTest(count: count);
-
-            // 方式3: 单次测试 + 保存调试截图
-            double elapsed = test.Execute();
-            test.SaveDebugImage("datatotext_debug.jpg");
-            Log.Logger.Information($"单次解码耗时: {elapsed:F2}ms");
+                // 方式3: 单次测试 + 保存调试截图
+                double elapsed = test.Execute();
+                test.SaveDebugImage("datatotext_debug.jpg");
+                Log.Logger.Information($"单次解码耗时: {elapsed:F2}ms");
+            }
 
             screen.Enabled = false;
 
