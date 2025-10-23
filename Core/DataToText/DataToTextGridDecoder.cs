@@ -481,7 +481,7 @@ public sealed class DataToTextGridDecoder
 
 
     /// <summary>
-    /// 提取一行的 run-length 序列
+    /// 提取一行的 run-length 序列（使用高性能 ProcessPixelRows）
     /// </summary>
     /// <param name="startX">起始 X 坐标（默认0）</param>
     /// <returns>(runs, startsWithBlack)</returns>
@@ -493,25 +493,35 @@ public sealed class DataToTextGridDecoder
         if (startX < 0 || startX >= width || y < 0 || y >= image.Height)
             return (runs, false);
         
-        bool startsWithBlack = IsPixelBlack(image[startX, y]);
-        bool currentIsBlack = startsWithBlack;
+        bool startsWithBlack = false;
+        bool currentIsBlack = false;
         int runLength = 0;
 
-        for (int x = startX; x < width; x++)
+        // 使用 ProcessPixelRows 进行高性能批量访问
+        image.ProcessPixelRows(accessor =>
         {
-            bool isBlack = IsPixelBlack(image[x, y]);
+            Span<Bgra32> row = accessor.GetRowSpan(y);
             
-            if (isBlack == currentIsBlack)
+            startsWithBlack = IsPixelBlack(row[startX]);
+            currentIsBlack = startsWithBlack;
+            runLength = 0;
+            
+            for (int x = startX; x < width; x++)
             {
-                runLength++;
+                bool isBlack = IsPixelBlack(row[x]);
+                
+                if (isBlack == currentIsBlack)
+                {
+                    runLength++;
+                }
+                else
+                {
+                    runs.Add(runLength);
+                    runLength = 1;
+                    currentIsBlack = isBlack;
+                }
             }
-            else
-            {
-                runs.Add(runLength);
-                runLength = 1;
-                currentIsBlack = isBlack;
-            }
-        }
+        });
         
         runs.Add(runLength); // 添加最后一个 run
         return (runs, startsWithBlack);
@@ -738,7 +748,7 @@ public sealed class DataToTextGridDecoder
     }
 
     /// <summary>
-    /// 提取垂直方向的 run-length 序列
+    /// 提取垂直方向的 run-length 序列（使用高性能 ProcessPixelRows）
     /// </summary>
     /// <returns>(runs, startsWithBlack)</returns>
     private static (List<int> runs, bool startsWithBlack) ExtractRunLengthsVertical(Image<Bgra32> image, int x, int startY, int maxHeight)
@@ -747,25 +757,39 @@ public sealed class DataToTextGridDecoder
         if (x < 0 || x >= image.Width || startY >= image.Height)
             return (runs, false);
 
-        bool startsWithBlack = IsPixelBlack(image[x, startY]);
-        bool currentIsBlack = startsWithBlack;
+        bool startsWithBlack = false;
+        bool currentIsBlack = false;
         int runLength = 0;
 
-        for (int y = startY; y < maxHeight && y < image.Height; y++)
+        // 使用 ProcessPixelRows 进行高性能批量访问
+        image.ProcessPixelRows(accessor =>
         {
-            bool isBlack = IsPixelBlack(image[x, y]);
+            // 获取起始像素确定初始状态
+            if (startY < accessor.Height)
+            {
+                Span<Bgra32> firstRow = accessor.GetRowSpan(startY);
+                startsWithBlack = IsPixelBlack(firstRow[x]);
+                currentIsBlack = startsWithBlack;
+            }
             
-            if (isBlack == currentIsBlack)
+            // 逐行扫描垂直方向
+            for (int y = startY; y < maxHeight && y < accessor.Height; y++)
             {
-                runLength++;
+                Span<Bgra32> row = accessor.GetRowSpan(y);
+                bool isBlack = IsPixelBlack(row[x]);
+                
+                if (isBlack == currentIsBlack)
+                {
+                    runLength++;
+                }
+                else
+                {
+                    runs.Add(runLength);
+                    runLength = 1;
+                    currentIsBlack = isBlack;
+                }
             }
-            else
-            {
-                runs.Add(runLength);
-                runLength = 1;
-                currentIsBlack = isBlack;
-            }
-        }
+        });
         
         runs.Add(runLength); // 添加最后一个 run
         return (runs, startsWithBlack);
