@@ -11,7 +11,12 @@
       "Bash(git log:*)",
       "Bash(if [ -f \"/mnt/z/Xnip2025-10-21_15-13-43.jpg\" ])",
       "Bash(fi:*)",
-      "Bash(dotnet run:*)"
+      "Bash(dotnet run:*)",
+      "WebFetch(domain:wowwiki-archive.fandom.com)",
+      "Bash(grep:*)",
+      "Bash(lua:*)",
+      "Bash(rm:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

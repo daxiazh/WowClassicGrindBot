@@ -226,6 +226,10 @@ local function UpdateDisplay()
         local targetHpPercent = (fields[19] * 100 / fields[18])
         table.insert(textLines, string.format("Target: %d/%d (%.0f%%)", fields[19], fields[18], targetHpPercent))
     end
+    
+    if fields[57] and fields[57] > 0 then
+        table.insert(textLines, string.format("Target GUID: %d", fields[57]))
+    end
 
     if fields[44] and fields[45] then
         local copper = fields[44]

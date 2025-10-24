@@ -116,31 +116,54 @@ local function GetCorpsePosition()
 end
 
 -- 获取目标 GUID（WoW 1.12 兼容版本）
+--
+-- 设计说明:
+-- 1. WoW 1.12 的 GUID 是完整的十六进制字符串（如 "0xF130000F0FA275ED4"，17位十六进制）
+-- 2. 每个字段只能存储 24 bits (3 bytes)，最大值 16777215 (0xFFFFFF，6位十六进制)
+-- 3. 直接转换完整 GUID 会超出 Lua 数值精度和字段容量限制
+-- 4. 解决方案: 只取最后 6 位十六进制 (= 24 bits)，足够在当前视野内区分不同单位
+--
+-- 对比 DataToColor (TBC+):
+-- - TBC+ GUID 格式: "Creature-0-4488-530-222-19350-000005C0D70" (分段格式)
+-- - DataToColor 策略: 提取 NPC ID + spawn 时间戳，计算 24-bit 哈希值
+--   (spawnEpochOffset + spawnIndex + npcId) % 0x1000000
+-- - 本实现: 直接取完整 GUID 的低 24 bits，达到相同效果
+--
+-- 为什么只取低 24 bits:
+-- - 数据传输限制: DataToColor 使用 RGB 像素 (3字节)，DataToText 使用网格编码 (3字节)
+-- - 实际需求: 机器人只需在当前战斗/视野内区分目标，不需要全局唯一 ID
+-- - 碰撞可接受: 不同区域/时间的相同 NPC 碰撞不影响机器人决策
+--
+-- 注意: 这不是全局唯一 ID，只保证短时间内的区分度
 local function GetTargetGUID()
-    -- WoW 1.12 中 UnitExists 返回两个值: (exists, guid)
+    -- WoW 1.12: UnitExists 返回 (exists, guid_hex_string)
     local exists, guid = UnitExists("target")
-    if not exists then
+    if not exists or not guid then
         return 0
     end
     
-    -- 如果 GUID 可用（数字类型），直接使用
-    if guid and type(guid) == "number" then
-        -- 限制在 24-bit 范围内
+    if type(guid) == "string" then
+        -- WoW 1.12 GUID 格式: "0xF130000F0FA275ED4" (十六进制字符串)
+        -- 移除 "0x" 前缀
+        local hexStr = string.gsub(guid, "^0[xX]", "")
+        
+        -- GUID 通常是 17 位十六进制，只取最后 6 位（24 bits）
+        -- 原因: tonumber() 对超长十六进制字符串可能精度丢失，且字段容量限制为 24 bits
+        -- 例: "F130000F0FA275ED4" -> "75ED4" (最后6位)
+        if string.len(hexStr) > 6 then
+            hexStr = string.sub(hexStr, -6)  -- 取最后6位十六进制
+        end
+        
+        local numGuid = tonumber(hexStr, 16)
+        if numGuid then
+            return numGuid  -- 范围: 0 ~ 16777215 (0x000000 ~ 0xFFFFFF)
+        end
+    elseif type(guid) == "number" then
+        -- 数字类型（罕见情况），取模确保在 24-bit 范围内
         return math.mod(guid, 16777216)
     end
     
-    -- 回退方案：使用目标名称的哈希值
-    local targetName = UnitName("target")
-    if not targetName or targetName == "" then
-        return 0
-    end
-    
-    local hash = 0
-    for i = 1, string.len(targetName) do
-        hash = hash + string.byte(targetName, i) * i
-    end
-    
-    return math.mod(hash, 16777216)
+    return 0
 end
 
 -- 获取 Buff 数量（WoW 1.12 使用 UnitBuff）
