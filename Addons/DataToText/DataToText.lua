@@ -22,6 +22,11 @@ local updateTimer = 0
 -- Pause state
 local isPaused = false
 
+-- GlobalTime 计数器（模拟 DataToColor 的行为）
+local globalTime = 0
+local GLOBALTIME_MAX = 16777215  -- 24-bit 最大值 (2^24 - 1)
+local GLOBALTIME_RESET_VALUE = 4  -- 溢出后重置值（跳过初始化阶段 0-3）
+
 -- 性能监控
 local enableProfiling = false
 local profileData = {}
@@ -56,6 +61,15 @@ local GR = DataToTextGridRenderer
 
 -- 初始化渲染器
 GR.SetFontPath(FONT_PATH)
+
+----------------------------------------------------------------------------
+-- GlobalTime 访问接口
+----------------------------------------------------------------------------
+
+-- 获取当前 GlobalTime（供 FieldCollector 使用）
+function DataToText_GetGlobalTime()
+    return globalTime
+end
 
 ----------------------------------------------------------------------------
 -- 性能分析工具
@@ -123,6 +137,12 @@ local function UpdateDisplay()
 
     if isPaused then
         return
+    end
+
+    -- 递增 GlobalTime（模拟 DataToColor 的行为）
+    globalTime = globalTime + 1
+    if globalTime > GLOBALTIME_MAX then
+        globalTime = GLOBALTIME_RESET_VALUE  -- 溢出后重置为 4
     end
 
     local t0, t1, t2, t3
@@ -330,12 +350,26 @@ SlashCmdList["DATATOTEXT"] = function(msg)
         ShowProfileReport()
     elseif msg == "capacity" or msg == "cap" then
         ShowCapacityInfo()
+    elseif msg == "debug" then
+        DataToText_Print("=== 调试信息 ===")
+        DataToText_Print("_G.UnitCastingInfo: " .. (_G.UnitCastingInfo and "存在" or "不存在"))
+        DataToText_Print("UnitChannelInfo: " .. (UnitChannelInfo and "存在" or "不存在"))
+        DataToText_Print("pfUI: " .. (pfUI and "已加载" or "未加载"))
+        if pfUI then
+            DataToText_Print("pfUI.client: " .. tostring(pfUI.client))
+            DataToText_Print("pfUI.api.libcast: " .. (pfUI.api.libcast and "存在" or "不存在"))
+            DataToText_Print("pfUI.env: " .. (pfUI.env and "存在" or "不存在"))
+            if pfUI.env then
+                DataToText_Print("pfUI.env.UnitCastingInfo: " .. (pfUI.env.UnitCastingInfo and "存在" or "不存在"))
+            end
+        end
     elseif msg == "help" then
         DataToText_Print("=== DataToText 命令列表 ===")
         DataToText_Print("/dtt - 切换显示")
         DataToText_Print("/dtt profile - 启用/禁用性能分析")
         DataToText_Print("/dtt report - 显示性能报告")
         DataToText_Print("/dtt capacity - 显示网格容量信息")
+        DataToText_Print("/dtt debug - 显示调试信息（pfUI状态）")
         DataToText_Print("/dtt test - 运行所有测试")
         DataToText_Print("/dtt utf8 - UTF-8编码测试")
         DataToText_Print("/dtt crc32 - CRC32算法测试")

@@ -12,6 +12,24 @@
 DataToTextFieldCollector = {}
 local FC = DataToTextFieldCollector
 
+----------------------------------------------------------------------------
+-- WoW 1.12 兼容性：访问 pfUI 环境中的 UnitCastingInfo
+----------------------------------------------------------------------------
+local function GetUnitCastingInfo(unit)
+    -- 尝试全局函数（TBC+）
+    if _G.UnitCastingInfo then
+        return _G.UnitCastingInfo(unit)
+    end
+    
+    -- 尝试 pfUI 环境中的函数
+    if pfUI and pfUI.env and pfUI.env.UnitCastingInfo then
+        return pfUI.env.UnitCastingInfo(unit)
+    end
+    
+    -- 不支持
+    return nil
+end
+
 -- 常量定义
 local FIELD_COUNT = 108
 local MAX_24BIT = 16777215  -- 2^24 - 1
@@ -97,18 +115,32 @@ local function GetCorpsePosition()
     return 0, 0
 end
 
--- 获取目标 GUID
+-- 获取目标 GUID（WoW 1.12 兼容版本）
 local function GetTargetGUID()
-    if not UnitExists("target") then
+    -- WoW 1.12 中 UnitExists 返回两个值: (exists, guid)
+    local exists, guid = UnitExists("target")
+    if not exists then
         return 0
     end
-    local guid = UnitGUID("target")
-    if not guid then
+    
+    -- 如果 GUID 可用（数字类型），直接使用
+    if guid and type(guid) == "number" then
+        -- 限制在 24-bit 范围内
+        return math.mod(guid, 16777216)
+    end
+    
+    -- 回退方案：使用目标名称的哈希值
+    local targetName = UnitName("target")
+    if not targetName or targetName == "" then
         return 0
     end
-    -- GUID 是字符串，提取后8位16进制转为数字
-    local shortGuid = string.sub(guid, -8)
-    return tonumber(shortGuid, 16) or 0
+    
+    local hash = 0
+    for i = 1, string.len(targetName) do
+        hash = hash + string.byte(targetName, i) * i
+    end
+    
+    return math.mod(hash, 16777216)
 end
 
 -- 获取 Buff 数量（WoW 1.12 使用 UnitBuff）
@@ -229,8 +261,12 @@ function FC.CollectAllFields()
         fields[57] = GetTargetGUID()
 
         -- 58: 目标正在施法的法术 ID
-        local spellName, _, _, _, _, endTime = UnitCastingInfo("target")
-        fields[58] = 0  -- WoW 1.12 无法获取法术 ID
+        -- WoW 1.12 限制: pfUI libcast 仅返回法术名称，无法获取法术ID
+        -- pfUI 返回值: cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill (无spellId)
+        -- TBC+ 返回值: cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill, castID, notInterruptible, spellId
+        local cast = GetUnitCastingInfo("target")
+        -- WoW 1.12 无法获取法术ID，始终返回0
+        fields[58] = 0
 
         -- 59: 鼠标悬停目标 + 目标的目标
         fields[59] = 0  -- 待实现
@@ -395,8 +431,13 @@ function FC.CollectAllFields()
     fields[96] = 0  -- SpellQueueWindow + 网络延迟
     fields[100] = 0  -- 布尔标志位3
 
-    -- 106: 全局时间戳
-    fields[106] = math.floor(GetTime() * 1000)
+    -- 106: GlobalTime 帧计数器（模拟 DataToColor 的行为）
+    -- 每次 UpdateDisplay() 递增，溢出后重置为 4
+    if DataToText_GetGlobalTime then
+        fields[106] = DataToText_GetGlobalTime()
+    else
+        fields[106] = 0  -- 回退方案（如果函数不存在）
+    end
 
     -- 107: 元数据/验证标志
     fields[107] = 1  -- 标记数据有效
