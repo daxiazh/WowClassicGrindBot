@@ -1,0 +1,63 @@
+{
+  "ClassName": "Priest",
+  "Loot": true,
+  "PathFilename": "Blasted Lands_2025_12_01_17_04_01.json",
+  "PathThereAndBack": true,
+  "PathReduceSteps": true,
+  "Wait": {
+    "Sequence": [
+      {
+        "Cost": 0.9,
+        "Name": "User",
+        "Requirement": "MenuOpen || ChatInputVisible || SessionMinutes%2"
+      }
+    ]
+  },
+  "Pull": {
+    "Sequence": [
+      {
+        "Name": "Smite",
+        "Key": "2",
+        "HasCastBar": true,
+        "Requirement": "Mana%>50"
+      }
+    ]
+  },
+  "Combat": {
+    "Sequence": [      
+      {
+        "Name": "Lesser Heal",
+        "Key": "3",
+        "Requirement": "Health%<40",
+        "Cooldown": 2000,
+        "HasCastBar": true
+      },
+      {
+        "Name": "Smite",
+        "Key": "2",
+        "HasCastBar": true,
+        "Requirements": [
+          "!InMeleeRange",
+          "Mana%>20"
+        ]
+      },
+      {
+        "Name": "AutoAttack"
+      }
+    ]
+  },
+  "Parallel": {
+    "Sequence": [
+      {
+        "Name": "Food",
+        "Key": "=",
+        "Requirement": "Health%<99"
+      },
+      {
+        "Name": "Drink",
+        "Key": "-",
+        "Requirement": "Mana%<99"
+      }
+    ]
+  }
+}

@@ -2,6 +2,10 @@
   <img src="images/starme.png" alt="Star this Repo"/>
 </p>
 
+# 注意事项:
+1. 必须保证整个WoW窗口可见, 否则初始化配置不成功  
+2. 手动复制`Addons`到WoW的`Addons` 目录, 不要让软件自动复制, 有时会出错
+
 # Master Of Puppets
 
 The project current goal is to support `Season of Mastery Classic`, `Burning Crusade Classic`, `Wrath of the Lich King Classic`
