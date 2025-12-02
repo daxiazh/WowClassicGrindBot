@@ -9,7 +9,7 @@
       {
         "Cost": 0.9,
         "Name": "User",
-        "Requirement": "MenuOpen || ChatInputVisible || SessionMinutes%2"
+        "Requirement": "!SessionMinutes%5"
       }
     ]
   },
@@ -28,7 +28,7 @@
       {
         "Name": "Lesser Heal",
         "Key": "3",
-        "Requirement": "Health%<40",
+        "Requirement": "Health%<60",
         "Cooldown": 2000,
         "HasCastBar": true
       },
@@ -37,7 +37,6 @@
         "Key": "2",
         "HasCastBar": true,
         "Requirements": [
-          "!InMeleeRange",
           "Mana%>20"
         ]
       },

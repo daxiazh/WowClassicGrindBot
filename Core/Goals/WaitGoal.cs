@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Core.GOAP;
+using Microsoft.Extensions.Logging;
 
 namespace Core.Goals;
 
@@ -14,6 +15,8 @@ public sealed class WaitGoal : GoapGoal
     {
         this.logger = logger;
         this.wait = wait;
+        
+        AddPrecondition(GoapKey.incombat, false);
     }
 
     public override void OnEnter()

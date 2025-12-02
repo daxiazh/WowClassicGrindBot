@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Core.GOAP;
+using Microsoft.Extensions.Logging;
 
 namespace Core.Goals;
 
@@ -17,6 +18,7 @@ public sealed class ConditionalWaitGoal : GoapGoal
         this.wait = wait;
 
         Keys = [keyAction];
+        AddPrecondition(GoapKey.incombat, false);
     }
 
     public override bool CanRun() => Keys[0].CanRun();
