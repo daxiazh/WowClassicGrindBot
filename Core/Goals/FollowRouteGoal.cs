@@ -39,6 +39,7 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
     private readonly IBlacklist targetBlacklist;
     private readonly TargetFinder targetFinder;
     private const NpcNames NpcNameToFind = NpcNames.Enemy | NpcNames.Neutral;
+    private const float MAX_TARGET_DISTANCE_FROM_ROUTE = 30f;
 
     private const int MIN_TIME_TO_START_CYCLE_PROFESSION = 5000;
     private const int CYCLE_PROFESSION_PERIOD = 8000;
@@ -272,7 +273,8 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
         while (!sideActivityCts.IsCancellationRequested)
         {
             if (pathSettings.CanRunSideActivity() &&
-                targetFinder.Search(NpcNameToFind, bits.Target_NotDead, sideActivityCts.Token))
+                IsPlayerNearRoute() &&
+                targetFinder.Search(NpcNameToFind, IsValidTarget, sideActivityCts.Token))
             {
                 if (bits.Target() && targetBlacklist.Is())
                 {
@@ -462,5 +464,103 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
     private void Log(string text)
     {
         logger.LogInformation(text);
+    }
+
+    /// <summary>
+    /// 检查玩家是否在路线附近
+    /// </summary>
+    /// <returns>如果玩家在允许距离内返回 true，否则返回 false</returns>
+    private bool IsPlayerNearRoute()
+    {
+        if (mapRoute.Length == 0)
+            return true;
+
+        Vector3 playerMapPos = playerReader.MapPos;
+        float minDistanceSquared = CalculateMinDistanceToRouteSquared(playerMapPos);
+
+        // 转换为实际距离（地图坐标需要除以100）
+        float minDistance = MathF.Sqrt(minDistanceSquared) / 100f;
+
+        bool isNear = minDistance <= MAX_TARGET_DISTANCE_FROM_ROUTE;
+
+        if (!isNear && logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug($"Player too far from route: {minDistance:F1} yards (max: {MAX_TARGET_DISTANCE_FROM_ROUTE})");
+        }
+
+        return isNear;
+    }
+
+    /// <summary>
+    /// 验证目标是否有效（存活且在路线附近）
+    /// </summary>
+    /// <returns>如果目标有效返回 true，否则返回 false</returns>
+    private bool IsValidTarget()
+    {
+        return bits.Target_NotDead() && IsTargetNearRoute();
+    }
+
+    /// <summary>
+    /// 检查目标是否在路线附近
+    /// </summary>
+    /// <returns>如果目标在允许距离内返回 true，否则返回 false</returns>
+    private bool IsTargetNearRoute()
+    {
+        if (mapRoute.Length == 0)
+            return true;
+
+        Vector3 targetMapPos = playerReader.TargetMapPos;
+        if (targetMapPos == Vector3.Zero)
+            return true;
+
+        float minDistanceSquared = CalculateMinDistanceToRouteSquared(targetMapPos);
+
+        // 转换为实际距离（地图坐标需要除以100）
+        float minDistance = MathF.Sqrt(minDistanceSquared) / 100f;
+
+        bool isNear = minDistance <= MAX_TARGET_DISTANCE_FROM_ROUTE;
+
+        if (!isNear && logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug($"Target distance from route: {minDistance:F1} yards (max: {MAX_TARGET_DISTANCE_FROM_ROUTE})");
+        }
+
+        return isNear;
+    }
+
+    /// <summary>
+    /// 计算指定位置到路线的最短距离的平方
+    /// </summary>
+    /// <param name="mapPos">地图坐标位置</param>
+    /// <returns>到路线的最短距离的平方（地图坐标单位）</returns>
+    private float CalculateMinDistanceToRouteSquared(Vector3 mapPos)
+    {
+        float minDistanceSquared = float.MaxValue;
+
+        // 遍历路线上的所有线段，找到到路线的最短距离
+        for (int i = 0; i < mapRoute.Length - 1; i++)
+        {
+            Vector2 routePointA = mapRoute[i].AsVector2();
+            Vector2 routePointB = mapRoute[i + 1].AsVector2();
+            Vector2 point = mapPos.AsVector2();
+
+            // 获取到线段的最近点
+            Vector2 closestPoint = VectorExt.GetClosestPointOnLineSegment(routePointA, routePointB, point);
+
+            // 计算距离的平方（避免开方运算）
+            float distanceSquared = Vector2.DistanceSquared(point, closestPoint);
+
+            if (distanceSquared < minDistanceSquared)
+            {
+                minDistanceSquared = distanceSquared;
+            }
+        }
+
+        // 也检查到路线端点的距离
+        float distanceToFirstSquared = Vector2.DistanceSquared(mapPos.AsVector2(), mapRoute[0].AsVector2());
+        float distanceToLastSquared = Vector2.DistanceSquared(mapPos.AsVector2(), mapRoute[^1].AsVector2());
+        minDistanceSquared = MathF.Min(minDistanceSquared, MathF.Min(distanceToFirstSquared, distanceToLastSquared));
+
+        return minDistanceSquared;
     }
 }
