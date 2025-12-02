@@ -39,7 +39,7 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
     private readonly IBlacklist targetBlacklist;
     private readonly TargetFinder targetFinder;
     private const NpcNames NpcNameToFind = NpcNames.Enemy | NpcNames.Neutral;
-    private const float MAX_TARGET_DISTANCE_FROM_ROUTE = 30f;
+    private const float MAX_TARGET_DISTANCE_FROM_ROUTE = 5f;
 
     private const int MIN_TIME_TO_START_CYCLE_PROFESSION = 5000;
     private const int CYCLE_PROFESSION_PERIOD = 8000;
@@ -478,14 +478,11 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
         Vector3 playerMapPos = playerReader.MapPos;
         float minDistanceSquared = CalculateMinDistanceToRouteSquared(playerMapPos);
 
-        // 转换为实际距离（地图坐标需要除以100）
-        float minDistance = MathF.Sqrt(minDistanceSquared) / 100f;
-
-        bool isNear = minDistance <= MAX_TARGET_DISTANCE_FROM_ROUTE;
+        bool isNear = minDistanceSquared <= MAX_TARGET_DISTANCE_FROM_ROUTE;
 
         if (!isNear && logger.IsEnabled(LogLevel.Debug))
         {
-            logger.LogDebug($"Player too far from route: {minDistance:F1} yards (max: {MAX_TARGET_DISTANCE_FROM_ROUTE})");
+            logger.LogDebug($"Player too far from route: {MathF.Sqrt(minDistanceSquared):F1} yards (max: {MAX_TARGET_DISTANCE_FROM_ROUTE})");
         }
 
         return isNear;
