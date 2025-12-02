@@ -338,7 +338,7 @@ public sealed partial class Navigation : IDisposable
         Vector3 targetW = wayPoints.Peek();
         float distance = playerW.WorldDistanceXYTo(targetW);
 
-        if (distance > MaxDistance || distance > AvgDistance * 2)
+        if (false&& (distance > MaxDistance || distance > AvgDistance * 2)) // 不再使用路径查找, 对于目前来讲意义不大, 但会大大增加对 MPQ 的依赖
         {
             if (debug)
                 LogDebug($"Distance: {distance} vs Avg:({AvgDistance * 2},{AvgDistance}) - TAVG: {DIFF_THRESHOLD * AvgDistance} ");
@@ -451,7 +451,18 @@ public sealed partial class Navigation : IDisposable
             manualReset.Reset();
             if (pathRequests.TryPeek(out PathRequest pathRequest))
             {
-                Vector3[] path = pather.FindWorldRoute(pathRequest.MapId, pathRequest.StartIndoors, pathRequest.StartW, pathRequest.EndW);
+                Vector3[] path;
+                try
+                {
+                    path = pather.FindWorldRoute(pathRequest.MapId, pathRequest.StartIndoors, pathRequest.StartW,
+                        pathRequest.EndW);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, $"路径查找发生错误, 直接走向目标点吧, 但在长距离或跨地图移动时会出现问题: MapId: {pathRequest.MapId}, StartW: {pathRequest.StartW}, EndW: {pathRequest.EndW}");
+                    path = [pathRequest.EndW];
+                }
+
                 if (active)
                 {
                     pathResults.Enqueue(new PathResult(pathRequest, path, pathRequest.Callback));
