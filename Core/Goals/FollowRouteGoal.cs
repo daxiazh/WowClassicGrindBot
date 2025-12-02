@@ -432,7 +432,7 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
     {
         // TODO: Cheap way to avoid override all FollowRouteGoal
         // to the same path
-        if (mapRoute.SequenceEqual(oldMap))
+        if (!mapRoute.SequenceEqual(newMap))
         {
             this.mapRoute = newMap;
         }
