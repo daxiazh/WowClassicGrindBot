@@ -16,10 +16,10 @@
   "Pull": {
     "Sequence": [
       {
-        "Name": "Smite",
+        "Name": "拉怪技能 - Smite",
         "Key": "2",
         "HasCastBar": true,
-        "Requirement": "Mana%>50"
+        "Requirement": "Mana%>50 && PathDist < 10"
       }
     ]
   },
