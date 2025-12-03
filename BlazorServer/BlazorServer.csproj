@@ -33,11 +33,13 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy /s /Y /i &quot;$(ProjectDir)..\Addons&quot; &quot;$(TargetDir)Addons&quot;" />
+    <Exec Command="xcopy /s /Y /i &quot;$(ProjectDir)..\Addons&quot; &quot;$(TargetDir)Addons&quot;" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Exec Command="cp -R &quot;$(ProjectDir)../Addons&quot; &quot;$(TargetDir)&quot;" Condition="$([MSBuild]::IsOSPlatform('OSX')) Or $([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
   <Target Name="CopyCustomContentOnPublish" AfterTargets="Publish">
-    <Exec Command="xcopy /s /Y /i &quot;$(ProjectDir)..\Addons&quot; &quot;$(PublishDir)Addons&quot;" />
+    <Exec Command="xcopy /s /Y /i &quot;$(ProjectDir)..\Addons&quot; &quot;$(PublishDir)Addons&quot;" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Exec Command="cp -R &quot;$(ProjectDir)../Addons&quot; &quot;$(PublishDir)&quot;" Condition="$([MSBuild]::IsOSPlatform('OSX')) Or $([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
 </Project>

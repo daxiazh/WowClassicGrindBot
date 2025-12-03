@@ -1,9 +1,6 @@
 using SixLabors.ImageSharp;
-
-using System.Runtime.CompilerServices;
+using System;
 using System.Runtime.InteropServices;
-
-[assembly: DisableRuntimeMarshalling]
 
 namespace WinAPI;
 
@@ -18,45 +15,33 @@ public static partial class NativeMethods
         public Point ptScreenPos;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    internal readonly record struct RECT
+    private static readonly INativeWindow _window = CreateWindowHelper();
+    private static readonly INativeCursor _cursor = CreateCursorHelper();
+
+    private static INativeWindow CreateWindowHelper()
     {
-        public readonly int left, top, right, bottom;
+#if WINDOWS
+        return new WindowsWindowHelper();
+#elif MACOS
+        return new MacOSWindowHelper();
+#else
+        throw new PlatformNotSupportedException("Only Windows and macOS are supported");
+#endif
     }
 
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool GetCursorInfo(ref CURSORINFO pci);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool DrawIconEx(nint hdc, int xLeft, int yTop, nint hIcon, int cxWidth, int cyHeight, int istepIfAniCur, nint hbrFlickerFreeDraw, int diFlags);
-
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool DrawIcon(nint hDC, int x, int y, nint hIcon);
+    private static INativeCursor CreateCursorHelper()
+    {
+#if WINDOWS
+        return new WindowsCursorHelper();
+#elif MACOS
+        return new MacOSCursorHelper();
+#else
+        throw new PlatformNotSupportedException("Only Windows and macOS are supported");
+#endif
+    }
 
     public const int CURSOR_SHOWING = 0x0001;
     public const int DI_NORMAL = 0x0003;
-
-    [LibraryImport("user32.dll")]
-    public static partial nint GetForegroundWindow();
-
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool SetForegroundWindow(nint hWnd);
-
-    [LibraryImport("user32.dll", EntryPoint = "PostMessageA")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool PostMessage(nint hWnd, uint Msg, int wParam, int lParam);
-
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool SetCursorPos(int x, int y);
-
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool GetCursorPos(out Point p);
 
     public const uint WM_KEYDOWN = 0x0100;
     public const uint WM_KEYUP = 0x0101;
@@ -68,78 +53,48 @@ public static partial class NativeMethods
     public const int VK_LBUTTON = 0x01;
     public const int VK_RBUTTON = 0x02;
 
-    public static int MakeLParam(int x, int y) => (y << 16) | (x & 0xFFFF);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool GetClientRect(nint hWnd, out RECT lpRect);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool ClientToScreen(nint hWnd, ref Point lpPoint);
-
-    [LibraryImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static partial bool ScreenToClient(nint hWnd, ref Point lpPoint);
-
-    [LibraryImport("user32.dll")]
-    private static partial int GetSystemMetrics(int nIndexn);
-
-    private const int SM_CXCURSOR = 13;
-    private const int SM_CYCURSOR = 14;
-
-    [LibraryImport("gdi32.dll")]
-    private static partial int GetDeviceCaps(nint hDC, int nIndex);
-
-    private const int LOGPIXELSX = 88;
-
-    public static bool IsWindowedMode(Point point)
-    {
-        return point.X != 0 || point.Y != 0;
-    }
-
-    public static void GetPosition(nint hWnd, ref Point point)
-    {
-        ClientToScreen(hWnd, ref point);
-    }
-
-    public static void GetWindowRect(nint hWnd, out Rectangle rect)
-    {
-        GetClientRect(hWnd, out RECT nRect);
-        rect = Rectangle.FromLTRB(nRect.left, nRect.top, nRect.right, nRect.bottom);
-
-        Point topLeft = new();
-        ClientToScreen(hWnd, ref topLeft);
-        if (IsWindowedMode(topLeft))
-        {
-            rect.X = topLeft.X;
-            rect.Y = topLeft.Y;
-        }
-    }
-
-    public static int GetDpi()
-    {
-        using System.Drawing.Graphics g = System.Drawing.Graphics.FromHwnd(nint.Zero);
-        return GetDeviceCaps(g.GetHdc(), LOGPIXELSX);
-    }
-
-    public static Size GetCursorSize()
-    {
-        int dpi = GetDpi();
-        SizeF size = new(GetSystemMetrics(SM_CXCURSOR), GetSystemMetrics(SM_CYCURSOR));
-        size *= DPI2PPI(dpi);
-        return (Size)size;
-    }
-
-    public static float DPI2PPI(int dpi)
-    {
-        return dpi / 96f;
-    }
-
     public const int MONITOR_DEFAULT_TO_NULL = 0;
     public const int MONITOR_DEFAULT_TO_PRIMARY = 1;
     public const int MONITOR_DEFAULT_TO_NEAREST = 2;
 
-    [LibraryImport("user32.dll")]
-    public static partial nint MonitorFromWindow(nint hWnd, uint dwFlags);
+    public static int MakeLParam(int x, int y) => (y << 16) | (x & 0xFFFF);
+
+    public static nint GetForegroundWindow() => _window.GetForegroundWindow();
+
+    public static bool SetForegroundWindow(nint hWnd) => _window.SetForegroundWindow(hWnd);
+
+    public static bool PostMessage(nint hWnd, uint msg, int wParam, int lParam) => _window.PostMessage(hWnd, msg, wParam, lParam);
+
+    public static bool SetCursorPos(int x, int y) => _cursor.SetCursorPos(x, y);
+
+    public static bool GetCursorPos(out Point p) => _cursor.GetCursorPos(out p);
+
+    public static bool GetCursorInfo(ref CURSORINFO pci) => _cursor.GetCursorInfo(ref pci);
+
+    public static bool ScreenToClient(nint hWnd, ref Point lpPoint) => _window.ScreenToClient(hWnd, ref lpPoint);
+
+    public static void GetPosition(nint hWnd, ref Point point) => _window.GetPosition(hWnd, ref point);
+
+    public static void GetWindowRect(nint hWnd, out Rectangle rect) => _window.GetWindowRect(hWnd, out rect);
+
+    public static Size GetCursorSize() => _cursor.GetCursorSize();
+
+    public static nint MonitorFromWindow(nint hWnd, uint dwFlags) => _window.MonitorFromWindow(hWnd, dwFlags);
+
+    public static float DPI2PPI(int dpi) => dpi / 96f;
+
+    public static bool DrawIconEx(nint hdc, int xLeft, int yTop, nint hIcon, int cxWidth, int cyHeight, int istepIfAniCur, nint hbrFlickerFreeDraw, int diFlags)
+        => _cursor.DrawIconEx(hdc, xLeft, yTop, hIcon, cxWidth, cyHeight, istepIfAniCur, hbrFlickerFreeDraw, diFlags);
+
+    public static bool DrawIcon(nint hDC, int x, int y, nint hIcon)
+        => _cursor.DrawIcon(hDC, x, y, hIcon);
+
+    public static int GetDpi()
+    {
+#if WINDOWS
+        return WindowsCursorHelper.GetDpiInternal();
+#else
+        return 96;
+#endif
+    }
 }

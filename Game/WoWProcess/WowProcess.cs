@@ -100,9 +100,12 @@ public sealed class WowProcess
         for (int i = 0; i < processList.Length; i++)
         {
             Process p = processList[i];
+            if (string.IsNullOrEmpty(p.ProcessName))
+                continue;
+
             for (int j = 0; j < defaultProcessNames.Length; j++)
             {
-                if (defaultProcessNames[j].Contains(p.ProcessName, StringComparison.OrdinalIgnoreCase))
+                if (p.ProcessName.Contains(defaultProcessNames[j], StringComparison.OrdinalIgnoreCase))
                 {
                     return p;
                 }
