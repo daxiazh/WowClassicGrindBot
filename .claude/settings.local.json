@@ -2,9 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(grep:*)",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "WebSearch"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "/Applications/World of Warcraft/_classic_titan_/World of Warcraft Classic.app/Contents/MacOS"
+    ]
   }
 }

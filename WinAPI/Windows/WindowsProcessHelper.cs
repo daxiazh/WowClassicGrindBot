@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using System.IO;
 
@@ -40,6 +41,21 @@ public sealed class WindowsProcessHelper : INativeProcess
         return string.Empty;
 #else
         return string.Empty;
+#endif
+    }
+
+    public Version GetVersion(Process process, string executablePath)
+    {
+#if WINDOWS
+        string exePath = Path.Join(executablePath, process.ProcessName + ".exe");
+        FileVersionInfo fileVersion = FileVersionInfo.GetVersionInfo(exePath);
+        if (Version.TryParse(fileVersion.FileVersion, out Version? v))
+        {
+            return v;
+        }
+        return new Version();
+#else
+        return new Version();
 #endif
     }
 }

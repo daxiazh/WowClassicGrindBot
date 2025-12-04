@@ -124,12 +124,7 @@ public sealed class WowProcess
             throw new NullReferenceException("Unable identify World of Warcraft process path!");
         }
 
-        FileVersionInfo fileVersion = FileVersionInfo.GetVersionInfo(System.IO.Path.Join(path, process.ProcessName + ".exe"));
-        if (Version.TryParse(fileVersion.FileVersion, out Version? v))
-        {
-            return (path, v);
-        }
-
-        return (path, new());
+        Version version = WinAPI.ExecutableVersion.Get(process, path);
+        return (path, version);
     }
 }

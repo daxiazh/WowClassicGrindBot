@@ -16,6 +16,7 @@
   <ItemGroup>
     <Compile Include="Abstractions\**\*.cs" />
     <Compile Include="ExecutablePath.cs" />
+    <Compile Include="ExecutableVersion.cs" />
     <Compile Include="NativeMethods.cs" />
     <Compile Include="StringOrderUtil.cs" />
   </ItemGroup>
