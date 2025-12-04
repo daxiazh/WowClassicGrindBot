@@ -6,6 +6,15 @@
 	  <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
+  <!-- Platform-specific conditional compilation symbols -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <DefineConstants>$(DefineConstants);OSX</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Include="..\.editorconfig" Link=".editorconfig" />
   </ItemGroup>
@@ -23,6 +32,22 @@
     <ProjectReference Include="..\Game\Game.csproj" />
     <ProjectReference Include="..\PPather\PPather.csproj" />
     <ProjectReference Include="..\WowheadDB\WowheadDB.csproj" />
+  </ItemGroup>
+
+  <!-- Exclude all platform-specific files from default compilation first -->
+  <ItemGroup>
+    <Compile Remove="WoWScreen\WowScreenDXGI.cs" />
+    <Compile Remove="WoWScreen\WowScreenMac.cs" />
+  </ItemGroup>
+
+  <!-- Windows-specific files -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <Compile Include="WoWScreen\WowScreenDXGI.cs" />
+  </ItemGroup>
+
+  <!-- macOS-specific files -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Compile Include="WoWScreen\WowScreenMac.cs" />
   </ItemGroup>
 
 </Project>

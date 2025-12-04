@@ -3,7 +3,19 @@
     "allow": [
       "Bash(grep:*)",
       "Bash(dotnet build:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(dotnet --list-sdks:*)",
+      "Bash(sw_vers:*)",
+      "Bash(dotnet run:*)",
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)",
+      "Bash(./build.sh)",
+      "Bash(dos2unix:*)",
+      "Bash(sed:*)",
+      "Bash(nm:*)",
+      "Bash(cp:*)",
+      "Bash(timeout:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": [],

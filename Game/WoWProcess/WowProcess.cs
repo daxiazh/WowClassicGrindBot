@@ -67,18 +67,27 @@ public sealed class WowProcess
 
     public WowProcess(CancellationTokenSource cts, IOptions<StartupConfigPid> options) : this(cts, options.Value.Id) { }
 
+    /// <summary>
+    /// 在后台线程中持续监控 WoW 进程状态
+    /// 当检测到进程退出时,自动尝试重新连接到新的 WoW 进程实例
+    /// 这使得机器人能够在 WoW 崩溃或重启后自动恢复连接
+    /// </summary>
     private void PollProcessExited()
     {
         while (!token.IsCancellationRequested)
         {
+            // 刷新进程信息以获取最新状态
             process.Refresh();
             if (process.HasExited)
             {
+                // 当前监控的进程已退出
                 IsRunning = false;
 
+                // 尝试查找新的 WoW 进程
                 Process? p = Get();
                 if (p != null)
                 {
+                    // 找到新进程,更新引用并重新获取进程信息
                     process = p;
                     id = process.Id;
                     IsRunning = true;
@@ -86,6 +95,7 @@ public sealed class WowProcess
                 }
             }
 
+            // 每 5 秒检查一次进程状态
             token.WaitHandle.WaitOne(5000);
         }
     }

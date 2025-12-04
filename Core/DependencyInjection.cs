@@ -220,7 +220,13 @@ public static class DependencyInjection
         s.AddSingleton<DataConfig>(x => DataConfig.Load(
             x.GetRequiredService<StartupClientVersion>().Path));
 
+#if WINDOWS
         s.ForwardSingleton<IWowScreen, IScreenImageProvider, IMinimapImageProvider, WowScreenDXGI>();
+#elif OSX
+        s.ForwardSingleton<IWowScreen, IScreenImageProvider, IMinimapImageProvider, WowScreenMac>();
+#else
+#error Unsupported platform
+#endif
 
         s.ForwardSingleton<WowProcessInput, IMouseInput>();
 
