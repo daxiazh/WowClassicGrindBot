@@ -17,7 +17,8 @@ public sealed class WowProcess
         "WowClassic",
         "WowClassicT",
         "Wow-64",
-        "WowClassicB"
+        "WowClassicB",
+        "World of Warcraft Classic"
     ];
 
     private readonly Thread thread;
@@ -105,7 +106,7 @@ public sealed class WowProcess
 
             for (int j = 0; j < defaultProcessNames.Length; j++)
             {
-                if (p.ProcessName.Contains(defaultProcessNames[j], StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(p.ProcessName, defaultProcessNames[j], StringComparison.OrdinalIgnoreCase))
                 {
                     return p;
                 }
