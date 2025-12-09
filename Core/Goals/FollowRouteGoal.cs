@@ -39,7 +39,7 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
     private readonly IBlacklist targetBlacklist;
     private readonly TargetFinder targetFinder;
     private const NpcNames NpcNameToFind = NpcNames.Enemy | NpcNames.Neutral;
-    private const float MAX_TARGET_DISTANCE_FROM_ROUTE = 2.5f;
+    private const float MAX_TARGET_DISTANCE_FROM_ROUTE = 5f;
 
     private const int MIN_TIME_TO_START_CYCLE_PROFESSION = 5000;
     private const int CYCLE_PROFESSION_PERIOD = 8000;
@@ -478,7 +478,7 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
         Vector3 playerMapPos = playerReader.MapPos;
         float minDistanceSquared = CalculateMinDistanceToRouteSquared(playerMapPos);
 
-        float minDistance = MathF.Sqrt(minDistanceSquared) / 100f;
+        float minDistance = MathF.Sqrt(minDistanceSquared);
         bool isNear = minDistance <= MAX_TARGET_DISTANCE_FROM_ROUTE;
 
         if (!isNear && logger.IsEnabled(LogLevel.Debug))
