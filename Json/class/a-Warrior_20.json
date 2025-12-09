@@ -64,10 +64,15 @@
         ]
       },
       {
+        "Name": "乘胜追击",
+        "Key": "7",
+        "WhenUsable": true
+      },
+      {
         "Name": "Overpower",
         "Key": "0",
         "WhenUsable": true
-      },
+      },    
       {
         "Name": "Cleave",
         "Key": "1",
