@@ -437,6 +437,7 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
         if (!mapRoute.SequenceEqual(newMap))
         {
             this.mapRoute = newMap;
+            refillByOther = true;
         }
     }
 
