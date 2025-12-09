@@ -478,11 +478,12 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
         Vector3 playerMapPos = playerReader.MapPos;
         float minDistanceSquared = CalculateMinDistanceToRouteSquared(playerMapPos);
 
-        bool isNear = minDistanceSquared <= MAX_TARGET_DISTANCE_FROM_ROUTE;
+        float minDistance = MathF.Sqrt(minDistanceSquared) / 100f;
+        bool isNear = minDistance <= MAX_TARGET_DISTANCE_FROM_ROUTE;
 
         if (!isNear && logger.IsEnabled(LogLevel.Debug))
         {
-            logger.LogDebug($"Player too far from route: {MathF.Sqrt(minDistanceSquared):F1} yards (max: {MAX_TARGET_DISTANCE_FROM_ROUTE})");
+            logger.LogDebug($"Player too far from route: {minDistance:F1} yards (max: {MAX_TARGET_DISTANCE_FROM_ROUTE})");
         }
 
         return isNear;
