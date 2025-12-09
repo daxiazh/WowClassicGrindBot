@@ -88,7 +88,7 @@ public sealed partial class ClassConfiguration
 
     public KeyAction TargetTargetOfTarget { get; } = new()
     {
-        Key = "F",
+        Key = ";",
         Name = nameof(TargetTargetOfTarget),
         Cooldown = 0,
         BaseAction = true,
