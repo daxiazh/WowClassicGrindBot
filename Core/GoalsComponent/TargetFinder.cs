@@ -37,9 +37,9 @@ public sealed class TargetFinder
     }
 
     public bool Search(
-        NpcNames target, Func<bool> validTarget, CancellationToken token)
+        NpcNames target, CancellationToken token)
     {
-        return LookForTarget(target, token) && validTarget();
+        return LookForTarget(target, token);
     }
 
     private bool LookForTarget(

@@ -39,7 +39,7 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
     private readonly IBlacklist targetBlacklist;
     private readonly TargetFinder targetFinder;
     private const NpcNames NpcNameToFind = NpcNames.Enemy | NpcNames.Neutral;
-    private const float MAX_TARGET_DISTANCE_FROM_ROUTE = 5f;
+    private const float MAX_TARGET_DISTANCE_FROM_ROUTE = 2.25f;
 
     private const int MIN_TIME_TO_START_CYCLE_PROFESSION = 5000;
     private const int CYCLE_PROFESSION_PERIOD = 8000;
@@ -213,6 +213,7 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
         }
         else if (e.GetType() == typeof(ResumeEvent))
         {
+            refillByOther = true;   // 确保恢复时重新规划路径， 否则有可能走向旧的路径点，尤其在玩家手动操作角色后
             Resume();
         }
         else if (e.GetType() == typeof(FollowRouteChanged))
@@ -272,23 +273,31 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
 
         while (!sideActivityCts.IsCancellationRequested)
         {
-            if (pathSettings.CanRunSideActivity() &&
-                IsPlayerNearRoute() &&
-                targetFinder.Search(NpcNameToFind, IsValidTarget, sideActivityCts.Token))
+            do
             {
-                if (bits.Target() && targetBlacklist.Is())
+                if (IsPlayerNearRoute() && bits.Target())
                 {
-                    Log("Blacklisted target found, clearing target");
-                    input.PressClearTarget();
-                    wait.Update();
+                    input.PressClearTarget(); // 保证玩家不要离路线太远
+                    break;
                 }
-                else
+
+                if (pathSettings.CanRunSideActivity() &&
+                    targetFinder.Search(NpcNameToFind, sideActivityCts.Token))
                 {
-                    Log("Found target!");
-                    sideActivityCts.Cancel();
-                    sideActivityManualReset.Reset();
+                    if (!IsValidTarget() || (bits.Target() && targetBlacklist.Is()))
+                    {
+                        Log("Blacklisted target found, clearing target");
+                        input.PressClearTarget();
+                        wait.Update();
+                    }
+                    else
+                    {
+                        Log("Found target!");
+                        sideActivityCts.Cancel();
+                        sideActivityManualReset.Reset();
+                    }
                 }
-            }
+            } while (false);
 
             wait.Update();
             sideActivityManualReset.Wait();
@@ -513,15 +522,11 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
             return true;
 
         float minDistanceSquared = CalculateMinDistanceToRouteSquared(targetMapPos);
-
-        // 转换为实际距离（地图坐标需要除以100）
-        float minDistance = MathF.Sqrt(minDistanceSquared) / 100f;
-
-        bool isNear = minDistance <= MAX_TARGET_DISTANCE_FROM_ROUTE;
+        bool isNear = minDistanceSquared <= MAX_TARGET_DISTANCE_FROM_ROUTE;
 
         if (!isNear && logger.IsEnabled(LogLevel.Debug))
         {
-            logger.LogDebug($"Target distance from route: {minDistance:F1} yards (max: {MAX_TARGET_DISTANCE_FROM_ROUTE})");
+            logger.LogDebug($"Target distance from route: {Math.Sqrt(minDistanceSquared):F1} yards (max: {MAX_TARGET_DISTANCE_FROM_ROUTE})");
         }
 
         return isNear;
