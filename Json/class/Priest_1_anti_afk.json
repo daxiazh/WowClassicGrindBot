@@ -19,7 +19,7 @@
         "Name": "拉怪技能 - Smite",
         "Key": "2",
         "HasCastBar": true,
-        "Requirement": "Mana%>50 && PathDist < 10"
+        "Requirement": "Mana%>50"
       }
     ]
   },
@@ -50,12 +50,12 @@
       {
         "Name": "Food",
         "Key": "=",
-        "Requirement": "Health%<99"
+        "Requirement": "Health%<30"
       },
       {
         "Name": "Drink",
         "Key": "-",
-        "Requirement": "Mana%<99"
+        "Requirement": "Mana%<30"
       }
     ]
   }
