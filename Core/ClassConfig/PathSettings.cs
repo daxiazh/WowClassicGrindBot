@@ -15,6 +15,18 @@ public sealed class PathSettings
     public bool PathThereAndBack { get; set; } = true;
     public bool PathReduceSteps { get; set; }
 
+    /// <summary>
+    /// 是否启用之字形(Zigzag)寻路,在路径点之间生成左右摆动的中间点以增加寻怪覆盖范围
+    /// </summary>
+    public bool EnableZigzagPathing { get; set; } = true;
+
+    /// <summary>
+    /// 之字形摆动幅度(地图坐标单位, 默认 0.04 约等于 4 码)
+    /// 值越大,左右摆动幅度越大,覆盖范围越广,但路径也越长
+    /// 推荐范围: 0.03-0.06 (3-6 码)
+    /// </summary>
+    public float ZigzagAmplitude { get; set; } = 0.04f;
+
     public Vector3[] Path = Array.Empty<Vector3>();
 
     public string FileName =>

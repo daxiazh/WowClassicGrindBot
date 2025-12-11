@@ -376,7 +376,7 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
 
     public void RefillWaypoints(bool onlyClosest)
     {
-        Log($"{nameof(RefillWaypoints)} - findClosest:{onlyClosest} - ThereAndBack:{pathSettings.PathThereAndBack}");
+        Log($"{nameof(RefillWaypoints)} - findClosest:{onlyClosest} - ThereAndBack:{pathSettings.PathThereAndBack} - Zigzag:{pathSettings.EnableZigzagPathing}");
 
         Vector3 playerMap = playerReader.MapPos;
 
@@ -417,23 +417,38 @@ public sealed class FollowRouteGoal : GoapGoal, IGoapEventListener, IRouteProvid
             return;
         }
 
+        // 确定最终路径
+        Vector3[] finalPathArray;
+
         if (mapClosestPoint == pathMap[0] || mapClosestPoint == pathMap[^1])
         {
             if (pathSettings.PathThereAndBack)
             {
-                navigation.SetWayPoints(pathMap);
+                finalPathArray = pathMap.ToArray();
             }
             else
             {
                 pathMap.Reverse();
-                navigation.SetWayPoints(pathMap);
+                finalPathArray = pathMap.ToArray();
             }
         }
         else
         {
-            Span<Vector3> points = pathMap[closestIndex..];
-            Log($"{nameof(RefillWaypoints)} - Set destination from closest to nearest endpoint - with {points.Length} waypoints");
-            navigation.SetWayPoints(points);
+            Span<Vector3> pathSlice = pathMap[closestIndex..];
+            finalPathArray = pathSlice.ToArray();
+            Log($"{nameof(RefillWaypoints)} - Set destination from closest to nearest endpoint - with {finalPathArray.Length} waypoints");
+        }
+
+        // 应用之字形路径生成
+        if (pathSettings.EnableZigzagPathing && finalPathArray.Length > 1)
+        {
+            Vector3[] zigzagPath = VectorExt.ApplyZigzagToPath(finalPathArray, pathSettings.ZigzagAmplitude);
+            // Log($"{nameof(RefillWaypoints)} - Applied Zigzag pathing: {finalPathArray.Length} waypoints -> {zigzagPath.Length} waypoints (amplitude: {pathSettings.ZigzagAmplitude:F3})");
+            navigation.SetWayPoints(zigzagPath);
+        }
+        else
+        {
+            navigation.SetWayPoints(finalPathArray);
         }
     }
 

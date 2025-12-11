@@ -110,4 +110,95 @@ public static class VectorExt
     {
         return $"({v.X} {v.Y} {v.Z})";
     }
+
+    /// <summary>
+    /// 在两个路径点之间生成自适应的之字形(Zigzag)路径
+    /// 根据两点之间的距离动态调整之字形的密度
+    /// </summary>
+    /// <param name="start">起点(地图坐标)</param>
+    /// <param name="end">终点(地图坐标)</param>
+    /// <param name="amplitude">摆动幅度(地图坐标单位,默认 0.04 约等于 4 码)</param>
+    /// <returns>包含起点、之字形中间点和终点的路径数组</returns>
+    public static Vector3[] GenerateZigzagPath(Vector3 start, Vector3 end, float amplitude = 0.04f)
+    {
+        float distance = MapDistanceXY(start, end);
+
+        // 距离小于 10 码,不生成之字形,直接返回起点和终点
+        if (distance < 10f)
+            return new[] { start, end };
+
+        // 计算之字形摆动点的数量
+        // 规则: 每 18 码生成一个摆动点
+        const float zigzagInterval = 18f;
+        int zigzagCount = (int)(distance / zigzagInterval);
+
+        // 限制摆动点数量在 1-10 之间
+        zigzagCount = Math.Max(1, Math.Min(zigzagCount, 10));
+
+        // 计算方向向量和垂直向量
+        Vector2 start2D = start.AsVector2();
+        Vector2 end2D = end.AsVector2();
+        Vector2 direction = Vector2.Normalize(end2D - start2D);
+        Vector2 perpendicular = new(-direction.Y, direction.X); // 逆时针旋转 90 度
+
+        // 生成之字形路径点
+        List<Vector3> zigzagPoints = new(zigzagCount + 2)
+        {
+            start // 添加起点
+        };
+
+        // 生成中间摆动点
+        for (int i = 1; i <= zigzagCount; i++)
+        {
+            // 计算当前点在起点到终点线段上的位置 (0-1)
+            float t = i / (float)(zigzagCount + 1);
+
+            // 线性插值得到基准点
+            Vector2 basePoint = Vector2.Lerp(start2D, end2D, t);
+
+            // 左右交替偏移
+            // i 为奇数时向左,偶数时向右
+            float offset = (i % 2 == 1) ? amplitude : -amplitude;
+            Vector2 zigzagPoint = basePoint + perpendicular * offset;
+
+            // Z 坐标也进行插值
+            float z = start.Z + (end.Z - start.Z) * t;
+
+            zigzagPoints.Add(new Vector3(zigzagPoint.X, zigzagPoint.Y, z));
+        }
+
+        zigzagPoints.Add(end); // 添加终点
+
+        return zigzagPoints.ToArray();
+    }
+
+    /// <summary>
+    /// 对整个路径应用之字形生成,在每两个相邻路径点之间插入之字形中间点
+    /// </summary>
+    /// <param name="originalPath">原始路径点数组</param>
+    /// <param name="amplitude">摆动幅度(地图坐标单位)</param>
+    /// <returns>包含之字形中间点的完整路径</returns>
+    public static Vector3[] ApplyZigzagToPath(ReadOnlySpan<Vector3> originalPath, float amplitude = 0.04f)
+    {
+        if (originalPath.Length <= 1)
+            return originalPath.ToArray();
+
+        List<Vector3> fullPath = new();
+
+        for (int i = 0; i < originalPath.Length - 1; i++)
+        {
+            Vector3[] segmentPath = GenerateZigzagPath(originalPath[i], originalPath[i + 1], amplitude);
+
+            // 添加当前线段的所有点(除了最后一个,因为它会是下一个线段的起点)
+            for (int j = 0; j < segmentPath.Length - 1; j++)
+            {
+                fullPath.Add(segmentPath[j]);
+            }
+        }
+
+        // 添加最后一个终点
+        fullPath.Add(originalPath[^1]);
+
+        return fullPath.ToArray();
+    }
 }
