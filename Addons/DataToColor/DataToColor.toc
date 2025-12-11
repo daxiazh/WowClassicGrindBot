@@ -5,7 +5,7 @@
 ## Notes: Displays data as colors
 ## Version: 1.7.70
 ## RequiredDeps:
-## OptionalDeps: Ace3, LibRangeCheck, LibClassicCasterino
+## OptionalDeps: Ace3, LibRangeCheck, LibClassicCasterino, Hekili
 ## SavedVariables:
 
 embeds.xml
@@ -28,3 +28,5 @@ EventHandlers.lua
 DataToColor.lua
 
 SellJunk.lua
+
+HekiliTest.lua
