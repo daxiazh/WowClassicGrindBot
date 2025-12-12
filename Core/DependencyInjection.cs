@@ -70,6 +70,8 @@ public static class DependencyInjection
         s.ForwardSingleton<AuraTimeReader<IPlayerDebuffTimeReader>, IReader>(
             x => new(104, 105));
 
+        s.ForwardSingleton<HekiliReader, IReader>();
+
         return s;
     }
 
@@ -142,6 +144,8 @@ public static class DependencyInjection
         s.ForwardSingleton<AuraTimeReader<ITargetDebuffTimeReader>>(sp);
         s.ForwardSingleton<AuraTimeReader<ITargetBuffTimeReader>>(sp);
         s.ForwardSingleton<AuraTimeReader<IFocusBuffTimeReader>>(sp);
+
+        s.ForwardSingleton<HekiliReader>(sp);
 
         return s;
     }

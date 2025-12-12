@@ -5,7 +5,7 @@
 -- Trigger between emitting game data and frame location data
 local SETUP_SEQUENCE = false
 -- Total number of data frames generated
-local NUMBER_OF_FRAMES = 108
+local NUMBER_OF_FRAMES = 118
 -- Set number of pixel rows
 local FRAME_ROWS = 1
 -- Size of data squares in px. Varies based on rounding errors as well as dimension size. Use as a guideline, but not 100% accurate.
@@ -960,6 +960,32 @@ function DataToColor:CreateFrames()
             else
                 Pixel(int, 0, 104)
                 Pixel(int, 0, 105)
+            end
+
+            -- Hekili 推荐技能 (5队列×2技能 = 10 slots)
+            local hekiliRecs = DataToColor:GetHekiliRecommendations()
+            if hekiliRecs then
+                Pixel(int, hekiliRecs.Primary[1] and hekiliRecs.Primary[1].actionID or 0, 106)
+                Pixel(int, hekiliRecs.Primary[2] and hekiliRecs.Primary[2].actionID or 0, 107)
+                Pixel(int, hekiliRecs.AOE[1] and hekiliRecs.AOE[1].actionID or 0, 108)
+                Pixel(int, hekiliRecs.AOE[2] and hekiliRecs.AOE[2].actionID or 0, 109)
+                Pixel(int, hekiliRecs.Cooldowns[1] and hekiliRecs.Cooldowns[1].actionID or 0, 110)
+                Pixel(int, hekiliRecs.Cooldowns[2] and hekiliRecs.Cooldowns[2].actionID or 0, 111)
+                Pixel(int, hekiliRecs.Defensives[1] and hekiliRecs.Defensives[1].actionID or 0, 112)
+                Pixel(int, hekiliRecs.Defensives[2] and hekiliRecs.Defensives[2].actionID or 0, 113)
+                Pixel(int, hekiliRecs.Interrupts[1] and hekiliRecs.Interrupts[1].actionID or 0, 114)
+                Pixel(int, hekiliRecs.Interrupts[2] and hekiliRecs.Interrupts[2].actionID or 0, 115)
+            else
+                Pixel(int, 0, 106)
+                Pixel(int, 0, 107)
+                Pixel(int, 0, 108)
+                Pixel(int, 0, 109)
+                Pixel(int, 0, 110)
+                Pixel(int, 0, 111)
+                Pixel(int, 0, 112)
+                Pixel(int, 0, 113)
+                Pixel(int, 0, 114)
+                Pixel(int, 0, 115)
             end
 
             UpdateGlobalTime()
