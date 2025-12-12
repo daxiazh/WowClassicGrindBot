@@ -37,7 +37,7 @@ public sealed class MacOsProcessHelper
     #endregion
     
 
-    public string GetExecutablePath(Process process)
+    public static string GetExecutablePath(Process process)
     {
         try
         {
@@ -56,7 +56,7 @@ public sealed class MacOsProcessHelper
         return string.Empty;
     }
 
-    public Version GetVersion(Process process, string executablePath)
+    public static Version GetVersion(Process process, string executablePath)
     {
         try
         {

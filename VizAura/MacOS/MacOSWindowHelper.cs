@@ -93,7 +93,7 @@ public sealed class MacOSWindowHelper
     /// <param name="rect">输出窗口客户区矩形,使用屏幕坐标(原点在左上角)</param>
     /// <exception cref="ArgumentException">当 hWnd 为 nint.Zero 时抛出</exception>
     /// <exception cref="InvalidOperationException">当无法获取窗口矩形时抛出</exception>
-    public void GetWindowRect(nint hWnd, out Rectangle rect)
+    public static void GetWindowRect(nint hWnd, out Rectangle rect)
     {
         if (hWnd == nint.Zero)
         {
@@ -193,7 +193,7 @@ public sealed class MacOSWindowHelper
         throw new NotImplementedException("ScreenToClient is not yet implemented on macOS. macOS uses different coordinate system (origin at bottom-left).");
     }
 
-    public nint GetForegroundWindow()
+    public static nint GetForegroundWindow()
     {
         try
         {
@@ -214,7 +214,7 @@ public sealed class MacOSWindowHelper
         }
     }
 
-    public bool SetForegroundWindow(nint hWnd)
+    public static bool SetForegroundWindow(nint hWnd)
     {
         try
         {
@@ -241,7 +241,7 @@ public sealed class MacOSWindowHelper
         }
     }
 
-    public nint MonitorFromWindow(nint hWnd, uint dwFlags)
+    public static nint MonitorFromWindow(nint hWnd, uint dwFlags)
     {
         return CGMainDisplayID();
     }

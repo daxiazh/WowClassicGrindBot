@@ -1,6 +1,17 @@
-﻿namespace VizAura.ViewModels;
+﻿using Microsoft.Extensions.Logging;
 
-public partial class MainWindowViewModel : ViewModelBase
+namespace VizAura.ViewModels;
+
+public class MainWindowViewModel : ViewModelBase
 {
-    public string Greeting { get; } = "Welcome to Avalonia!";
+    private readonly ILogger<MainWindowViewModel> logger;
+
+    public MainWindowViewModel(ILogger<MainWindowViewModel> logger)
+    {
+        this.logger = logger;
+        
+        logger.LogInformation("MainWindowViewModel initialized");
+    }
+
+    public string Greeting { get; } = "Welcome to VizAura!";
 }
