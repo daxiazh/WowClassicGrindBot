@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:VizAura.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="500"
+             x:Class="VizAura.Views.WorkPanel"
+             x:DataType="vm:WorkViewModel">
+
+    <Grid Margin="20">
+        <StackPanel Spacing="20" VerticalAlignment="Center">
+            <!-- 成功图标 -->
+            <TextBlock Text="✓"
+                       FontSize="72"
+                       Foreground="Green"
+                       HorizontalAlignment="Center"/>
+
+            <!-- 标题 -->
+            <TextBlock Text="VizAura 运行中"
+                       FontSize="28"
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"/>
+
+            <!-- 状态消息 -->
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="16"
+                       Foreground="Gray"
+                       HorizontalAlignment="Center"/>
+
+            <!-- 欢迎消息 -->
+            <Border Background="#E8F5E9"
+                    CornerRadius="8"
+                    Padding="20"
+                    Margin="0,20,0,0"
+                    MaxWidth="500">
+                <TextBlock Text="{Binding WelcomeMessage}"
+                           FontSize="14"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center"/>
+            </Border>
+
+            <!-- 占位提示 -->
+            <TextBlock Text="TODO: 在这里添加实际的工作界面和控制按钮"
+                       FontSize="12"
+                       Foreground="DarkGray"
+                       FontStyle="Italic"
+                       HorizontalAlignment="Center"
+                       Margin="0,30,0,0"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

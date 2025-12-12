@@ -10,7 +10,7 @@ using VizAura.Views;
 
 namespace VizAura;
 
-public partial class App : Application
+public class App : Application
 {
     public override void Initialize()
     {

@@ -1,0 +1,89 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:VizAura.ViewModels"
+             xmlns:models="using:VizAura.Models"
+             mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="500"
+             x:Class="VizAura.Views.ValidationPanel"
+             x:DataType="vm:ValidationViewModel">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题区域 -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="VizAura 环境检查"
+                       FontSize="24"
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="正在验证运行环境..."
+                       FontSize="14"
+                       Foreground="Gray"
+                       HorizontalAlignment="Center"
+                       Margin="0,5,0,0"
+                       IsVisible="{Binding IsValidating}"/>
+        </StackPanel>
+
+        <!-- 验证步骤列表 -->
+        <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding ValidationSteps}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="models:ValidationStep">
+                        <Border Background="#F5F5F5"
+                                CornerRadius="8"
+                                Padding="15"
+                                Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 状态图标 -->
+                                <TextBlock Grid.Row="0" Grid.Column="0"
+                                           Text="{Binding Icon}"
+                                           FontSize="24"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,15,0"/>
+
+                                <!-- 步骤名称 -->
+                                <TextBlock Grid.Row="0" Grid.Column="1"
+                                           Text="{Binding StepName}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"/>
+
+                                <!-- 状态消息 -->
+                                <TextBlock Grid.Row="1" Grid.Column="1"
+                                           Text="{Binding Message}"
+                                           FontSize="12"
+                                           Foreground="Gray"
+                                           TextWrapping="Wrap"
+                                           Margin="0,5,0,0"/>
+
+                                <!-- 重试按钮 -->
+                                <Button Grid.Row="2" Grid.Column="1"
+                                        Content="重试"
+                                        Command="{Binding $parent[UserControl].((vm:ValidationViewModel)DataContext).RetryStepCommand}"
+                                        CommandParameter="{Binding}"
+                                        IsVisible="{Binding CanRetry}"
+                                        HorizontalAlignment="Left"
+                                        Margin="0,10,0,0"
+                                        Padding="15,5"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

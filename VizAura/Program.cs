@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
+using VizAura.Services;
 using VizAura.ViewModels;
 
 namespace VizAura;
@@ -22,6 +23,7 @@ sealed class Program
     {
         var services = new ServiceCollection();
 
+        services.AddSingleton<StartupValidator>();
         services.AddTransient<MainWindowViewModel>();
 
         services.AddLogging(builder =>
