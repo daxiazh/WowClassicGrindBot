@@ -1,0 +1,197 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using VizAura.Models;
+
+namespace VizAura.ViewModels;
+
+/// <summary>
+/// Frame 配置检查步骤 ViewModel
+/// </summary>
+public sealed partial class FrameStepViewModel : ObservableObject, IStepViewModel
+{
+    private readonly ILogger<FrameStepViewModel> logger;
+    private readonly IServiceProvider serviceProvider;
+    private WowProcessInfo? currentProcessInfo;
+
+    public string StepId => "frame_configuration";
+    public string StepName => "检查 Frame 配置";
+
+    [ObservableProperty]
+    private ValidationStatus status = ValidationStatus.Pending;
+
+    partial void OnStatusChanged(ValidationStatus value)
+    {
+        OnPropertyChanged(nameof(ShowSuccessView));
+        OnPropertyChanged(nameof(ShowFailureView));
+    }
+
+    public bool ShowSuccessView => Status == ValidationStatus.Success;
+
+    [ObservableProperty]
+    private bool isExpanded;
+
+    [ObservableProperty]
+    private int frameCount;
+
+    [ObservableProperty]
+    private string? addonVersion;
+
+    [ObservableProperty]
+    private string? configPath;
+
+    public string SuccessMessage => $"✓ 配置文件: {ConfigPath}\n帧数: {FrameCount}, 插件版本: {AddonVersion}";
+
+    public bool ShowFailureView => Status == ValidationStatus.Failed;
+
+    [ObservableProperty]
+    private string? errorMessage;
+
+    [ObservableProperty]
+    private bool canConfigure;
+
+    /// <summary>
+    /// 构造函数
+    /// </summary>
+    /// <param name="logger">日志记录器</param>
+    /// <param name="serviceProvider">服务提供者</param>
+    public FrameStepViewModel(ILogger<FrameStepViewModel> logger, IServiceProvider serviceProvider)
+    {
+        this.logger = logger;
+        this.serviceProvider = serviceProvider;
+    }
+
+    /// <summary>
+    /// 执行 Frame 配置检查
+    /// </summary>
+    /// <param name="context">上一步传递的 WoW 进程信息</param>
+    /// <param name="ct">取消令牌</param>
+    /// <returns>检查结果</returns>
+    public async Task<CheckResult> CheckAsync(WowProcessInfo? context, CancellationToken ct)
+    {
+        var processInfo = context!;
+        currentProcessInfo = processInfo;
+
+        var (success, message, frameCount, version, path) = await Task.Run(() =>
+        {
+            try
+            {
+                // 1. 检查 frame_config.json 是否存在
+                if (!Core.FrameConfig.Exists())
+                {
+                    logger.LogWarning("未找到 frame_config.json");
+                    return (false, "❌ 未找到 frame_config.json\n点击下方按钮进行配置", 0, string.Empty, string.Empty);
+                }
+
+                // 2. 加载并验证配置
+                var config = Core.FrameConfig.Load();
+                
+                if (config.Frames.Length == 0)
+                {
+                    logger.LogWarning("配置文件损坏: Frames 为空");
+                    return (false, "❌ 配置文件损坏\nFrames 数量为 0", 0, string.Empty, string.Empty);
+                }
+
+                if (config.Meta.Count == 0)
+                {
+                    logger.LogWarning("配置文件损坏: Meta.Count 为 0");
+                    return (false, "❌ 配置文件损坏\nMeta.Count 为 0", 0, string.Empty, string.Empty);
+                }
+
+                // 3. 验证版本匹配 (可选)
+                // TODO: 如果需要验证窗口分辨率是否匹配,可以在这里添加
+
+                string configPath = Core.FrameConfigMeta.DefaultFilename;
+                string versionStr = config.AddonVersion?.ToString() ?? "未知";
+                int frameCount = config.Frames.Length;
+
+                logger.LogInformation($"找到 Frame 配置: {frameCount} 帧, 插件版本: {versionStr}");
+                
+                return (true, $"找到配置文件\n帧数: {frameCount}\n插件版本: {versionStr}\n路径: {configPath}",
+                    frameCount, versionStr, configPath);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "检查 Frame 配置时发生错误");
+                return (false, $"检查失败: {ex.Message}", 0, string.Empty, string.Empty);
+            }
+        }, ct);
+
+        if (!success)
+        {
+            ErrorMessage = message;
+            CanConfigure = currentProcessInfo != null;
+            return new CheckResult(false, processInfo);
+        }
+
+        FrameCount = frameCount;
+        AddonVersion = version;
+        ConfigPath = path;
+
+        return new CheckResult(true, processInfo);
+    }
+
+    /// <summary>
+    /// 打开 Frame 配置窗口命令
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenFrameConfig()
+    {
+        if (currentProcessInfo == null)
+        {
+            logger.LogWarning("无法打开 Frame 配置: 缺少 WoW 进程信息");
+            return;
+        }
+
+        try
+        {
+            logger.LogInformation("打开 Frame 配置窗口");
+
+            // TODO: 创建 FrameConfigViewModel 和 FrameConfigWindow
+            // var viewModel = serviceProvider.GetRequiredService<FrameConfigViewModel>();
+            // var window = new Views.FrameConfigWindow { DataContext = viewModel };
+            // await window.ShowDialog(...);
+
+            logger.LogWarning("Frame 配置窗口尚未实现");
+            await Task.CompletedTask;
+
+            // 窗口关闭后,重新验证
+            // await RecheckAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "打开 Frame 配置窗口时出错");
+            ErrorMessage = $"打开配置窗口失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 重新验证 Frame 配置
+    /// </summary>
+    private async Task RecheckAsync()
+    {
+        if (currentProcessInfo == null)
+        {
+            logger.LogWarning("无法重新验证: 缺少进程信息");
+            return;
+        }
+
+        try
+        {
+            Status = ValidationStatus.InProgress;
+            var result = await CheckAsync(currentProcessInfo, CancellationToken.None);
+            
+            logger.LogInformation($"重新验证完成, 结果: {(result.Success ? "成功" : "失败")}");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "重新验证 Frame 配置时出错");
+            Status = ValidationStatus.Failed;
+            ErrorMessage = $"验证失败: {ex.Message}";
+        }
+    }
+}

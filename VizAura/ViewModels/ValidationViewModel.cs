@@ -53,6 +53,7 @@ public sealed partial class ValidationViewModel : ViewModelBase
 
         Steps.Add(serviceProvider.GetRequiredService<WowProcessStepViewModel>());
         Steps.Add(serviceProvider.GetRequiredService<AddonStepViewModel>());
+        Steps.Add(serviceProvider.GetRequiredService<FrameStepViewModel>());
 
         // 初始化展开状态
         UpdateExpandedState();

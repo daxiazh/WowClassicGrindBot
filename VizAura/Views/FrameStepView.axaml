@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VizAura.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="200"
+             x:Class="VizAura.Views.FrameStepView"
+             x:DataType="vm:FrameStepViewModel">
+
+    <Panel>
+        <!-- 成功视图 -->
+        <Border IsVisible="{Binding ShowSuccessView}"
+            Background="#E8F5E9"
+            BorderBrush="#4CAF50"
+            BorderThickness="1"
+            CornerRadius="4"
+            Padding="15">
+        <StackPanel Spacing="8">
+            <TextBlock Text="✓ Frame 配置已就绪"
+                       FontWeight="SemiBold"
+                       Foreground="#2E7D32"
+                       FontSize="14"/>
+            
+            <StackPanel Spacing="4">
+                <TextBlock FontSize="12">
+                    <Run Text="配置文件: "/>
+                    <Run Text="{Binding ConfigPath}" FontWeight="SemiBold"/>
+                </TextBlock>
+                
+                <TextBlock FontSize="12">
+                    <Run Text="数据帧数量: "/>
+                    <Run Text="{Binding FrameCount}" FontWeight="SemiBold"/>
+                </TextBlock>
+                
+                <TextBlock FontSize="12">
+                    <Run Text="插件版本: "/>
+                    <Run Text="{Binding AddonVersion}" FontWeight="SemiBold"/>
+                </TextBlock>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+
+    <!-- 失败视图 -->
+    <Border IsVisible="{Binding ShowFailureView}"
+            Background="#FFEBEE"
+            BorderBrush="#F44336"
+            BorderThickness="1"
+            CornerRadius="4"
+            Padding="15">
+        <StackPanel Spacing="12">
+            <TextBlock Text="{Binding ErrorMessage}"
+                       FontSize="12"
+                       Foreground="#C62828"
+                       TextWrapping="Wrap"/>
+            
+            <StackPanel Spacing="8">
+                <TextBlock Text="需要配置 Frame 以继续"
+                           FontSize="11"
+                           Foreground="#666"/>
+                
+                <Button Content="🛠️ 打开 Frame 配置"
+                        Command="{Binding OpenFrameConfigCommand}"
+                        IsEnabled="{Binding CanConfigure}"
+                        Background="#2196F3"
+                        Foreground="White"
+                        Padding="12,6"
+                        CornerRadius="4"
+                        HorizontalAlignment="Left"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+    </Panel>
+</UserControl>

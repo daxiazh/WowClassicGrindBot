@@ -25,6 +25,7 @@ static class Program
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<WowProcessStepViewModel>();
         services.AddTransient<AddonStepViewModel>();
+        services.AddTransient<FrameStepViewModel>();
 
         services.AddLogging(builder =>
         {
