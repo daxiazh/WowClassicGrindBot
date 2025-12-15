@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:VizAura.ViewModels"
              xmlns:views="using:VizAura.Views"
+             xmlns:controls="https://atomui.net"
              mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="500"
              x:Class="VizAura.Views.ValidationPanel"
              x:DataType="vm:ValidationViewModel">
@@ -28,21 +29,60 @@
                        IsVisible="{Binding IsValidating}"/>
         </StackPanel>
 
-        <!-- 验证步骤列表 -->
-        <ScrollViewer Grid.Row="1">
-            <ItemsControl ItemsSource="{Binding Steps}">
-                <ItemsControl.DataTemplates>
-                    <!-- WoW 进程步骤 -->
-                    <DataTemplate DataType="vm:WowProcessStepViewModel">
-                        <views:WowProcessStepView/>
-                    </DataTemplate>
+        <!-- AtomUI Steps 步骤条 + 内容区域 -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-                    <!-- 插件步骤 -->
-                    <DataTemplate DataType="vm:AddonStepViewModel">
-                        <views:AddonStepView/>
-                    </DataTemplate>
-                </ItemsControl.DataTemplates>
-            </ItemsControl>
-        </ScrollViewer>
+            <!-- 步骤指示器 -->
+            <controls:Steps Grid.Row="0" 
+                            CurrentStep="{Binding CurrentStepIndex}" 
+                            Margin="0,0,0,20">
+                <controls:StepsItem Header="检查 WoW 进程" 
+                                    Description="查找 World of Warcraft 进程"/>
+                <controls:StepsItem Header="检查 DataToColor 插件" 
+                                    Description="验证插件安装"/>
+            </controls:Steps>
+
+            <!-- 当前步骤的详细内容 -->
+            <ScrollViewer Grid.Row="1">
+                <StackPanel Spacing="20">
+                    <!-- 步骤内容 -->
+                    <ItemsControl ItemsSource="{Binding Steps}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="#E0E0E0"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="20"
+                                        Margin="0,0,0,10"
+                                        IsVisible="{Binding IsExpanded}">
+                                    <StackPanel Spacing="10">
+                                        <!-- 步骤标题 -->
+                                        <TextBlock Text="{Binding StepName}"
+                                                   FontSize="16"
+                                                   FontWeight="Bold"/>
+                                        
+                                        <!-- 步骤内容视图 -->
+                                        <ContentControl Content="{Binding}">
+                                            <ContentControl.DataTemplates>
+                                                <DataTemplate DataType="vm:WowProcessStepViewModel">
+                                                    <views:WowProcessStepView/>
+                                                </DataTemplate>
+                                                <DataTemplate DataType="vm:AddonStepViewModel">
+                                                    <views:AddonStepView/>
+                                                </DataTemplate>
+                                            </ContentControl.DataTemplates>
+                                        </ContentControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
     </Grid>
 </UserControl>

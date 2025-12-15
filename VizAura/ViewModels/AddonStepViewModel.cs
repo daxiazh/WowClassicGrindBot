@@ -33,6 +33,9 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
     public bool ShowSuccessView => Status == ValidationStatus.Success;
 
     [ObservableProperty]
+    private bool isExpanded;
+
+    [ObservableProperty]
     private string? addonVersion;
 
     [ObservableProperty]

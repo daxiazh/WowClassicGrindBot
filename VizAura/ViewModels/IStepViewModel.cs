@@ -35,6 +35,11 @@ public interface IStepViewModel
     string SuccessMessage { get; }
 
     /// <summary>
+    /// 是否展开显示
+    /// </summary>
+    bool IsExpanded { get; set; }
+
+    /// <summary>
     /// 执行检查逻辑
     /// </summary>
     /// <param name="context">上一步传递的上下文数据</param>

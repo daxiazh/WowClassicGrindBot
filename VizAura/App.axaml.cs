@@ -3,6 +3,9 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using System.Linq;
+using AtomUI.Desktop.Controls;
+using AtomUI.Theme;
+using AtomUI.Theme.Language;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using VizAura.ViewModels;
@@ -15,6 +18,14 @@ public class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        
+        // 开启 AtomUI 的支持
+        this.UseAtomUI(builder =>
+        {
+            builder.WithDefaultTheme(IThemeManager.DEFAULT_THEME_ID);
+            builder.UseAlibabaSansFont(); // 配置字体
+            builder.UseDesktopControls();
+        });
     }
 
     public override void OnFrameworkInitializationCompleted()

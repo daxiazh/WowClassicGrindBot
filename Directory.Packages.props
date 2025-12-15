@@ -6,6 +6,9 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Define package versions -->
+    <PackageVersion Include="AtomUI.Controls.Shared" Version="5.1.2" />
+    <PackageVersion Include="AtomUI.Core" Version="5.1.2" />
+    <PackageVersion Include="AtomUI.Desktop.Controls" Version="5.1.2" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.6" />
     <PackageVersion Include="Blazor.Bootstrap" Version="3.4.0" />
     <PackageVersion Include="MemoryPack" Version="1.21.3" />

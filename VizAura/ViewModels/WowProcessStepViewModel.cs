@@ -44,6 +44,9 @@ public sealed partial class WowProcessStepViewModel : ObservableObject, IStepVie
     public bool ShowSuccessView => Status == ValidationStatus.Success;
 
     [ObservableProperty]
+    private bool isExpanded;
+
+    [ObservableProperty]
     private string? processName;
 
     partial void OnProcessNameChanged(string? value)

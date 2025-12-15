@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.ObjectModel;
-using System.Linq;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using VizAura.Models;
@@ -23,6 +23,12 @@ public sealed partial class ValidationViewModel : ViewModelBase
     /// 步骤 ViewModels 集合
     /// </summary>
     public ObservableCollection<IStepViewModel> Steps { get; } = [];
+
+    /// <summary>
+    /// 当前步骤索引
+    /// </summary>
+    [ObservableProperty]
+    private int currentStepIndex;
 
     /// <summary>
     /// 是否正在验证
@@ -47,6 +53,9 @@ public sealed partial class ValidationViewModel : ViewModelBase
 
         Steps.Add(serviceProvider.GetRequiredService<WowProcessStepViewModel>());
         Steps.Add(serviceProvider.GetRequiredService<AddonStepViewModel>());
+
+        // 初始化展开状态
+        UpdateExpandedState();
     }
 
 
@@ -84,14 +93,7 @@ public sealed partial class ValidationViewModel : ViewModelBase
         {
             while (await checkTimer.WaitForNextTickAsync(ct))
             {
-                // 如果有步骤失败,停止循环,让用户修复问题
-                if (Steps.Any(s => s.Status == ValidationStatus.Failed))
-                {
-                    logger.LogInformation("检测到失败步骤,停止自动检查");
-                    break;
-                }
-
-                await CheckAllStepsAsync(ct);
+                await CheckCurrentStepAsync(ct);
             }
         }
         catch (OperationCanceledException)
@@ -105,27 +107,77 @@ public sealed partial class ValidationViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// 检查所有步骤
+    /// 检查当前步骤
     /// </summary>
-    private async Task CheckAllStepsAsync(CancellationToken ct)
+    private async Task CheckCurrentStepAsync(CancellationToken ct)
     {
-        WowProcessInfo? context = null;
-
-        foreach (var step in Steps)
+        // 如果已经全部成功
+        if (CurrentStepIndex >= Steps.Count)
         {
-            step.Status = ValidationStatus.InProgress;
-            var result = await step.CheckAsync(context, ct);
-            step.Status = result.Success ? ValidationStatus.Success : ValidationStatus.Failed;
-            
-            if (!result.Success)
-                return;
+            // 收集上下文信息
+            WowProcessInfo? context = null;
+            foreach (var step in Steps)
+            {
+                if (step is WowProcessStepViewModel wowStep)
+                {
+                    context = new WowProcessInfo
+                    {
+                        Process = System.Diagnostics.Process.GetProcessById(wowStep.ProcessId),
+                        WindowId = wowStep.WindowId,
+                        WowPath = wowStep.WowPath ?? string.Empty,
+                        Version = new Version()
+                    };
+                    break;
+                }
+            }
 
-            context = result.Data;
+            if (context != null)
+            {
+                onAllValid(context);
+            }
+            return;
         }
 
-        if (context != null)
+        var currentStep = Steps[CurrentStepIndex];
+        
+        // 收集上一步的上下文
+        WowProcessInfo? previousContext = null;
+        if (CurrentStepIndex > 0 && Steps[CurrentStepIndex - 1] is WowProcessStepViewModel prevWowStep)
         {
-            onAllValid(context);
+            previousContext = new WowProcessInfo
+            {
+                Process = System.Diagnostics.Process.GetProcessById(prevWowStep.ProcessId),
+                WindowId = prevWowStep.WindowId,
+                WowPath = prevWowStep.WowPath ?? string.Empty,
+                Version = new Version()
+            };
+        }
+
+        currentStep.Status = ValidationStatus.InProgress;
+        var result = await currentStep.CheckAsync(previousContext, ct);
+        currentStep.Status = result.Success ? ValidationStatus.Success : ValidationStatus.Failed;
+
+        if (result.Success)
+        {
+            // 成功后推进到下一步
+            CurrentStepIndex++;
+            UpdateExpandedState();
+            logger.LogInformation($"步骤 {CurrentStepIndex} 成功,推进到步骤 {CurrentStepIndex + 1}");
+        }
+        else
+        {
+            logger.LogInformation($"步骤 {CurrentStepIndex + 1} 失败,等待用户修复");
+        }
+    }
+
+    /// <summary>
+    /// 更新展开状态：只展开当前步骤
+    /// </summary>
+    private void UpdateExpandedState()
+    {
+        for (int i = 0; i < Steps.Count; i++)
+        {
+            Steps[i].IsExpanded = (i == CurrentStepIndex);
         }
     }
 
