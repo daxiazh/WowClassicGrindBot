@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -140,11 +141,14 @@ public sealed partial class WowProcessStepViewModel : ObservableObject, IStepVie
                 return (null, 0, string.Empty, new Version(), "未找到 World of Warcraft 进程");
             }
 
-            var wowPath = MacOsProcessHelper.GetExecutablePath(wowProcess);
-            if (string.IsNullOrEmpty(wowPath))
+            var wowExecutablePath = MacOsProcessHelper.GetExecutablePath(wowProcess);
+            if (string.IsNullOrEmpty(wowExecutablePath))
             {
                 return (null, 0, string.Empty, new Version(), $"找到进程 {wowProcess.ProcessName} 但无法获取路径");
             }
+
+            // 转换为 WoW 根目录 (包含 Interface 的目录)
+            var wowRootPath = GetWowRootDirectory(wowExecutablePath);
 
             var windowId = MacOsProcessHelper.GetWindowId(wowProcess);
             if (windowId == 0)
@@ -152,14 +156,31 @@ public sealed partial class WowProcessStepViewModel : ObservableObject, IStepVie
                 return (null, 0, string.Empty, new Version(), "无法获取 WoW 窗口 ID");
             }
 
-            var version = MacOsProcessHelper.GetVersion(wowProcess, wowPath);
+            var version = MacOsProcessHelper.GetVersion(wowProcess, wowExecutablePath);
 
-            return (wowProcess, windowId, wowPath, version, null);
+            return (wowProcess, windowId, wowRootPath, version, null);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "查找 WoW 进程时发生错误");
             return (null, 0, string.Empty, new Version(), $"错误: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 从可执行文件路径获取 WoW 根目录
+    /// </summary>
+    /// <param name="executablePath">可执行文件路径(在 .app 包内)</param>
+    /// <returns>WoW 根目录(包含 Interface 的目录)</returns>
+    private static string GetWowRootDirectory(string executablePath)
+    {
+        // macOS: .../World of Warcraft Classic.app/Contents/MacOS
+        // 向上导航到 .app 父目录
+        var dir = new DirectoryInfo(executablePath);
+        
+        // MacOS -> Contents -> .app -> 根目录
+        var rootDir = dir.Parent?.Parent?.Parent;
+        
+        return rootDir?.FullName ?? executablePath;
     }
 }
