@@ -19,7 +19,7 @@ public sealed partial class AddonConfigurator
     public AddonConfig Config { get; init; }
 
     private const string DefaultAddonName = "DataToColor";
-    private const string AddonSourcePath = @".\Addons\";
+    private const string AddonSourcePath = @"./Addons/";
 
     private string AddonBasePath => Path.Join(process.Path, "Interface", "AddOns");
 

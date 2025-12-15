@@ -33,14 +33,17 @@
                        TextWrapping="Wrap"
                        FontSize="12"/>
 
-            <!-- 安装按钮 -->
-            <Button Content="自动安装插件"
+            <!-- 配置并安装按钮 -->
+            <Button Content="🔧 配置并安装插件"
                     Command="{Binding InstallAddonCommand}"
                     IsEnabled="{Binding CanInstall}"
                     HorizontalAlignment="Left"
-                    Padding="15,8"/>
+                    Background="#1976D2"
+                    Foreground="White"
+                    Padding="20,10"
+                    CornerRadius="4"/>
 
-            <TextBlock Text="或者手动复制插件到 WoW/Interface/AddOns 目录"
+            <TextBlock Text="点击按钮打开配置窗口,设置插件参数并安装"
                        FontSize="10"
                        Foreground="Gray"
                        FontStyle="Italic"/>

@@ -40,5 +40,25 @@
     <ProjectReference Include="..\Core\Core.csproj" />
     <ProjectReference Include="..\SharedLib\SharedLib.csproj" />
   </ItemGroup>
+
+  <!-- 构建后复制 Addons 文件夹到输出目录 (跨平台) -->
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <ItemGroup>
+      <AddonsFiles Include="$(ProjectDir)../Addons/**/*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(AddonsFiles)" 
+          DestinationFolder="$(TargetDir)Addons/%(RecursiveDir)" 
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- 发布时复制 Addons 文件夹 (跨平台) -->
+  <Target Name="CopyCustomContentOnPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <AddonsPublishFiles Include="$(ProjectDir)../Addons/**/*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(AddonsPublishFiles)" 
+          DestinationFolder="$(PublishDir)Addons/%(RecursiveDir)" 
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>
 

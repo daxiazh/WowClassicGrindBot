@@ -18,6 +18,7 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
     private readonly ILogger<AddonStepViewModel> logger;
     private readonly IServiceProvider serviceProvider;
     private string currentWowPath = string.Empty;
+    private WowProcessInfo? currentProcessInfo;
 
     public string StepId => "addon_installation";
     public string StepName => "检查 DataToColor 插件";
@@ -72,6 +73,7 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
     public async Task<CheckResult> CheckAsync(WowProcessInfo? context, CancellationToken ct)
     {
         var processInfo = context!;
+        currentProcessInfo = processInfo;
 
         SetContext(processInfo.WowPath);
 
@@ -83,7 +85,7 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
                 if (!Core.AddonConfig.Exists())
                 {
                     logger.LogWarning("未找到插件配置文件 addon_config.json");
-                    return (false, "未找到插件配置文件 (addon_config.json)\n请先通过菜单「配置 → AddOns 管理」配置插件", string.Empty, string.Empty);
+                    return (false, "❌ 未找到插件配置文件\n点击下方按钮进行配置", string.Empty, string.Empty);
                 }
 
                 // 使用 AddonConfigurator 来检查插件
@@ -96,14 +98,14 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
                 if (configurator.IsDefault())
                 {
                     logger.LogWarning("插件配置不完整");
-                    return (false, "插件配置不完整\n请先通过菜单「配置 → AddOns 管理」完成配置", string.Empty, string.Empty);
+                    return (false, "❌ 插件配置不完整\n请完成 Author、Title 等配置", string.Empty, string.Empty);
                 }
 
                 // 3. 验证配置内容是否合法
                 if (!configurator.Validate())
                 {
                     logger.LogWarning("插件配置格式不正确");
-                    return (false, "插件配置格式不正确\n请检查 Author、Title、CellSize 的格式\n通过菜单「配置 → AddOns 管理」修改", string.Empty, string.Empty);
+                    return (false, "❌ 插件配置格式不正确\nAuthor、Title、CellSize 格式有误", string.Empty, string.Empty);
                 }
 
                 // 4. 检查插件是否已安装
@@ -111,7 +113,7 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
                 {
                     string addonsPath = Path.Combine(processInfo.WowPath, "Interface", "AddOns");
                     logger.LogWarning($"未找到 DataToColor 插件: {addonsPath}");
-                    return (false, $"未找到 DataToColor 插件\nAddOns 路径: {addonsPath}\n请通过菜单「配置 → AddOns 管理」安装插件", string.Empty, string.Empty);
+                    return (false, $"❌ 插件未安装\n目标路径: {addonsPath}", string.Empty, string.Empty);
                 }
 
                 var installedVersion = configurator.GetInstallVersion();
@@ -152,57 +154,81 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
     }
 
     /// <summary>
-    /// 安装插件命令
+    /// 打开插件配置窗口命令
     /// </summary>
     [RelayCommand]
-    private void InstallAddon()
+    private async Task InstallAddon()
     {
-        logger.LogInformation($"开始安装插件到: {currentWowPath}");
-
-        var sourceAddon = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Addons", "DataToColor");
-        var targetAddon = Path.Combine(currentWowPath, "Interface", "AddOns", "DataToColor");
+        if (currentProcessInfo == null)
+        {
+            logger.LogWarning("无法打开插件配置:缺少 WoW 进程信息");
+            return;
+        }
 
         try
         {
-            if (!Directory.Exists(sourceAddon))
+            logger.LogInformation("打开插件配置窗口");
+
+            // 创建 VizAuraWowProcess 适配器
+            var wowProcess = new VizAura.Services.VizAuraWowProcess(currentProcessInfo);
+
+            // 创建 AddonConfigurator
+            var configuratorLogger = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                .GetRequiredService<ILogger<Core.AddonConfigurator>>(serviceProvider);
+            var configurator = new Core.AddonConfigurator(configuratorLogger, wowProcess);
+
+            // 创建 ViewModel
+            var viewModelLogger = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                .GetRequiredService<ILogger<AddonConfigViewModel>>(serviceProvider);
+            var viewModel = new AddonConfigViewModel(viewModelLogger, configurator);
+
+            // 创建并显示对话框
+            var window = new VizAura.Views.AddonConfigWindow
             {
-                ErrorMessage = $"找不到插件源文件: {sourceAddon}";
-                logger.LogError(ErrorMessage);
-                return;
-            }
+                DataContext = viewModel
+            };
 
-            CopyDirectory(sourceAddon, targetAddon);
-            logger.LogInformation("插件安装成功");
+            // 模态显示窗口
+            await window.ShowDialog(Avalonia.Application.Current?.ApplicationLifetime is 
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop 
+                ? desktop.MainWindow 
+                : null);
 
-            ErrorMessage = "✓ 插件已安装成功！\n请在游戏中输入 /reload 重载界面";
+            // 窗口关闭后,重新验证
+            logger.LogInformation("插件配置窗口已关闭,重新验证插件");
+            await RecheckAsync();
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "安装插件失败");
-            ErrorMessage = $"安装失败: {ex.Message}";
+            logger.LogError(ex, "打开插件配置窗口时出错");
+            ErrorMessage = $"打开配置窗口失败: {ex.Message}";
         }
     }
 
-
     /// <summary>
-    /// 递归复制目录
+    /// 重新验证插件
     /// </summary>
-    private static void CopyDirectory(string sourceDir, string targetDir)
+    private async Task RecheckAsync()
     {
-        Directory.CreateDirectory(targetDir);
-
-        foreach (var file in Directory.GetFiles(sourceDir))
+        if (currentProcessInfo == null)
         {
-            var fileName = Path.GetFileName(file);
-            var targetFile = Path.Combine(targetDir, fileName);
-            File.Copy(file, targetFile, true);
+            logger.LogWarning("无法重新验证:缺少进程信息");
+            return;
         }
 
-        foreach (var subDir in Directory.GetDirectories(sourceDir))
+        try
         {
-            var dirName = Path.GetFileName(subDir);
-            var targetSubDir = Path.Combine(targetDir, dirName);
-            CopyDirectory(subDir, targetSubDir);
+            Status = ValidationStatus.InProgress;
+            var result = await CheckAsync(currentProcessInfo, CancellationToken.None);
+            
+            // CheckAsync 内部已经设置了 Status 和相关属性
+            logger.LogInformation($"重新验证完成,结果: {(result.Success ? "成功" : "失败")}");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "重新验证插件时出错");
+            Status = ValidationStatus.Failed;
+            ErrorMessage = $"验证失败: {ex.Message}";
         }
     }
 }

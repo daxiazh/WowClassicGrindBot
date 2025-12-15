@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using Core;
 using Microsoft.Extensions.Logging;
 using System;
-using VizAura.Services;
 
 namespace VizAura.ViewModels;
 
@@ -33,6 +32,7 @@ public sealed partial class AddonConfigViewModel : ViewModelBase
             {
                 config.Author = value;
                 OnPropertyChanged();
+                UpdateStatus();
             }
         }
     }
@@ -48,8 +48,16 @@ public sealed partial class AddonConfigViewModel : ViewModelBase
             if (config.Title != value)
             {
                 config.Title = value;
+                
+                // Title 修改后,自动更新 Command
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    config.Command = value.Trim().ToLower();
+                }
+                
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(Command));
+                UpdateStatus();
             }
         }
     }
@@ -66,6 +74,7 @@ public sealed partial class AddonConfigViewModel : ViewModelBase
             {
                 config.CellSize = value;
                 OnPropertyChanged();
+                UpdateStatus();
             }
         }
     }
@@ -105,6 +114,18 @@ public sealed partial class AddonConfigViewModel : ViewModelBase
     private bool canSave;
 
     /// <summary>
+    /// 反馈消息
+    /// </summary>
+    [ObservableProperty]
+    private string? feedbackMessage;
+
+    /// <summary>
+    /// 反馈消息颜色
+    /// </summary>
+    [ObservableProperty]
+    private string feedbackColor = "Gray";
+
+    /// <summary>
     /// 构造函数
     /// </summary>
     /// <param name="logger">日志记录器</param>
@@ -128,12 +149,15 @@ public sealed partial class AddonConfigViewModel : ViewModelBase
     {
         IsInstalled = configurator.Installed();
 
+        bool hasUpdate = false;
+        
         if (AddonConfig.Exists() && IsInstalled)
         {
             if (configurator.UpdateAvailable())
             {
                 StatusText = "有可用更新";
                 StatusColor = "Orange";
+                hasUpdate = true;
             }
             else
             {
@@ -147,9 +171,11 @@ public sealed partial class AddonConfigViewModel : ViewModelBase
             StatusColor = "Red";
         }
 
+        // 只有在配置有效且(未安装 或 有更新)时才可保存
         CanSave = !string.IsNullOrWhiteSpace(Author) && 
                   !string.IsNullOrWhiteSpace(Title) &&
-                  !string.IsNullOrWhiteSpace(CellSize);
+                  !string.IsNullOrWhiteSpace(CellSize) &&
+                  (!IsInstalled || hasUpdate);
 
         OnPropertyChanged(nameof(InstallPath));
     }
@@ -168,16 +194,23 @@ public sealed partial class AddonConfigViewModel : ViewModelBase
                 configurator.Save();
                 
                 logger.LogInformation("插件安装成功");
+                FeedbackMessage = "✅ 安装成功!请在游戏内执行 /reload";
+                FeedbackColor = "Green";
+                
                 UpdateStatus();
             }
             else
             {
                 logger.LogWarning("插件配置验证失败");
+                FeedbackMessage = "❌ 配置格式错误,请检查输入";
+                FeedbackColor = "Red";
             }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "安装插件时出错");
+            FeedbackMessage = $"❌ 安装失败: {ex.Message}";
+            FeedbackColor = "Red";
         }
     }
 
@@ -191,11 +224,15 @@ public sealed partial class AddonConfigViewModel : ViewModelBase
         {
             configurator.Delete();
             logger.LogInformation("插件已删除");
+            FeedbackMessage = "✅ 已删除!请在游戏内执行 /reload";
+            FeedbackColor = "Green";
             UpdateStatus();
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "删除插件时出错");
+            FeedbackMessage = $"❌ 删除失败: {ex.Message}";
+            FeedbackColor = "Red";
         }
     }
 
