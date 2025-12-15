@@ -1,8 +1,8 @@
 using Core.Extensions;
 
-using Game;
-
 using Microsoft.Extensions.Logging;
+
+using SharedLib;
 
 using System;
 using System.IO;
@@ -14,7 +14,7 @@ namespace Core;
 public sealed partial class AddonConfigurator
 {
     private readonly ILogger<AddonConfigurator> logger;
-    private readonly WowProcess process;
+    private readonly IWowProcess process;
 
     public AddonConfig Config { get; init; }
 
@@ -28,7 +28,7 @@ public sealed partial class AddonConfigurator
 
     public event Action? OnChange;
 
-    public AddonConfigurator(ILogger<AddonConfigurator> logger, WowProcess process)
+    public AddonConfigurator(ILogger<AddonConfigurator> logger, IWowProcess process)
     {
         this.logger = logger;
         this.process = process;

@@ -9,9 +9,11 @@ using System.Threading;
 
 #nullable enable
 
+using SharedLib;
+
 namespace Game;
 
-public sealed class WowProcess
+public sealed class WowProcess : IWowProcess
 {
     private static readonly string[] defaultProcessNames = [
         "Wow",

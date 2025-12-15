@@ -1,0 +1,144 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:VizAura.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="500"
+        x:Class="VizAura.Views.AddonConfigWindow"
+        x:DataType="vm:AddonConfigViewModel"
+        Title="AddOns 配置"
+        Width="600"
+        Height="500"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <ScrollViewer>
+        <StackPanel Margin="20" Spacing="20">
+            <!-- 标题 -->
+            <TextBlock Text="DataToColor 插件配置" 
+                       FontSize="20" 
+                       FontWeight="Bold"/>
+
+            <!-- 配置表单 -->
+            <Border BorderBrush="#E0E0E0" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Padding="20">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="插件参数" FontSize="16" FontWeight="SemiBold"/>
+
+                    <!-- 作者 -->
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="作者 (Author)"/>
+                        <TextBox Text="{Binding Author}" 
+                                 Watermark="输入作者名称"
+                                 IsEnabled="{Binding !IsInstalled}"/>
+                        <TextBlock Text="作者名称将显示在插件信息中" 
+                                   FontSize="12" 
+                                   Foreground="Gray"/>
+                    </StackPanel>
+
+                    <!-- 标题 -->
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="插件标题 (Title)"/>
+                        <TextBox Text="{Binding Title}" 
+                                 Watermark="输入插件标题 (仅字母)"
+                                 IsEnabled="{Binding !IsInstalled}"/>
+                        <TextBlock Text="插件目录名和 Lua 命名空间,仅支持字母" 
+                                   FontSize="12" 
+                                   Foreground="Gray"/>
+                    </StackPanel>
+
+                    <!-- 单元格大小 -->
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="单元格大小 (Cell Size)"/>
+                        <TextBox Text="{Binding CellSize}" 
+                                 Watermark="1-9"/>
+                        <TextBlock Text="数据采集的单元格大小 (1-9)" 
+                                   FontSize="12" 
+                                   Foreground="Gray"/>
+                    </StackPanel>
+
+                    <!-- 命令 (只读) -->
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="游戏内命令 (Command)"/>
+                        <TextBox Text="{Binding Command}" 
+                                 IsReadOnly="True"
+                                 Background="#F5F5F5"/>
+                        <TextBlock Text="游戏内斜杠命令,由标题自动生成" 
+                                   FontSize="12" 
+                                   Foreground="Gray"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 状态信息 -->
+            <Border BorderBrush="#E0E0E0" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Padding="20">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="插件状态" FontSize="16" FontWeight="SemiBold"/>
+
+                    <!-- 状态 -->
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="当前状态"/>
+                        <TextBlock Text="{Binding StatusText}" 
+                                   Foreground="{Binding StatusColor}"
+                                   FontWeight="Bold"/>
+                    </StackPanel>
+
+                    <!-- 安装路径 -->
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="安装路径"/>
+                        <TextBox Text="{Binding InstallPath}" 
+                                 IsReadOnly="True"
+                                 Background="#F5F5F5"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 操作按钮 -->
+            <Border BorderBrush="#E0E0E0" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Padding="20">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="操作" FontSize="16" FontWeight="SemiBold"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <!-- 安装/保存按钮 -->
+                        <Button Content="💾 安装/保存" 
+                                Command="{Binding SaveCommand}"
+                                IsEnabled="{Binding CanSave}"
+                                Background="#4CAF50"
+                                Foreground="White"
+                                Padding="15,8"
+                                CornerRadius="4"/>
+
+                        <!-- 删除按钮 -->
+                        <Button Content="🗑️ 删除插件和配置" 
+                                Command="{Binding DeleteCommand}"
+                                IsVisible="{Binding IsInstalled}"
+                                Background="#F44336"
+                                Foreground="White"
+                                Padding="15,8"
+                                CornerRadius="4"/>
+                    </StackPanel>
+
+                    <TextBlock Text="⚠️ 修改配置后需要重新加载游戏界面 (/reload)" 
+                               FontSize="12" 
+                               Foreground="OrangeRed"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 关闭按钮 -->
+            <Button Content="关闭" 
+                    Click="CloseButton_Click"
+                    HorizontalAlignment="Right"
+                    Padding="20,8"
+                    CornerRadius="4"/>
+        </StackPanel>
+    </ScrollViewer>
+</Window>

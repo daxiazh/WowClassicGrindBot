@@ -26,6 +26,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private WowProcessInfo? currentProcessInfo;
 
     /// <summary>
+    /// 是否可以配置 AddOns (只有在有 WoW 进程信息时才可用)
+    /// </summary>
+    [ObservableProperty]
+    private bool canConfigureAddons;
+
+    /// <summary>
     /// 当前活动的 ViewModel
     /// </summary>
     [ObservableProperty]
@@ -122,6 +128,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             (processInfo) =>
             {
                 currentProcessInfo = processInfo;
+                CanConfigureAddons = true;
                 TransitionTo(AppState.Running);
             }
         );
@@ -149,6 +156,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         logger.LogInformation("用户请求重新验证环境");
         currentProcessInfo = null;
+        CanConfigureAddons = false;
         TransitionTo(AppState.Validating);
     }
 
@@ -156,10 +164,45 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// 显示 AddOns 配置命令
     /// </summary>
     [RelayCommand]
-    private void ShowAddonsConfig()
+    private async void ShowAddonsConfig()
     {
         logger.LogInformation("显示 AddOns 配置");
-        // TODO: 打开 AddOns 配置对话框
+
+        if (currentProcessInfo == null)
+        {
+            logger.LogWarning("无法打开 AddOns 配置:缺少 WoW 进程信息");
+            return;
+        }
+
+        try
+        {
+            // 创建 VizAuraWowProcess 适配器
+            var wowProcess = new VizAura.Services.VizAuraWowProcess(currentProcessInfo);
+
+            // 创建 AddonConfigurator
+            var configuratorLogger = serviceProvider.GetRequiredService<ILogger<Core.AddonConfigurator>>();
+            var configurator = new Core.AddonConfigurator(configuratorLogger, wowProcess);
+
+            // 创建 ViewModel
+            var viewModelLogger = serviceProvider.GetRequiredService<ILogger<AddonConfigViewModel>>();
+            var viewModel = new AddonConfigViewModel(viewModelLogger, configurator);
+
+            // 创建并显示对话框
+            var window = new VizAura.Views.AddonConfigWindow
+            {
+                DataContext = viewModel
+            };
+
+            // 使用 ShowDialog 模态显示
+            await window.ShowDialog(Avalonia.Application.Current?.ApplicationLifetime is 
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop 
+                ? desktop.MainWindow 
+                : null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "打开 AddOns 配置对话框时出错");
+        }
     }
 
     /// <summary>

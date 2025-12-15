@@ -16,6 +16,7 @@ namespace VizAura.ViewModels;
 public sealed partial class AddonStepViewModel : ObservableObject, IStepViewModel
 {
     private readonly ILogger<AddonStepViewModel> logger;
+    private readonly IServiceProvider serviceProvider;
     private string currentWowPath = string.Empty;
 
     public string StepId => "addon_installation";
@@ -55,9 +56,11 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
     /// 构造函数 (通过 DI 注入)
     /// </summary>
     /// <param name="logger">日志记录器</param>
-    public AddonStepViewModel(ILogger<AddonStepViewModel> logger)
+    /// <param name="serviceProvider">服务提供者</param>
+    public AddonStepViewModel(ILogger<AddonStepViewModel> logger, IServiceProvider serviceProvider)
     {
         this.logger = logger;
+        this.serviceProvider = serviceProvider;
     }
 
     /// <summary>
@@ -73,7 +76,58 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
         SetContext(processInfo.WowPath);
 
         var (success, message, addonPath, version) = await Task.Run(() =>
-            ValidateAddonInstallation(processInfo.WowPath), ct);
+        {
+            try
+            {
+                // 1. 检查配置文件是否存在
+                if (!Core.AddonConfig.Exists())
+                {
+                    logger.LogWarning("未找到插件配置文件 addon_config.json");
+                    return (false, "未找到插件配置文件 (addon_config.json)\n请先通过菜单「配置 → AddOns 管理」配置插件", string.Empty, string.Empty);
+                }
+
+                // 使用 AddonConfigurator 来检查插件
+                var wowProcess = new VizAura.Services.VizAuraWowProcess(processInfo);
+                var configuratorLogger = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .GetRequiredService<ILogger<Core.AddonConfigurator>>(serviceProvider);
+                var configurator = new Core.AddonConfigurator(configuratorLogger, wowProcess);
+
+                // 2. 检查配置是否为默认值
+                if (configurator.IsDefault())
+                {
+                    logger.LogWarning("插件配置不完整");
+                    return (false, "插件配置不完整\n请先通过菜单「配置 → AddOns 管理」完成配置", string.Empty, string.Empty);
+                }
+
+                // 3. 验证配置内容是否合法
+                if (!configurator.Validate())
+                {
+                    logger.LogWarning("插件配置格式不正确");
+                    return (false, "插件配置格式不正确\n请检查 Author、Title、CellSize 的格式\n通过菜单「配置 → AddOns 管理」修改", string.Empty, string.Empty);
+                }
+
+                // 4. 检查插件是否已安装
+                if (!configurator.Installed())
+                {
+                    string addonsPath = Path.Combine(processInfo.WowPath, "Interface", "AddOns");
+                    logger.LogWarning($"未找到 DataToColor 插件: {addonsPath}");
+                    return (false, $"未找到 DataToColor 插件\nAddOns 路径: {addonsPath}\n请通过菜单「配置 → AddOns 管理」安装插件", string.Empty, string.Empty);
+                }
+
+                var installedVersion = configurator.GetInstallVersion();
+                var versionStr = installedVersion?.ToString() ?? "未知";
+
+                logger.LogInformation($"找到 DataToColor 插件: {configurator.Config.Title}, 版本: {versionStr}");
+                
+                return (true, $"找到插件: {configurator.Config.Title}\n版本: {versionStr}\n路径: {configurator.FinalAddonPath}",
+                    configurator.FinalAddonPath, versionStr);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "检查插件安装时发生错误");
+                return (false, $"检查失败: {ex.Message}", string.Empty, string.Empty);
+            }
+        }, ct);
 
         if (!success)
         {
@@ -129,76 +183,6 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
         }
     }
 
-    /// <summary>
-    /// 验证插件安装
-    /// </summary>
-    /// <param name="wowPath">WoW 安装路径</param>
-    /// <returns>成功状态、消息、插件路径、版本</returns>
-    private (bool success, string message, string addonPath, string version) ValidateAddonInstallation(string wowPath)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(wowPath))
-            {
-                return (false, "WoW 路径为空,无法检查插件", string.Empty, string.Empty);
-            }
-
-            logger.LogInformation($"检查 DataToColor 插件安装: {wowPath}");
-
-            string addonsPath = Path.Combine(wowPath, "Interface", "AddOns");
-            
-            if (!Directory.Exists(addonsPath))
-            {
-                logger.LogWarning($"AddOns 目录不存在: {addonsPath}");
-                return (false, $"AddOns 目录不存在\n路径: {addonsPath}", string.Empty, string.Empty);
-            }
-
-            // 查找 DataToColor 或其自定义版本
-            var addonDirs = Directory.GetDirectories(addonsPath)
-                .Where(dir => Path.GetFileName(dir).Contains("DataToColor", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-
-            if (addonDirs.Length == 0)
-            {
-                logger.LogWarning("未找到 DataToColor 插件");
-                return (false, $"未找到 DataToColor 插件\nAddOns 路径: {addonsPath}\n请确认插件已正确安装", string.Empty, string.Empty);
-            }
-
-            string addonDir = addonDirs[0];
-            string addonName = Path.GetFileName(addonDir);
-            string tocFile = Path.Combine(addonDir, $"{addonName}.toc");
-
-            if (!File.Exists(tocFile))
-            {
-                logger.LogWarning($"找到插件目录但缺少 .toc 文件: {tocFile}");
-                return (false, $"插件目录存在但缺少 .toc 文件\n目录: {addonDir}", string.Empty, string.Empty);
-            }
-
-            // 尝试读取版本信息
-            string version = "未知";
-            try
-            {
-                var tocLines = File.ReadAllLines(tocFile);
-                var versionLine = tocLines.FirstOrDefault(line => line.StartsWith("## Version:", StringComparison.OrdinalIgnoreCase));
-                if (versionLine != null)
-                {
-                    version = versionLine.Split(':', 2)[1].Trim();
-                }
-            }
-            catch
-            {
-                // 忽略版本读取失败
-            }
-
-            logger.LogInformation($"找到 DataToColor 插件: {addonName}, 版本: {version}");
-            return (true, $"找到插件: {addonName}\n版本: {version}\n路径: {addonDir}", addonDir, version);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "检查插件安装时发生错误");
-            return (false, $"检查失败: {ex.Message}", string.Empty, string.Empty);
-        }
-    }
 
     /// <summary>
     /// 递归复制目录
