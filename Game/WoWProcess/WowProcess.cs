@@ -4,6 +4,7 @@ using SharedLib;
 
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 
 #nullable enable
@@ -17,7 +18,8 @@ public sealed class WowProcess
         "WowClassic",
         "WowClassicT",
         "Wow-64",
-        "WowClassicB"
+        "WowClassicB",
+        "World of Warcraft Classic"
     ];
 
     private readonly Thread thread;
@@ -97,15 +99,11 @@ public sealed class WowProcess
         }
 
         Process[] processList = Process.GetProcesses();
-        for (int i = 0; i < processList.Length; i++)
+        foreach (var p in processList)
         {
-            Process p = processList[i];
-            for (int j = 0; j < defaultProcessNames.Length; j++)
+            if (defaultProcessNames.Any(t => string.Equals(p.ProcessName, t, StringComparison.OrdinalIgnoreCase)))
             {
-                if (defaultProcessNames[j].Contains(p.ProcessName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return p;
-                }
+                return p;
             }
         }
 

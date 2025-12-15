@@ -2,8 +2,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="VizAura.App"
              xmlns:local="using:VizAura"
-             RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+             xmlns:converters="using:VizAura.Converters"
+             RequestedThemeVariant="Light">
+             <!-- 强制使用浅色主题以确保字体对比度 -->
+
+    <Application.Resources>
+        <converters:StatusIconConverter x:Key="StatusIconConverter"/>
+        <converters:EnumEqualityConverter x:Key="EnumEqualityConverter"/>
+        <converters:StatusBackgroundConverter x:Key="StatusBackgroundConverter"/>
+        <converters:StatusBorderBrushConverter x:Key="StatusBorderBrushConverter"/>
+    </Application.Resources>
 
     <Application.DataTemplates>
         <local:ViewLocator/>

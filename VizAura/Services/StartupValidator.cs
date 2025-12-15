@@ -30,66 +30,6 @@ public sealed class StartupValidator
     }
 
     /// <summary>
-    /// 检查 WoW 进程是否运行
-    /// </summary>
-    /// <returns>成功状态和消息,成功时消息包含 WoW 路径</returns>
-    public (bool success, string message, string wowPath) ValidateWowProcess()
-    {
-        try
-        {
-            logger.LogInformation("开始检查 WoW 进程...");
-            
-            Process[] allProcesses = Process.GetProcesses();
-            Process? wowProcess = null;
-
-            foreach (var process in allProcesses)
-            {
-                try
-                {
-                    foreach (var name in wowProcessNames)
-                    {
-                        if (process.ProcessName.Contains(name, StringComparison.OrdinalIgnoreCase))
-                        {
-                            wowProcess = process;
-                            break;
-                        }
-                    }
-
-                    if (wowProcess != null)
-                        break;
-                }
-                catch
-                {
-                    // 某些进程可能无法访问,忽略
-                }
-            }
-
-            if (wowProcess == null)
-            {
-                logger.LogWarning("未找到 WoW 进程");
-                return (false, "未找到 World of Warcraft 进程,请启动游戏", string.Empty);
-            }
-
-            string executablePath = MacOsProcessHelper.GetExecutablePath(wowProcess);
-            if (string.IsNullOrEmpty(executablePath))
-            {
-                logger.LogWarning($"找到 WoW 进程 (PID: {wowProcess.Id}),但无法获取路径");
-                return (false, $"找到进程但无法获取路径 (PID: {wowProcess.Id})", string.Empty);
-            }
-
-            logger.LogInformation($"找到 WoW 进程: {wowProcess.ProcessName} (PID: {wowProcess.Id})");
-            logger.LogInformation($"WoW 路径: {executablePath}");
-
-            return (true, $"找到 WoW 进程: {wowProcess.ProcessName}\n路径: {executablePath}", executablePath);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "检查 WoW 进程时发生错误");
-            return (false, $"检查失败: {ex.Message}", string.Empty);
-        }
-    }
-
-    /// <summary>
     /// 检查 DataToColor 插件是否安装
     /// </summary>
     /// <param name="wowPath">WoW 安装路径</param>

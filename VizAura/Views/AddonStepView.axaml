@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VizAura.ViewModels"
+             xmlns:models="using:VizAura.Models"
+             x:Class="VizAura.Views.AddonStepView"
+             x:DataType="vm:AddonStepViewModel">
+
+    <Border Background="{Binding Status, Converter={StaticResource StatusBackgroundConverter}}"
+            BorderBrush="{Binding Status, Converter={StaticResource StatusBorderBrushConverter}}"
+            BorderThickness="4,0,0,0"
+            CornerRadius="8" 
+            Padding="15" 
+            Margin="0,0,0,10"
+            MinHeight="100">
+        <Border.Transitions>
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.3"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.3"/>
+            </Transitions>
+        </Border.Transitions>
+        <StackPanel Spacing="10">
+            <!-- 步骤标题 -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="{Binding Status, Converter={StaticResource StatusIconConverter}}"
+                           FontSize="20"
+                           Margin="0,0,10,0"/>
+
+                <TextBlock Grid.Column="1"
+                           Text="{Binding StepName}"
+                           FontWeight="SemiBold"
+                           FontSize="14"/>
+            </Grid>
+
+            <!-- 检查中 -->
+            <TextBlock IsVisible="{Binding Status, Converter={StaticResource EnumEqualityConverter}, ConverterParameter={x:Static models:ValidationStatus.InProgress}}"
+                       Text="⏳ 正在检查插件..."
+                       FontSize="12"
+                       Foreground="#1976D2"
+                       FontWeight="Medium"/>
+
+            <!-- 成功视图 -->
+            <StackPanel IsVisible="{Binding ShowSuccessView}" 
+                        Spacing="5">
+                <TextBlock Text="{Binding SuccessMessage}"
+                           Foreground="Green"
+                           FontSize="12"
+                           FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding AddonPath}"
+                           FontSize="10"
+                           Foreground="Gray"/>
+            </StackPanel>
+
+            <!-- 失败视图 -->
+            <StackPanel IsVisible="{Binding ShowFailureView}" 
+                        Spacing="10">
+                <TextBlock Text="{Binding ErrorMessage}"
+                           Foreground="Red"
+                           TextWrapping="Wrap"
+                           FontSize="12"/>
+
+                <!-- 安装按钮 -->
+                <Button Content="自动安装插件"
+                        Command="{Binding InstallAddonCommand}"
+                        IsEnabled="{Binding CanInstall}"
+                        HorizontalAlignment="Left"
+                        Padding="15,8"/>
+
+                <TextBlock Text="或者手动复制插件到 WoW/Interface/AddOns 目录"
+                           FontSize="10"
+                           Foreground="Gray"
+                           FontStyle="Italic"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

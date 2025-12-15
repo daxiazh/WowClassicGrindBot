@@ -25,6 +25,8 @@ sealed class Program
 
         services.AddSingleton<StartupValidator>();
         services.AddTransient<MainWindowViewModel>();
+        services.AddTransient<WowProcessStepViewModel>();
+        services.AddTransient<AddonStepViewModel>();
 
         services.AddLogging(builder =>
         {

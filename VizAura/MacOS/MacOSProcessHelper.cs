@@ -119,7 +119,7 @@ public sealed class MacOsProcessHelper
     /// <param name="process">目标进程</param>
     /// <returns>窗口 ID, 失败返回 0</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822")]
-    public uint GetWindowId(Process process)
+    public static uint GetWindowId(Process process)
     {
         IntPtr windowList = IntPtr.Zero;
         

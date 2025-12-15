@@ -18,7 +18,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>
     /// 当前应用状态
     /// </summary>
-    private AppState currentState = AppState.None;
+    private AppState currentState;
+
+    /// <summary>
+    /// 当前 WoW 进程信息
+    /// </summary>
+    private WowProcessInfo? currentProcessInfo;
 
     /// <summary>
     /// 当前活动的 ViewModel
@@ -110,12 +115,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private ValidationViewModel CreateValidationViewModel()
     {
         var logger = serviceProvider.GetRequiredService<ILogger<ValidationViewModel>>();
-        var validator = serviceProvider.GetRequiredService<StartupValidator>();
 
         return new ValidationViewModel(
             logger,
-            validator,
-            onAllValid: () => TransitionTo(AppState.Running)
+            serviceProvider,
+            (processInfo) =>
+            {
+                currentProcessInfo = processInfo;
+                TransitionTo(AppState.Running);
+            }
         );
     }
 
@@ -124,7 +132,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     private WorkViewModel CreateWorkViewModel()
     {
+        if (currentProcessInfo == null)
+        {
+            throw new InvalidOperationException("无法创建 WorkViewModel: 缺少 WoW 进程信息");
+        }
+
         var logger = serviceProvider.GetRequiredService<ILogger<WorkViewModel>>();
-        return new WorkViewModel(logger);
+        return new WorkViewModel(logger, currentProcessInfo);
     }
 }
