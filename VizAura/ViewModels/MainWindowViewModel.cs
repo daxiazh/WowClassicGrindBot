@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
@@ -138,5 +139,36 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         var logger = serviceProvider.GetRequiredService<ILogger<WorkViewModel>>();
         return new WorkViewModel(logger, currentProcessInfo);
+    }
+
+    /// <summary>
+    /// 重新验证环境命令
+    /// </summary>
+    [RelayCommand]
+    private void Revalidate()
+    {
+        logger.LogInformation("用户请求重新验证环境");
+        currentProcessInfo = null;
+        TransitionTo(AppState.Validating);
+    }
+
+    /// <summary>
+    /// 显示 AddOns 配置命令
+    /// </summary>
+    [RelayCommand]
+    private void ShowAddonsConfig()
+    {
+        logger.LogInformation("显示 AddOns 配置");
+        // TODO: 打开 AddOns 配置对话框
+    }
+
+    /// <summary>
+    /// 显示 Frame 配置命令
+    /// </summary>
+    [RelayCommand]
+    private void ShowFrameConfig()
+    {
+        logger.LogInformation("显示 Frame 配置");
+        // TODO: 打开 Frame 配置对话框
     }
 }

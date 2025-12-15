@@ -12,19 +12,34 @@
         Width="700"
         Height="500">
 
-    <!-- 使用 ContentControl 根据 CurrentViewModel 自动切换视图 -->
-    <ContentControl Content="{Binding CurrentViewModel}">
-        <ContentControl.DataTemplates>
-            <!-- ValidationViewModel 对应 ValidationPanel -->
-            <DataTemplate DataType="vm:ValidationViewModel">
-                <views:ValidationPanel/>
-            </DataTemplate>
-            
-            <!-- WorkViewModel 对应 WorkPanel -->
-            <DataTemplate DataType="vm:WorkViewModel">
-                <views:WorkPanel/>
-            </DataTemplate>
-        </ContentControl.DataTemplates>
-    </ContentControl>
+    <DockPanel>
+        <!-- 顶部菜单栏 -->
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="配置">
+                <MenuItem Header="🔄 重新验证环境" Command="{Binding RevalidateCommand}"/>
+                <Separator/>
+                <MenuItem Header="📦 AddOns 管理" Command="{Binding ShowAddonsConfigCommand}" IsEnabled="False"/>
+                <MenuItem Header="🖼️ Frame 配置" Command="{Binding ShowFrameConfigCommand}" IsEnabled="False"/>
+            </MenuItem>
+            <MenuItem Header="帮助">
+                <MenuItem Header="关于 VizAura"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- 主内容区域 - 使用 ContentControl 根据 CurrentViewModel 自动切换视图 -->
+        <ContentControl Content="{Binding CurrentViewModel}">
+            <ContentControl.DataTemplates>
+                <!-- ValidationViewModel 对应 ValidationPanel -->
+                <DataTemplate DataType="vm:ValidationViewModel">
+                    <views:ValidationPanel/>
+                </DataTemplate>
+                
+                <!-- WorkViewModel 对应 WorkPanel -->
+                <DataTemplate DataType="vm:WorkViewModel">
+                    <views:WorkPanel/>
+                </DataTemplate>
+            </ContentControl.DataTemplates>
+        </ContentControl>
+    </DockPanel>
 
 </Window>
