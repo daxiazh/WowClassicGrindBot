@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
 using VizAura.Models;
-using VizAura.Services;
 
 namespace VizAura.ViewModels;
 

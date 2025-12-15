@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using VizAura.Models;
@@ -83,6 +84,13 @@ public sealed partial class ValidationViewModel : ViewModelBase
         {
             while (await checkTimer.WaitForNextTickAsync(ct))
             {
+                // 如果有步骤失败,停止循环,让用户修复问题
+                if (Steps.Any(s => s.Status == ValidationStatus.Failed))
+                {
+                    logger.LogInformation("检测到失败步骤,停止自动检查");
+                    break;
+                }
+
                 await CheckAllStepsAsync(ct);
             }
         }
@@ -113,15 +121,10 @@ public sealed partial class ValidationViewModel : ViewModelBase
                 return;
 
             context = result.Data;
-            
-            // 让用户看到成功状态
-            await Task.Delay(800, ct);
         }
 
         if (context != null)
         {
-            // 让用户看到所有成功状态后再跳转
-            await Task.Delay(1500, ct);
             onAllValid(context);
         }
     }
