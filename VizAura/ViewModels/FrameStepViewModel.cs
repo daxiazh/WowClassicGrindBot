@@ -151,16 +151,36 @@ public sealed partial class FrameStepViewModel : ObservableObject, IStepViewMode
         {
             logger.LogInformation("打开 Frame 配置窗口");
 
-            // TODO: 创建 FrameConfigViewModel 和 FrameConfigWindow
-            // var viewModel = serviceProvider.GetRequiredService<FrameConfigViewModel>();
-            // var window = new Views.FrameConfigWindow { DataContext = viewModel };
-            // await window.ShowDialog(...);
+            // 1. 加载 AddonConfig
+            if (!Core.AddonConfig.Exists())
+            {
+                logger.LogError("无法打开 Frame 配置: 未找到 addon_config.json");
+                ErrorMessage = "请先完成插件配置";
+                return;
+            }
 
-            logger.LogWarning("Frame 配置窗口尚未实现");
-            await Task.CompletedTask;
+            var addonConfig = Core.AddonConfig.Load();
 
-            // 窗口关闭后,重新验证
-            // await RecheckAsync();
+            // 2. 创建 FrameConfigViewModel
+            var viewModelLogger = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                .GetRequiredService<ILogger<FrameConfigViewModel>>(serviceProvider);
+            var viewModel = new FrameConfigViewModel(viewModelLogger, currentProcessInfo, addonConfig);
+
+            // 3. 创建并显示对话框
+            var window = new Views.FrameConfigWindow
+            {
+                DataContext = viewModel
+            };
+
+            // 4. 模态显示窗口
+            await window.ShowDialog(Avalonia.Application.Current?.ApplicationLifetime is 
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop 
+                ? desktop.MainWindow 
+                : null);
+
+            // 5. 窗口关闭后,重新验证
+            logger.LogInformation("Frame 配置窗口已关闭,重新验证配置");
+            await RecheckAsync();
         }
         catch (Exception ex)
         {

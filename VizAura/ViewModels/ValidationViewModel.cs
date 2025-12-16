@@ -141,17 +141,21 @@ public sealed partial class ValidationViewModel : ViewModelBase
 
         var currentStep = Steps[CurrentStepIndex];
         
-        // 收集上一步的上下文
+        // 收集上下文: 向前查找第一个 WowProcessStepViewModel
         WowProcessInfo? previousContext = null;
-        if (CurrentStepIndex > 0 && Steps[CurrentStepIndex - 1] is WowProcessStepViewModel prevWowStep)
+        for (int i = CurrentStepIndex - 1; i >= 0; i--)
         {
-            previousContext = new WowProcessInfo
+            if (Steps[i] is WowProcessStepViewModel wowStep)
             {
-                Process = System.Diagnostics.Process.GetProcessById(prevWowStep.ProcessId),
-                WindowId = prevWowStep.WindowId,
-                WowPath = prevWowStep.WowPath ?? string.Empty,
-                Version = new Version()
-            };
+                previousContext = new WowProcessInfo
+                {
+                    Process = System.Diagnostics.Process.GetProcessById(wowStep.ProcessId),
+                    WindowId = wowStep.WindowId,
+                    WowPath = wowStep.WowPath ?? string.Empty,
+                    Version = new Version()
+                };
+                break;
+            }
         }
 
         currentStep.Status = ValidationStatus.InProgress;

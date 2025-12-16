@@ -1,0 +1,165 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:VizAura.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+        x:Class="VizAura.Views.FrameConfigWindow"
+        x:DataType="vm:FrameConfigViewModel"
+        Title="Frame 配置 - 手动模式"
+        Width="900"
+        Height="620"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="500"/>
+            <ColumnDefinition Width="20"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- 左列: 双预览 -->
+        <StackPanel Grid.Column="0" Spacing="10">
+            <!-- WoW 完整截图 -->
+            <Border BorderBrush="#E0E0E0"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="📺 WoW 屏幕预览"
+                               FontSize="13"
+                               FontWeight="SemiBold"/>
+                    
+                    <Border BorderBrush="#CCCCCC"
+                            BorderThickness="1"
+                            Background="#F5F5F5"
+                            Height="300"
+                            CornerRadius="4">
+                        <Image x:Name="FullScreenImage"
+                               Source="{Binding FullScreenBitmap}"
+                               Stretch="Uniform"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+            
+            <!-- DataToColor 区域截图 -->
+            <Border BorderBrush="#E0E0E0"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="🎨 DataToColor 数据帧"
+                               FontSize="13"
+                               FontWeight="SemiBold"/>
+                    
+                    <Border BorderBrush="#CCCCCC"
+                            BorderThickness="1"
+                            Background="#F5F5F5"
+                            Height="100"
+                            CornerRadius="4">
+                        <Image x:Name="AddonImage"
+                               Source="{Binding AddonBitmap}"
+                               Stretch="Uniform"/>
+                    </Border>
+                    
+                    <TextBlock FontSize="10" Foreground="Gray" TextWrapping="Wrap">
+                        <Run Text="💡 提示: 在游戏中输入 "/>
+                        <Run Text="{Binding Command}" FontWeight="Bold" Foreground="#FF5722"/>
+                        <Run Text=" 进入配置模式,此处会显示数据帧"/>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- 右列: 操作面板 -->
+        <StackPanel Grid.Column="2" Spacing="15">
+            <!-- 状态显示 -->
+            <Border Background="#E3F2FD"
+                    BorderBrush="#2196F3"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding CurrentStep}"
+                               FontSize="13"
+                               FontWeight="Bold"
+                               Foreground="#1976D2"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="11"
+                               Foreground="#666"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 检测信息 -->
+            <Border BorderBrush="#E0E0E0"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="配置模式:" FontSize="11"/>
+                        <TextBlock Text="{Binding IsConfigMode}"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="#2196F3"/>
+                    </StackPanel>
+                    
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="检测到帧数:" FontSize="11"/>
+                        <TextBlock Text="{Binding DetectedFrameCount}"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="#2196F3"/>
+                    </StackPanel>
+                    
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="玩家信息:" FontSize="11"/>
+                        <TextBlock Text="{Binding PlayerInfo}"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="#4CAF50"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 操作按钮 -->
+            <StackPanel Spacing="10">
+                <Button Content="▶️ 开始手动配置"
+                        Command="{Binding StartManualCommand}"
+                        IsEnabled="{Binding !IsRunning}"
+                        Background="#2196F3"
+                        Foreground="White"
+                        Padding="12,8"
+                        CornerRadius="6"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        FontWeight="SemiBold"/>
+                
+                <Button Content="⏸️ 停止配置"
+                        Command="{Binding StopManualCommand}"
+                        IsEnabled="{Binding IsRunning}"
+                        Background="#FF9800"
+                        Foreground="White"
+                        Padding="12,8"
+                        CornerRadius="6"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        FontWeight="SemiBold"/>
+                
+                <Button Content="💾 保存配置"
+                        Command="{Binding SaveCommand}"
+                        IsEnabled="{Binding CanSave}"
+                        Background="#4CAF50"
+                        Foreground="White"
+                        Padding="12,8"
+                        CornerRadius="6"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        FontWeight="SemiBold"
+                        FontSize="13"/>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

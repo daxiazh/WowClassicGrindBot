@@ -1,6 +1,10 @@
+using Avalonia;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Core;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using System;
 using System.Runtime.InteropServices;
 using WinAPI;
@@ -15,6 +19,7 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
 {
     private readonly uint windowId;
     private IntPtr streamHandle;
+    private ScreenCaptureKitInterop.FrameCallback? frameCallback;
     
     private Image<Bgra32> screenImage;
     private Image<Bgra32> addonImage;
@@ -44,9 +49,19 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
     public bool EnablePostProcess { get; set; }
     
     /// <summary>
-    /// 屏幕图像
+    /// 屏幕图像 (实现接口,但不建议直接使用)
+    /// 警告: 直接访问此属性不是线程安全的,请使用 GetPixel/CloneAndCrop 等方法
     /// </summary>
-    public Image<Bgra32> ScreenImage => screenImage;
+    public Image<Bgra32> ScreenImage
+    {
+        get
+        {
+            lock (frameLock)
+            {
+                return screenImage;
+            }
+        }
+    }
     
     /// <summary>
     /// 小地图图像
@@ -74,6 +89,11 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
     public event Action? OnChanged;
     
     /// <summary>
+    /// 帧更新事件 (每次 ScreenCaptureKit 捕获到新帧时触发)
+    /// </summary>
+    public event Action? OnFrameUpdated;
+    
+    /// <summary>
     /// 构造函数
     /// </summary>
     /// <param name="windowId">窗口 ID</param>
@@ -91,8 +111,9 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
         MiniMapRect = new Rectangle(initialRect.Width - 200, 0, 200, 200);
         
         // 启动 ScreenCaptureKit 流
-        var callback = new ScreenCaptureKitInterop.FrameCallback(OnFrameReceived);
-        streamHandle = ScreenCaptureKitInterop.sc_create_stream(windowId, callback);
+        // 重要: 保存 callback 引用防止被 GC 回收
+        frameCallback = new ScreenCaptureKitInterop.FrameCallback(OnFrameReceived);
+        streamHandle = ScreenCaptureKitInterop.sc_create_stream(windowId, frameCallback);
         
         if (streamHandle == IntPtr.Zero)
         {
@@ -141,6 +162,75 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
             {
                 CopyMinimapData(data, width, height, bytesPerRow, minimapMemory);
             }
+            
+            // 触发帧更新事件
+            OnFrameUpdated?.Invoke();
+        }
+    }
+    
+    /// <summary>
+    /// 将屏幕图像复制到 WriteableBitmap (线程安全)
+    /// </summary>
+    /// <param name="bitmap">WriteableBitmap</param>
+    public void CopyToWriteableBitmap(WriteableBitmap bitmap)
+    {
+        lock (frameLock)
+        {
+            using var frameBuffer = bitmap.Lock();
+            
+            screenImage.ProcessPixelRows(accessor =>
+            {
+                unsafe
+                {
+                    var destPtr = (byte*)frameBuffer.Address;
+                    var stride = frameBuffer.RowBytes;
+                    
+                    for (int y = 0; y < accessor.Height; y++)
+                    {
+                        var row = accessor.GetRowSpan(y);
+                        fixed (Bgra32* srcPtr = row)
+                        {
+                            Buffer.MemoryCopy(
+                                srcPtr,
+                                destPtr + (y * stride),
+                                stride,
+                                row.Length * 4
+                            );
+                        }
+                    }
+                }
+            });
+        }
+    }
+    
+    /// <summary>
+    /// 读取屏幕指定位置的像素 (线程安全)
+    /// </summary>
+    /// <param name="x">x 坐标</param>
+    /// <param name="y">y 坐标</param>
+    /// <returns>像素值</returns>
+    public Bgra32 GetPixel(int x, int y)
+    {
+        lock (frameLock)
+        {
+            return screenImage[x, y];
+        }
+    }
+    
+    /// <summary>
+    /// 克隆并裁剪屏幕区域 (线程安全)
+    /// </summary>
+    /// <param name="width">裁剪宽度</param>
+    /// <param name="height">裁剪高度</param>
+    /// <returns>裁剪后的图像</returns>
+    public Image<Bgra32> CloneAndCrop(int width, int height)
+    {
+        lock (frameLock)
+        {
+            var cropRect = new SixLabors.ImageSharp.Rectangle(0, 0, width, height);
+            var cloned = screenImage.Clone();
+            cloned.Mutate(x => x.Crop(cropRect));
+            return cloned;
         }
     }
     
@@ -249,11 +339,11 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
     /// 获取窗口位置
     /// </summary>
     /// <param name="point">输出位置</param>
-    public void GetPosition(ref Point point)
+    public void GetPosition(ref SixLabors.ImageSharp.Point point)
     {
         lock (frameLock)
         {
-            point = new Point(screenRect.X, screenRect.Y);
+            point = new SixLabors.ImageSharp.Point(screenRect.X, screenRect.Y);
         }
     }
     

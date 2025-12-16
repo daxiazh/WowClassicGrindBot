@@ -8,7 +8,19 @@
       "WebFetch(domain:www.wowhead.com)",
       "Bash(mv:*)",
       "Bash(awk:*)",
-      "Bash(dotnet clean:*)"
+      "Bash(dotnet clean:*)",
+      "WebFetch(domain:docs.avaloniaui.net)",
+      "WebFetch(domain:docs.avaloniaui.net)",
+      "WebFetch(domain:avaloniaui.net)",
+      "WebFetch(domain:github.com)",
+      "Bash(dotnet build:*)",
+      "WebFetch(domain:www.qinware.com)",
+      "Bash(monodis --assembly:*)",
+      "WebFetch(domain:ant.design)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(dotnet run:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

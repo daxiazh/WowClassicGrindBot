@@ -245,4 +245,15 @@ public sealed class MacOSWindowHelper
     {
         return CGMainDisplayID();
     }
+
+    /// <summary>
+    /// 获取窗口边界矩形 (便捷方法)
+    /// </summary>
+    /// <param name="windowId">窗口 ID</param>
+    /// <returns>窗口矩形</returns>
+    public static Rectangle GetWindowBounds(int windowId)
+    {
+        GetWindowRect((nint)windowId, out Rectangle rect);
+        return rect;
+    }
 }

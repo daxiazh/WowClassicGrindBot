@@ -9,10 +9,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="MacOS\Native\" />
     <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
     <Folder Include="Services\" />
+  </ItemGroup>
+
+  <!-- 包含 macOS 原生库 -->
+  <ItemGroup>
+    <Content Include="MacOS\Native\libScreenCapture.dylib">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>libScreenCapture.dylib</Link>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
