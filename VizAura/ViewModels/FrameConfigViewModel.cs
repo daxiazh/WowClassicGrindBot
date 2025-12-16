@@ -9,7 +9,6 @@ using Microsoft.Extensions.Logging;
 using SharedLib;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 using System;
 using VizAura.MacOS;
 using VizAura.Models;
@@ -30,7 +29,7 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     private Image<Bgra32>? currentAddonImage;
 
     private DataFrameMeta currentMeta = DataFrameMeta.Empty;
-    private DataFrame[] currentFrames = Array.Empty<DataFrame>();
+    private DataFrame[] currentFrames = [];
     private Rectangle screenRect;
 
     /// <summary>

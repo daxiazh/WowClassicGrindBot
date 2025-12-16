@@ -522,6 +522,10 @@ function DataToColor:CreateFrames()
         return false
     end
 
+    local function PixelIntFrame(frame, value)
+        frame:SetBackdropColor(int(self, value))
+    end
+
     local function UpdateGlobalTime()
         Pixel(int, DataToColor.globalTime, GLOBAL_TIME_CELL)
     end
@@ -1045,10 +1049,27 @@ function DataToColor:CreateFrames()
     backgroundframe:SetFrameStrata("FULLSCREEN_DIALOG")
     backgroundframe:SetBackdropColor(0, 0, 0, 1)
 
+    -- 显示定位标记, 在第0列, 按顺序显示 红,绿,蓝 三个 cell    
+    local markerFrame = genFrame("marker_red", 0, 0)
+    markerFrame:SetBackdropColor(1, 0, 0, 1)
+    markerFrame = genFrame("marker_green", 0, 1)
+    markerFrame:SetBackdropColor(0, 1, 0, 1)
+    markerFrame = genFrame("marker_blue", 0, 2)
+    markerFrame:SetBackdropColor(0, 0, 1, 1)
+    
+    -- Meta 信息及Idx[1]定位, 用于定位水平方向的每个 Frame 的位置与信息
+    local offsetX = 1
+    local metaFrame = genFrame("meta_frame", offsetX, 0)
+    PixelIntFrame(metaFrame, CELL_SPACING * 10000000 + CELL_SIZE * 100000 + 1000 * FRAME_ROWS + NUMBER_OF_FRAMES)
+    offsetX = offsetX + 1
+    local idx1MarkFrame = genFrame("idx1_frame", offsetX, 0)
+    PixelIntFrame(idx1MarkFrame, 1)
+    offsetX = offsetX + 1        
+    
     for frame = 0, NUMBER_OF_FRAMES - 1 do
         -- those are grid coordinates (1,2,3,4 by  1,2,3,4 etc), not pixel coordinates
         local y = frame % FRAME_ROWS
-        local x = floor(frame / FRAME_ROWS)
+        local x = floor(frame / FRAME_ROWS) + offsetX -- 偏移列, 因为第 0,1,2 列现在是定位标记
         frames[frame] = genFrame("frame_" .. tostring(frame), x, y)
         valueCache[frame] = -1
         updateCount[frame] = 0

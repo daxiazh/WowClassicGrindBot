@@ -1,12 +1,11 @@
-using Avalonia;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Core;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 using WinAPI;
 
 namespace VizAura.MacOS;
@@ -15,23 +14,24 @@ namespace VizAura.MacOS;
 /// macOS 平台的 WoW 屏幕捕获实现
 /// 使用 ScreenCaptureKit 进行窗口捕获
 /// </summary>
+// ReSharper disable once InconsistentNaming
 public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
 {
     private readonly uint windowId;
     private IntPtr streamHandle;
-    private ScreenCaptureKitInterop.FrameCallback? frameCallback;
+    private readonly ScreenCaptureKitInterop.FrameCallback? frameCallback;
     
     private Image<Bgra32> screenImage;
     private Image<Bgra32> addonImage;
-    private Image<Bgra32> minimapImage;
+    private readonly Image<Bgra32> minimapImage;
     
-    private DataFrame[] frames = Array.Empty<DataFrame>();
-    private int[] data = Array.Empty<int>();
+    private DataFrame[] frames = [];
+    private int[] data = [];
     
     private Rectangle screenRect;
     private SixLabors.ImageSharp.Size addonSize;
     
-    private readonly object frameLock = new();
+    private readonly Lock frameLock = new();
     
     /// <summary>
     /// 是否启用屏幕捕获
