@@ -31,6 +31,7 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     private DataFrameMeta currentMeta = DataFrameMeta.Empty;
     private DataFrame[] currentFrames = [];
     private Rectangle screenRect;
+    private Image<Bgra32>? currentScreenImage;
 
     /// <summary>
     /// 当前步骤提示
@@ -228,6 +229,8 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
         IsRunning = false;
         CurrentStep = "已停止";
         StatusMessage = "手动配置已停止";
+        currentScreenImage?.Dispose();
+        currentScreenImage = null;
 
         // 不停止定时器,继续预览
         // updateTimer?.Stop();
@@ -242,22 +245,97 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            // 1. 查找 RGB 定位序列
-            int redY = screen.FindRGBPatternInColumn0();
-            
-            if (redY == -1)
+            // TODO: 提示玩家应该在游戏中输出"/dc"指令来切换到检测模式
+            // 1. 查找 RGB 定位序列,获取中心点 Y 坐标和 cell 大小
+            var (idx0Y, cellSize) = screen.FindRGBPatternInColumn0();
+            if (idx0Y == -1)
             {
                 // 未找到 RGB 定位序列
                 if (IsRunning)
                 {
-                    StatusMessage = "未检测到 DataToColor 插件\n请确保游戏已启动且插件已安装";
+                    StatusMessage = "未检测到 DataToColor 的配置模式, 请在 WOW 中输入\"/dc\"来激活配置模式";
                 }
                 return;
             }
             
-            // 找到了 RGB 定位序列
-            logger.LogInformation($"找到 RGB 定位序列: Y={redY}");
-            StatusMessage = $"找到 RGB 定位序列\nY 坐标: {redY}";
+            // 需要复制一份 screen 的数据到 currentScreenImage, 用于消除线程安全问题
+            screen.GetRectangle(out var currentRect);
+            if (currentScreenImage == null || 
+                currentScreenImage.Width != currentRect.Width ||
+                currentScreenImage.Height != currentRect.Height)
+            {
+                // 尺寸变化,重新创建图像
+                currentScreenImage?.Dispose();
+                currentScreenImage = screen.Clone();
+            }
+            else
+            {
+                // 尺寸未变化,高效复制数据 (无 GC 分配)
+                screen.CopyTo(currentScreenImage);
+            }
+            
+            // 2. 查找 Idx1 frame (B=1, R=0, G=0) - 只在 centerY 这一行查找
+            if (!FrameConfig.TryGetNextPoint(currentScreenImage, 1, cellSize, idx0Y, out int idx1X, out int idx1Y))
+            {
+                if(logger.IsEnabled(LogLevel.Information))
+                    logger.LogInformation("找到 RGB 定位序列 (Y={CenterY}, cellSize={CellSize}),但未找到 Idx[1] 定位帧", idx0Y, cellSize);
+                StatusMessage = $"找到 RGB 序列 (Y={idx0Y})\n未找到 Idx[1] 定位帧";
+                return;
+            }
+            
+            // 检查idx1X 与 idx1Y 是否合法
+            if (idx1X > cellSize * 4)
+            {
+                StatusMessage = $"找到 RGB 序列 (Y={idx0Y})\nIdx[1] X={idx1X} 非法";
+                if(logger.IsEnabled(LogLevel.Information))
+                    logger.LogInformation("Idx[1] X={Idx1X} 值超出范围({MaxValue})", idx1X, cellSize * 4);
+                return;
+            }
+            
+            // 3. 获取 Meta 信息
+            var idx0X = idx1X - cellSize / 2;
+            var dataFrameMeta = FrameConfig.GetMeta(currentScreenImage[idx0X, idx0Y]);
+            if (dataFrameMeta == DataFrameMeta.Empty)
+            {
+                if (logger.IsEnabled(LogLevel.Information))
+                    logger.LogInformation("找到 Idx[1] (X={Idx1X}),但读取 Meta 信息失败", idx1X);
+                StatusMessage = $"找到 Idx[1] (X={idx1X})\n但读取 Meta 信息失败";
+                return;
+            }
+            
+            if (logger.IsEnabled(LogLevel.Information))
+                logger.LogInformation("读取 Meta 信息成功: Spacing={Spacing}, Size={Size}, Rows={Rows}, Count={Count}", 
+                    dataFrameMeta.Spacing, dataFrameMeta.Sizes, dataFrameMeta.Rows, dataFrameMeta.Count);
+            
+            // 4. 定位所有的 Frame
+            var dataFrames = FrameConfig.CreateFrames(dataFrameMeta, currentScreenImage, idx0X, idx0Y);
+            if (dataFrames.Length != dataFrameMeta.Count)
+            {
+                if (logger.IsEnabled(LogLevel.Warning))
+                    logger.LogWarning("Frame 数量不匹配: 期望={Expected}, 实际={Actual}", dataFrameMeta.Count, dataFrames.Length);
+                StatusMessage = $"检测到部分 Frame\n期望:{dataFrameMeta.Count}, 实际:{dataFrames.Length}";
+                return;
+            }
+            
+            // 5. 验证 Frame 间隔是否合法 (每个 frame 的 X 间隔应该大致相同,误差不超过 1 像素)
+            if (!ValidateFrameSpacing(dataFrames, dataFrameMeta, out string? spacingError))
+            {
+                if (logger.IsEnabled(LogLevel.Warning))
+                    logger.LogWarning("Frame 间隔验证失败: {Error}", spacingError);
+                StatusMessage = $"Frame 间隔异常\n{spacingError}";
+                return;
+            }
+
+            // 6. 成功检测到完整配置!
+            currentMeta = dataFrameMeta;
+            currentFrames = dataFrames;
+            DetectedFrameCount = dataFrames.Length;
+            CanSave = true;
+            
+            if (logger.IsEnabled(LogLevel.Information))
+                logger.LogInformation("✅ 成功检测到完整配置: Y={CenterY}, CellSize={CellSize}, Frames={Count}", 
+                    idx0Y, cellSize, dataFrames.Length);
+            StatusMessage = $"✅ 检测成功!\nFrames: {dataFrames.Length}, CellSize: {cellSize}";
         }
         catch (Exception ex)
         {
@@ -344,6 +422,42 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
+    /// 验证 Frame 间隔是否合法
+    /// </summary>
+    /// <param name="frames">Frame 数组</param>
+    /// <param name="meta">Meta 信息</param>
+    /// <param name="error">错误信息</param>
+    /// <returns>是否合法</returns>
+    private static bool ValidateFrameSpacing(DataFrame[] frames, DataFrameMeta meta, out string? error)
+    {
+        if (frames.Length < 2)
+        {
+            error = null;
+            return true;
+        }
+        
+        // 期望的间隔 = cellSize + spacing
+        int expectedSpacing = meta.Sizes + meta.Spacing;
+        
+        // 检查连续 frame 的 X 间隔
+        for (int i = 2; i < frames.Length; i++)
+        {
+            int actualSpacing = frames[i].X - frames[i - 1].X;
+            int difference = Math.Abs(actualSpacing - expectedSpacing);
+            
+            // 允许 ±1 像素的误差
+            if (difference > 1)
+            {
+                error = $"Frame[{i}] 间隔异常\n期望:{expectedSpacing}, 实际:{actualSpacing}";
+                return false;
+            }
+        }
+        
+        error = null;
+        return true;
+    }
+    
+    /// <summary>
     /// 尝试解析种族和职业
     /// </summary>
     /// <param name="race">种族</param>
@@ -376,6 +490,8 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     /// </summary>
     public void Dispose()
     {
+        currentScreenImage?.Dispose();
+        currentScreenImage = null;
         updateTimer?.Stop();
         screen.OnFrameUpdated -= OnScreenFrameUpdated;
         screen?.Dispose();

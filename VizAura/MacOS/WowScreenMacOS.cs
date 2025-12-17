@@ -7,6 +7,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Threading;
 using WinAPI;
+using Image = SharpDX.Direct2D1.Image;
 
 namespace VizAura.MacOS;
 
@@ -56,10 +57,7 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
     {
         get
         {
-            lock (frameLock)
-            {
-                return screenImage;
-            }
+            throw new NotSupportedException(); // 这种访问方式非常危险, 禁用, 很容易导致线程安全问题
         }
     }
     
@@ -205,6 +203,44 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
                             );
                         }
                     }
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// 复制当前的图片
+    /// </summary>
+    /// <returns>新的图像副本</returns>
+    public Image<Bgra32> Clone()
+    {
+        lock (frameLock)
+        {
+            return screenImage.Clone();
+        }
+    }
+    
+    /// <summary>
+    /// 复制当前屏幕图像到目标图像 (高效,无GC分配)
+    /// </summary>
+    /// <param name="destination">目标图像 (必须与源图像尺寸一致)</param>
+    public void CopyTo(Image<Bgra32> destination)
+    {
+        lock (frameLock)
+        {
+            if (destination.Width != screenImage.Width || destination.Height != screenImage.Height)
+            {
+                throw new ArgumentException("目标图像尺寸必须与源图像一致");
+            }
+            
+            // 使用 ProcessPixelRows 进行高效的逐行复制
+            screenImage.ProcessPixelRows(destination, (sourceAccessor, destAccessor) =>
+            {
+                for (int y = 0; y < sourceAccessor.Height; y++)
+                {
+                    var sourceRow = sourceAccessor.GetRowSpan(y);
+                    var destRow = destAccessor.GetRowSpan(y);
+                    sourceRow.CopyTo(destRow);
                 }
             });
         }
@@ -440,14 +476,15 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
     /// <summary>
     /// 在第 0 列查找 RGB 定位序列
     /// </summary>
-    /// <returns>RGB 序列起始 Y 坐标(红色第一个像素),未找到返回 -1</returns>
-    public int FindRGBPatternInColumn0()
+    /// <returns>元组: (中心点 Y 坐标, cell 大小),未找到返回 (-1, 0)</returns>
+    // ReSharper disable once InconsistentNaming
+    public (int centerY, int cellSize) FindRGBPatternInColumn0()
     {
         lock (frameLock)
         {
             int maxY = Math.Min(screenImage.Height / 10, 100);
             
-            screenImage.SaveAsBmp("screen.bmp");
+            // screenImage.SaveAsBmp("screen.bmp"); // 调试代码
             
             for (int y = 0; y < maxY; y++)
             {
@@ -485,10 +522,12 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
                 }
                 
                 // 8. 找到了完整的 RGB 序列!
-                return y;  // 返回红色起始位置
+                // 返回红色块的中心点 Y 坐标(颜色最准确的位置)和 cell 大小
+                int centerY = y + redCount / 2;
+                return (centerY, redCount);
             }
             
-            return -1;  // 未找到
+            return (-1, 0);  // 未找到
         }
     }
     

@@ -95,14 +95,14 @@ public static class FrameConfig
         return new DataFrameMeta(hash, spacing, size, rows, count);
     }
 
-    public static DataFrame[] CreateFrames(DataFrameMeta meta, Image<Bgra32> bmp)
+    public static DataFrame[] CreateFrames(DataFrameMeta meta, Image<Bgra32> bmp, int frame0X = 0, int frame0Y = 0)
     {
         DataFrame[] frames = new DataFrame[meta.Count];
-        frames[0] = new(0, 0, 0);
+        frames[0] = new(0, frame0X, frame0Y);
 
         for (int i = 1; i < meta.Count; i++)
         {
-            if (TryGetNextPoint(bmp, i, frames[i].X, out int x, out int y))
+            if (TryGetNextPoint(bmp, i, frames[i - 1].X, frame0Y, out int x, out int y))
             {
                 frames[i] = new(i, x, y);
             }
@@ -115,11 +115,11 @@ public static class FrameConfig
         return frames;
     }
 
-    private static bool TryGetNextPoint(Image<Bgra32> bmp, int i, int startX, out int x, out int y)
+    public static bool TryGetNextPoint(Image<Bgra32> bmp, int i, int startX, int startY, out int x, out int y)
     {
         for (int xi = startX; xi < bmp.Width; xi++)
         {
-            for (int yi = 0; yi < bmp.Height; yi++)
+            for (int yi = startY; yi < bmp.Height; yi++)
             {
                 Bgra32 pixel = bmp[xi, yi];
                 if (pixel.B == i && pixel.R == 0 && pixel.G == 0)
