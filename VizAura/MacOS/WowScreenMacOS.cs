@@ -103,10 +103,14 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
         this.windowId = windowId;
         this.screenRect = initialRect;
         
+        // 创建配置:强制使用连续内存缓冲区
+        var config = Configuration.Default.Clone();
+        config.PreferContiguousImageBuffers = true;
+        
         // 初始化图像
-        screenImage = new Image<Bgra32>(initialRect.Width, initialRect.Height);
-        minimapImage = new Image<Bgra32>(200, 200);
-        addonImage = new Image<Bgra32>(1, 1); // 初始化为最小尺寸,后续会调整
+        screenImage = new Image<Bgra32>(config, initialRect.Width, initialRect.Height);
+        minimapImage = new Image<Bgra32>(config, 200, 200);
+        addonImage = new Image<Bgra32>(config, 1, 1); // 初始化为最小尺寸,后续会调整
         
         MiniMapRect = new Rectangle(initialRect.Width - 200, 0, 200, 200);
         
@@ -137,9 +141,12 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
             {
                 screenRect = new Rectangle(screenRect.X, screenRect.Y, width, height);
                 
-                // 重新创建图像
+                // 重新创建图像 (使用连续内存配置)
+                var config = Configuration.Default.Clone();
+                config.PreferContiguousImageBuffers = true;
+                
                 screenImage.Dispose();
-                screenImage = new Image<Bgra32>(width, height);
+                screenImage = new Image<Bgra32>(config, width, height);
                 
                 // 更新小地图位置
                 MiniMapRect = new Rectangle(width - 200, 0, 200, 200);
@@ -368,9 +375,12 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
             addonSize.Width++;
             addonSize.Height++;
             
-            // 重新创建 addon 图像
+            // 重新创建 addon 图像 (使用连续内存配置)
+            var config = Configuration.Default.Clone();
+            config.PreferContiguousImageBuffers = true;
+            
             addonImage.Dispose();
-            addonImage = new Image<Bgra32>(addonSize.Width, addonSize.Height);
+            addonImage = new Image<Bgra32>(config, addonSize.Width, addonSize.Height);
         }
     }
     
@@ -403,4 +413,104 @@ public sealed class WowScreenMacOS : Game.IWowScreen, IAddonDataProvider
         addonImage.Dispose();
         minimapImage.Dispose();
     }
+    
+    #region RGB 定位序列查找
+    
+    /// <summary>
+    /// 判断像素是否为红色 (容错 ±5)
+    /// </summary>
+    /// <param name="p">像素</param>
+    /// <returns>是否为红色</returns>
+    private static bool IsRed(Bgra32 p) => p.R > 250 && p.G < 5 && p.B < 5;
+    
+    /// <summary>
+    /// 判断像素是否为绿色 (容错 ±5)
+    /// </summary>
+    /// <param name="p">像素</param>
+    /// <returns>是否为绿色</returns>
+    private static bool IsGreen(Bgra32 p) => p.R < 5 && p.G > 250 && p.B < 5;
+    
+    /// <summary>
+    /// 判断像素是否为蓝色 (容错 ±5)
+    /// </summary>
+    /// <param name="p">像素</param>
+    /// <returns>是否为蓝色</returns>
+    private static bool IsBlue(Bgra32 p) => p.R < 5 && p.G < 5 && p.B > 250;
+    
+    /// <summary>
+    /// 在第 0 列查找 RGB 定位序列
+    /// </summary>
+    /// <returns>RGB 序列起始 Y 坐标(红色第一个像素),未找到返回 -1</returns>
+    public int FindRGBPatternInColumn0()
+    {
+        lock (frameLock)
+        {
+            int maxY = Math.Min(screenImage.Height / 10, 100);
+            
+            screenImage.SaveAsBmp("screen.bmp");
+            
+            for (int y = 0; y < maxY; y++)
+            {
+                // 1. 检查当前像素是否为红色
+                if (!IsRed(screenImage[0, y]))
+                    continue;
+                
+                // 2. 统计连续红色像素数量
+                int redCount = CountConsecutiveColor(0, y, IsRed);
+                if (redCount == 0) continue;
+                
+                // 3. 检查红色后面是否紧跟绿色
+                int greenStartY = y + redCount;
+                if (greenStartY >= screenImage.Height) continue;
+                if (!IsGreen(screenImage[0, greenStartY])) continue;
+                
+                // 4. 统计连续绿色像素数量
+                int greenCount = CountConsecutiveColor(0, greenStartY, IsGreen);
+                if (greenCount == 0) continue;
+                
+                // 5. 检查绿色后面是否紧跟蓝色
+                int blueStartY = greenStartY + greenCount;
+                if (blueStartY >= screenImage.Height) continue;
+                if (!IsBlue(screenImage[0, blueStartY])) continue;
+                
+                // 6. 统计连续蓝色像素数量
+                int blueCount = CountConsecutiveColor(0, blueStartY, IsBlue);
+                if (blueCount == 0) continue;
+                
+                // 7. 验证三种颜色的像素数量一致性 (±1px 容差)
+                if (Math.Abs(redCount - greenCount) > 1 ||
+                    Math.Abs(greenCount - blueCount) > 1)
+                {
+                    continue;
+                }
+                
+                // 8. 找到了完整的 RGB 序列!
+                return y;  // 返回红色起始位置
+            }
+            
+            return -1;  // 未找到
+        }
+    }
+    
+    /// <summary>
+    /// 从指定位置开始,统计连续满足颜色条件的像素数量
+    /// </summary>
+    /// <param name="x">X 坐标</param>
+    /// <param name="startY">起始 Y 坐标</param>
+    /// <param name="colorCheck">颜色判断函数</param>
+    /// <returns>连续像素数量</returns>
+    private int CountConsecutiveColor(int x, int startY, Func<Bgra32, bool> colorCheck)
+    {
+        int count = 0;
+        for (int y = startY; y < screenImage.Height; y++)
+        {
+            if (colorCheck(screenImage[x, y]))
+                count++;
+            else
+                break;  // 遇到不同颜色,停止统计
+        }
+        return count;
+    }
+    
+    #endregion
 }

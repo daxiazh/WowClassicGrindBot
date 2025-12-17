@@ -32,7 +32,7 @@ swiftc -emit-library \
        -framework ScreenCaptureKit \
        -framework CoreVideo \
        -framework Foundation \
-       -target arm64-apple-macos12.3 \
+       -target arm64-apple-macos14.0 \
        -Xlinker -install_name -Xlinker @rpath/libScreenCapture.dylib
 
 echo "✓ libScreenCapture.dylib built successfully"

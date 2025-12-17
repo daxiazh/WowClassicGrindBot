@@ -11,7 +11,7 @@ local FRAME_ROWS = 1
 -- Size of data squares in px. Varies based on rounding errors as well as dimension size. Use as a guideline, but not 100% accurate.
 local CELL_SIZE = 5 -- 1-9
 -- Spacing in px between data squares.
-local CELL_SPACING = 1 -- 0 or 1
+local CELL_SPACING = 0 -- 0 or 1
 
 local GLOBAL_TIME_CELL = NUMBER_OF_FRAMES - 2
 
@@ -1030,7 +1030,8 @@ function DataToColor:CreateFrames()
         local yy = floor(-y * (CELL_SIZE + CELL_SPACING))
         --DataToColor:Print(name, " ", xx, " ", yy)
 
-        f:SetPoint("TOPLEFT", xx, yy)
+        local offsetY = -4 -- 偏移4个像素, 在 mac 上窗口模式下标题栏会投下阴影, 跳过它
+        f:SetPoint("TOPLEFT", xx, yy + offsetY)
         f:SetHeight(CELL_SIZE)
         f:SetWidth(CELL_SIZE)
         f:SetBackdrop({

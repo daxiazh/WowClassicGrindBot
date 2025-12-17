@@ -55,19 +55,27 @@ class ScreenCaptureManager: NSObject, SCStreamOutput, SCStreamDelegate {
             
             print("ScreenCaptureKit: Found window: \(window.title ?? "Untitled") (\(window.frame.width)x\(window.frame.height))")
             
-            // 4. 配置流
+            // 4. 创建内容过滤器
+            let filter = SCContentFilter(desktopIndependentWindow: window)
+            // 根据 filter.contentRect 和 filter.pointPixelScale 计算像素尺寸
+            let logicalRect = filter.contentRect
+            let scale = CGFloat(filter.pointPixelScale)            
+            let pixelWidth  = logicalRect.width  * scale
+            let pixelHeight = logicalRect.height * scale
+            
+            // 5. 配置流
             let config = SCStreamConfiguration()
-            config.width = Int(window.frame.width)
-            config.height = Int(window.frame.height)
+            config.width = Int(pixelWidth)
+            config.height = Int(pixelHeight)
+            config.colorSpaceName = CGColorSpace.sRGB
             config.pixelFormat = kCVPixelFormatType_32BGRA  // BGRA 格式,与 WowScreenDXGI 一致
             config.minimumFrameInterval = CMTime(value: 1, timescale: 60)  // 60 FPS
-            config.queueDepth = 5  // 增加缓冲
+            config.queueDepth = 2  // 增加缓冲
             config.showsCursor = false  // 不显示鼠标
+            // config.captureResolution = .nominal
+            // config.scalesToFit = true
             
             print("ScreenCaptureKit: Creating filter and stream...")
-            
-            // 5. 创建内容过滤器
-            let filter = SCContentFilter(desktopIndependentWindow: window)
             
             // 6. 创建流
             stream = SCStream(filter: filter, configuration: config, delegate: self)

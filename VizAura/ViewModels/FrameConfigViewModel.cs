@@ -242,97 +242,22 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            // 1. 读取屏幕左上角像素,获取 DataFrameMeta (线程安全)
-            var pixel = screen.GetPixel(0, 0);
-            var meta = FrameConfig.GetMeta(pixel);
-
-            // 2. 检测是否进入配置模式
-            if (meta != DataFrameMeta.Empty)
+            // 1. 查找 RGB 定位序列
+            int redY = screen.FindRGBPatternInColumn0();
+            
+            if (redY == -1)
             {
-                // 首次进入配置模式
-                if (!IsConfigMode)
+                // 未找到 RGB 定位序列
+                if (IsRunning)
                 {
-                    logger.LogInformation($"检测到配置模式: {meta}");
-                    IsConfigMode = true;
-                    CurrentStep = "步骤 2: 配置模式已激活";
-                    currentMeta = meta;
+                    StatusMessage = "未检测到 DataToColor 插件\n请确保游戏已启动且插件已安装";
                 }
-
-                DetectedFrameCount = meta.Count;
-                StatusMessage = $"检测到 {meta.Count} 个数据帧\nSpacing: {meta.Spacing}, Size: {meta.Sizes}, Rows: {meta.Rows}";
-
-                // 3. 创建 DataFrames
-                screen.GetRectangle(out screenRect);
-                var size = meta.EstimatedSize(screenRect);
-                
-                if (!size.IsEmpty)
-                {
-                    // 裁剪 addon 区域 (线程安全)
-                    var cropped = screen.CloneAndCrop(size.Width, size.Height);
-                    
-                    lock (addonImageLock)
-                    {
-                        // 释放旧的 addon 图像
-                        currentAddonImage?.Dispose();
-                        currentAddonImage = cropped;
-                    }
-                    
-                    // 创建数据帧
-                    currentFrames = FrameConfig.CreateFrames(meta, cropped);
-                    
-                    // 创建 AddonBitmap (只创建一次)
-                    if (AddonBitmap == null || AddonBitmap.PixelSize.Width != cropped.Width || AddonBitmap.PixelSize.Height != cropped.Height)
-                    {
-                        AddonBitmap?.Dispose();
-                        AddonBitmap = new WriteableBitmap(
-                            new PixelSize(cropped.Width, cropped.Height),
-                            new Vector(96, 96),
-                            PixelFormat.Bgra8888,
-                            AlphaFormat.Premul
-                        );
-                    }
-                    
-                    logger.LogDebug($"创建了 {currentFrames.Length} 个数据帧");
-                }
+                return;
             }
-            else
-            {
-                // 退出配置模式
-                if (IsConfigMode)
-                {
-                    logger.LogInformation("退出配置模式");
-                    IsConfigMode = false;
-                    CurrentStep = "步骤 3: 验证数据";
-                    StatusMessage = $"再次输入 {Command} 已退出配置模式,正在验证数据...";
-                    
-                    // 4. 初始化 AddonDataProvider
-                    if (currentFrames.Length > 0)
-                    {
-                        screen.InitFrames(currentFrames);
-                    }
-                }
-
-                // 5. 尝试读取玩家信息
-                if (currentFrames.Length > 0 && currentMeta != DataFrameMeta.Empty)
-                {
-                    screen.UpdateData();
-                    
-                    if (TryResolveRaceAndClass(out UnitRace race, out UnitClass @class, out ClientVersion version))
-                    {
-                        PlayerInfo = $"{version.ToStringF()} {race.ToStringF()} {@class.ToStringF()}";
-                        CurrentStep = "步骤 4: 检测成功!";
-                        StatusMessage = $"检测到玩家: {PlayerInfo}\n可以保存配置了";
-                        CanSave = true;
-                        
-                        logger.LogInformation($"检测到玩家信息: {PlayerInfo}");
-                    }
-                    else
-                    {
-                        PlayerInfo = "读取中...";
-                        StatusMessage = "正在读取玩家数据...";
-                    }
-                }
-            }
+            
+            // 找到了 RGB 定位序列
+            logger.LogInformation($"找到 RGB 定位序列: Y={redY}");
+            StatusMessage = $"找到 RGB 定位序列\nY 坐标: {redY}";
         }
         catch (Exception ex)
         {
