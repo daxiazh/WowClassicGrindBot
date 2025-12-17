@@ -28,7 +28,6 @@ public partial class FrameConfigWindow : Window
     private void OnBitmapUpdated()
     {
         FullScreenImage?.InvalidateVisual();
-        AddonImage?.InvalidateVisual();
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)

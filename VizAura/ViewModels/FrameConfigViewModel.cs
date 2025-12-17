@@ -32,6 +32,7 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     private DataFrame[] currentFrames = [];
     private Rectangle screenRect;
     private Image<Bgra32>? currentScreenImage;
+    private bool waitingForNormalMode = false;
 
     /// <summary>
     /// 当前步骤提示
@@ -251,10 +252,31 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
             if (idx0Y == -1)
             {
                 // 未找到 RGB 定位序列
+                if (waitingForNormalMode)
+                {
+                    // 用户已切换回正常模式
+                    logger.LogInformation("检测到用户已切换回正常模式");
+                    StatusMessage = "✅ 已切换回正常模式";
+                    CurrentStep = "配置完成";
+                    
+                    // 停止配置并触发事件
+                    StopManual();
+                    OnConfigSaved?.Invoke();
+                    waitingForNormalMode = false;
+                    return;
+                }
+                
                 if (IsRunning)
                 {
                     StatusMessage = "未检测到 DataToColor 的配置模式, 请在 WOW 中输入\"/dc\"来激活配置模式";
                 }
+                return;
+            }
+            
+            // 如果正在等待正常模式,但仍然检测到 RGB 序列,继续等待
+            if (waitingForNormalMode)
+            {
+                StatusMessage = $"✅ 配置已保存!\n请在游戏中输入 {Command} 切换回正常模式";
                 return;
             }
             
@@ -336,6 +358,9 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
                 logger.LogInformation("✅ 成功检测到完整配置: Y={CenterY}, CellSize={CellSize}, Frames={Count}", 
                     idx0Y, cellSize, dataFrames.Length);
             StatusMessage = $"✅ 检测成功!\nFrames: {dataFrames.Length}, CellSize: {cellSize}";
+            
+            // 自动保存配置
+            SaveCommand.Execute(null);
         }
         catch (Exception ex)
         {
@@ -372,13 +397,13 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
             FrameConfig.Save(screenRect, addonVersion, currentMeta, currentFrames);
             
             logger.LogInformation($"Frame 配置已保存: {currentFrames.Length} 帧");
-            StatusMessage = "✅ 配置已保存!";
+            StatusMessage = $"✅ 配置已保存!\n请在游戏中输入 {Command} 切换回正常模式";
+            CurrentStep = "等待切换回正常模式";
             
-            // 停止配置
-            StopManual();
-            
-            // 触发事件
-            OnConfigSaved?.Invoke();
+            // 设置等待状态,不立即停止
+            waitingForNormalMode = true;
+            // 不调用 StopManual(),继续检测
+            // 不触发 OnConfigSaved,等待用户切换回正常模式
         }
         catch (Exception ex)
         {

@@ -194,24 +194,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             };
 
             // 使用 ShowDialog 模态显示
-            await window.ShowDialog(Avalonia.Application.Current?.ApplicationLifetime is 
+            await window.ShowDialog((Avalonia.Application.Current?.ApplicationLifetime is 
                 Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop 
                 ? desktop.MainWindow 
-                : null);
+                : null) ?? throw new InvalidOperationException());
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "打开 AddOns 配置对话框时出错");
         }
-    }
-
-    /// <summary>
-    /// 显示 Frame 配置命令
-    /// </summary>
-    [RelayCommand]
-    private void ShowFrameConfig()
-    {
-        logger.LogInformation("显示 Frame 配置");
-        // TODO: 打开 Frame 配置对话框
     }
 }

@@ -19,7 +19,6 @@
                 <MenuItem Header="🔄 重新验证环境" Command="{Binding RevalidateCommand}"/>
                 <Separator/>
                 <MenuItem Header="📦 AddOns 管理" Command="{Binding ShowAddonsConfigCommand}" IsEnabled="{Binding CanConfigureAddons}"/>
-                <MenuItem Header="🖼️ Frame 配置" Command="{Binding ShowFrameConfigCommand}" IsEnabled="False"/>
             </MenuItem>
             <MenuItem Header="帮助">
                 <MenuItem Header="关于 VizAura"/>

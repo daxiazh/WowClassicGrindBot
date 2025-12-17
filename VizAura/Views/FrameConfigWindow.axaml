@@ -34,40 +34,12 @@
                     <Border BorderBrush="#CCCCCC"
                             BorderThickness="1"
                             Background="#F5F5F5"
-                            Height="300"
+                            Height="480"
                             CornerRadius="4">
                         <Image x:Name="FullScreenImage"
                                Source="{Binding FullScreenBitmap}"
                                Stretch="Uniform"/>
                     </Border>
-                </StackPanel>
-            </Border>
-            
-            <!-- DataToColor 区域截图 -->
-            <Border BorderBrush="#E0E0E0"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="10">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="🎨 DataToColor 数据帧"
-                               FontSize="13"
-                               FontWeight="SemiBold"/>
-                    
-                    <Border BorderBrush="#CCCCCC"
-                            BorderThickness="1"
-                            Background="#F5F5F5"
-                            Height="100"
-                            CornerRadius="4">
-                        <Image x:Name="AddonImage"
-                               Source="{Binding AddonBitmap}"
-                               Stretch="Uniform"/>
-                    </Border>
-                    
-                    <TextBlock FontSize="10" Foreground="Gray" TextWrapping="Wrap">
-                        <Run Text="💡 提示: 在游戏中输入 "/>
-                        <Run Text="{Binding Command}" FontWeight="Bold" Foreground="#FF5722"/>
-                        <Run Text=" 进入配置模式,此处会显示数据帧"/>
-                    </TextBlock>
                 </StackPanel>
             </Border>
         </StackPanel>
