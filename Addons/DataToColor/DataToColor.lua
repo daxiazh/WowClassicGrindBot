@@ -213,8 +213,10 @@ end
 function DataToColor:StartSetup()
     if not SETUP_SEQUENCE then
         SETUP_SEQUENCE = true
+        DataToColor.SetMarkersVisible(true)
     else
         SETUP_SEQUENCE = false
+        DataToColor.SetMarkersVisible(false)
     end
 end
 
@@ -1046,26 +1048,34 @@ function DataToColor:CreateFrames()
     -- background frame
     local backgroundframe = genFrame("frame_bg", 0, 0)
     backgroundframe:SetHeight(FRAME_ROWS * (CELL_SIZE + CELL_SPACING))
-    backgroundframe:SetWidth(ceil(NUMBER_OF_FRAMES / FRAME_ROWS) * (CELL_SIZE + CELL_SPACING))
+    backgroundframe:SetWidth(ceil(NUMBER_OF_FRAMES / FRAME_ROWS + 1) * (CELL_SIZE + CELL_SPACING)) -- +1 是为了包含下面定位列的 Frame
     backgroundframe:SetFrameStrata("FULLSCREEN_DIALOG")
     backgroundframe:SetBackdropColor(0, 0, 0, 1)
 
     -- 显示定位标记, 在第0列, 按顺序显示 红,绿,蓝 三个 cell    
-    local markerFrame = genFrame("marker_red", 0, 0)
-    markerFrame:SetBackdropColor(1, 0, 0, 1)
-    markerFrame = genFrame("marker_green", 0, 1)
-    markerFrame:SetBackdropColor(0, 1, 0, 1)
-    markerFrame = genFrame("marker_blue", 0, 2)
-    markerFrame:SetBackdropColor(0, 0, 1, 1)
+    local markerFrames = {}
+    markerFrames.red = genFrame("marker_red", 0, 0)
+    markerFrames.red:SetBackdropColor(1, 0, 0, 1)
+    markerFrames.green = genFrame("marker_green", 0, 1)
+    markerFrames.green:SetBackdropColor(0, 1, 0, 1)
+    markerFrames.blue = genFrame("marker_blue", 0, 2)
+    markerFrames.blue:SetBackdropColor(0, 0, 1, 1)
     
-    -- Meta 信息及Idx[1]定位, 用于定位水平方向的每个 Frame 的位置与信息
+    local function _SetMarkersVisible(visible)
+        for _, frame in pairs(markerFrames) do
+            if visible then
+                frame:Show()
+            else
+                frame:Hide()
+            end
+        end
+    end
+
+    DataToColor.SetMarkersVisible = _SetMarkersVisible
+    _SetMarkersVisible(false) -- 默认隐藏
+    
+    -- 跳过第0列, 现在是定位标记了
     local offsetX = 1
-    local metaFrame = genFrame("meta_frame", offsetX, 0)
-    PixelIntFrame(metaFrame, CELL_SPACING * 10000000 + CELL_SIZE * 100000 + 1000 * FRAME_ROWS + NUMBER_OF_FRAMES)
-    offsetX = offsetX + 1
-    local idx1MarkFrame = genFrame("idx1_frame", offsetX, 0)
-    PixelIntFrame(idx1MarkFrame, 1)
-    offsetX = offsetX + 1        
     
     for frame = 0, NUMBER_OF_FRAMES - 1 do
         -- those are grid coordinates (1,2,3,4 by  1,2,3,4 etc), not pixel coordinates
