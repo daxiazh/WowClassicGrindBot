@@ -178,3 +178,5 @@ dotnet run -c Release
 - 部分功能需要特定的游戏设置（见 README.md "Configure the Wow Client" 部分）
 - 寻路缓存保存在 `Json/PathInfo/` 目录
 - Session 统计保存在 `Json/History/` 目录
+
+- 确保所有的服务都应该在 ConfigureServices() 中注册

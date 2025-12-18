@@ -66,14 +66,27 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         logger.LogInformation($"状态转换: {currentState} → {newState}");
 
-        // 退出旧状态
-        ExitCurrentState();
+        try
+        {
+            // 退出旧状态
+            ExitCurrentState();
 
-        // 更新状态
-        currentState = newState;
+            // 更新状态
+            currentState = newState;
 
-        // 进入新状态
-        EnterNewState(newState);
+            // 进入新状态
+            EnterNewState(newState);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "状态转换失败: {CurrentState} → {NewState}", currentState, newState);
+            
+            // 尝试回退到 Validating 状态
+            currentState = AppState.Validating;
+            CurrentViewModel = CreateValidationViewModel();
+            if (CurrentViewModel is ValidationViewModel vm)
+                vm.OnEnter();
+        }
     }
 
     /// <summary>
@@ -121,10 +134,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private ValidationViewModel CreateValidationViewModel()
     {
         var logger = serviceProvider.GetRequiredService<ILogger<ValidationViewModel>>();
+        var processInfoProvider = serviceProvider.GetRequiredService<VizAura.Services.IWowProcessInfoProvider>();
 
         return new ValidationViewModel(
             logger,
             serviceProvider,
+            processInfoProvider,
             (processInfo) =>
             {
                 currentProcessInfo = processInfo;
@@ -135,7 +150,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// 创建 WorkViewModel
+    /// 创建 WorkViewModel (DI 自动解析所有依赖)
     /// </summary>
     private WorkViewModel CreateWorkViewModel()
     {
@@ -144,8 +159,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             throw new InvalidOperationException("无法创建 WorkViewModel: 缺少 WoW 进程信息");
         }
 
-        var logger = serviceProvider.GetRequiredService<ILogger<WorkViewModel>>();
-        return new WorkViewModel(logger, currentProcessInfo);
+        // DI 自动解析所有依赖: WowProcessInfo → StartupClientVersion → DataConfig → CreatureDB/WorldMapAreaDB
+        return ActivatorUtilities.CreateInstance<WorkViewModel>(serviceProvider);
     }
 
     /// <summary>

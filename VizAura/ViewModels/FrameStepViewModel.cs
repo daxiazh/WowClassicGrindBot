@@ -6,6 +6,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using VizAura.Models;
+using VizAura.Services;
 
 namespace VizAura.ViewModels;
 
@@ -16,7 +17,7 @@ public sealed partial class FrameStepViewModel : ObservableObject, IStepViewMode
 {
     private readonly ILogger<FrameStepViewModel> logger;
     private readonly IServiceProvider serviceProvider;
-    private WowProcessInfo? currentProcessInfo;
+    private readonly IWowProcessInfoProvider processInfoProvider;
 
     public string StepId => "frame_configuration";
     public string StepName => "检查 Frame 配置";
@@ -59,22 +60,28 @@ public sealed partial class FrameStepViewModel : ObservableObject, IStepViewMode
     /// </summary>
     /// <param name="logger">日志记录器</param>
     /// <param name="serviceProvider">服务提供者</param>
-    public FrameStepViewModel(ILogger<FrameStepViewModel> logger, IServiceProvider serviceProvider)
+    /// <param name="processInfoProvider">WoW 进程信息提供者</param>
+    public FrameStepViewModel(
+        ILogger<FrameStepViewModel> logger,
+        IServiceProvider serviceProvider,
+        IWowProcessInfoProvider processInfoProvider)
     {
         this.logger = logger;
         this.serviceProvider = serviceProvider;
+        this.processInfoProvider = processInfoProvider;
     }
 
     /// <summary>
     /// 执行 Frame 配置检查
     /// </summary>
-    /// <param name="context">上一步传递的 WoW 进程信息</param>
+    /// <param name="context">上一步传递的 WoW 进程信息(已弃用,从 Provider 获取)</param>
     /// <param name="ct">取消令牌</param>
     /// <returns>检查结果</returns>
     public async Task<CheckResult> CheckAsync(WowProcessInfo? context, CancellationToken ct)
     {
-        var processInfo = context!;
-        currentProcessInfo = processInfo;
+        // 直接从 Provider 获取,不使用 context 参数
+        var processInfo = processInfoProvider.ProcessInfo 
+            ?? throw new InvalidOperationException("WowProcessInfo 未设置,请先完成进程检测步骤");
 
         var (success, message, frameCount, version, path) = await Task.Run(() =>
         {
@@ -124,15 +131,15 @@ public sealed partial class FrameStepViewModel : ObservableObject, IStepViewMode
         if (!success)
         {
             ErrorMessage = message;
-            CanConfigure = currentProcessInfo != null;
-            return new CheckResult(false, processInfo);
+            CanConfigure = processInfo != null;
+            return new CheckResult(false, null);
         }
 
         FrameCount = frameCount;
         AddonVersion = version;
         ConfigPath = path;
 
-        return new CheckResult(true, processInfo);
+        return new CheckResult(true, null);
     }
 
     /// <summary>
@@ -141,7 +148,8 @@ public sealed partial class FrameStepViewModel : ObservableObject, IStepViewMode
     [RelayCommand]
     private async Task OpenFrameConfig()
     {
-        if (currentProcessInfo == null)
+        var processInfo = processInfoProvider.ProcessInfo;
+        if (processInfo == null)
         {
             logger.LogWarning("无法打开 Frame 配置: 缺少 WoW 进程信息");
             return;
@@ -164,7 +172,7 @@ public sealed partial class FrameStepViewModel : ObservableObject, IStepViewMode
             // 2. 创建 FrameConfigViewModel
             var viewModelLogger = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
                 .GetRequiredService<ILogger<FrameConfigViewModel>>(serviceProvider);
-            var viewModel = new FrameConfigViewModel(viewModelLogger, currentProcessInfo, addonConfig);
+            var viewModel = new FrameConfigViewModel(viewModelLogger, processInfo, addonConfig);
 
             // 3. 创建并显示对话框
             var window = new Views.FrameConfigWindow
@@ -194,7 +202,8 @@ public sealed partial class FrameStepViewModel : ObservableObject, IStepViewMode
     /// </summary>
     private async Task RecheckAsync()
     {
-        if (currentProcessInfo == null)
+        var processInfo = processInfoProvider.ProcessInfo;
+        if (processInfo == null)
         {
             logger.LogWarning("无法重新验证: 缺少进程信息");
             return;
@@ -203,7 +212,7 @@ public sealed partial class FrameStepViewModel : ObservableObject, IStepViewMode
         try
         {
             Status = ValidationStatus.InProgress;
-            var result = await CheckAsync(currentProcessInfo, CancellationToken.None);
+            var result = await CheckAsync(null, CancellationToken.None);
             
             logger.LogInformation($"重新验证完成, 结果: {(result.Success ? "成功" : "失败")}");
         }

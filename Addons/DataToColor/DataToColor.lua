@@ -543,11 +543,38 @@ function DataToColor:CreateFrames()
         return 0
     end
 
+    -- 计算 CRC16-CCITT 校验码
+    -- 对 Frame[0] 到 Frame[NUMBER_OF_FRAMES - 2] 进行校验
+    local function CalculateCRC16()
+        local crc = 0xFFFF
+        local poly = 0x8005
+        
+        -- 遍历所有数据帧 (不包括最后一帧,最后一帧用于存储 CRC)
+        for i = 0, NUMBER_OF_FRAMES - 2 do
+            local value = valueCache[i] or 0
+            
+            -- 将 24bit 值拆成 3 个字节进行 CRC 计算
+            for shift = 16, 0, -8 do
+                local byte = band(rshift(value, shift), 0xFF)
+                crc = bit.bxor(crc, bit.lshift(byte, 8))
+                
+                for _ = 1, 8 do
+                    if band(crc, 0x8000) ~= 0 then
+                        crc = bit.bxor(bit.lshift(crc, 1), poly)
+                    else
+                        crc = bit.lshift(crc, 1)
+                    end
+                    crc = band(crc, 0xFFFF)
+                end
+            end
+        end
+        
+        return crc
+    end
+
     local function updateFrames()
         if not SETUP_SEQUENCE and globalTick >= initPhase then
             Pixel(int, 0, 0)
-            -- The final data square, reserved for additional metadata.
-            Pixel(int, 2000001, NUMBER_OF_FRAMES - 1)
 
             local x, y = DataToColor:GetPosition()
             Pixel(float, x * 10, 1)
@@ -995,7 +1022,10 @@ function DataToColor:CreateFrames()
             end
 
             UpdateGlobalTime()
-            -- NUMBER_OF_FRAMES - 1 reserved for validation
+            
+            -- 计算并写入 CRC16 校验码到最后一帧
+            local crc16 = CalculateCRC16()
+            Pixel(int, crc16, NUMBER_OF_FRAMES - 1)
 
             DataToColor:ConsumeChanges()
 
@@ -1010,6 +1040,10 @@ function DataToColor:CreateFrames()
                 end
             end
             UpdateGlobalTime()
+            
+            -- 初始化阶段也需要计算并写入 CRC16
+            local crc16 = CalculateCRC16()
+            Pixel(int, crc16, NUMBER_OF_FRAMES - 1)
         end
 
         if SETUP_SEQUENCE then

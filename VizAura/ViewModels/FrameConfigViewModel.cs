@@ -6,10 +6,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Core;
 using Microsoft.Extensions.Logging;
-using SharedLib;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
+using System.Threading;
 using VizAura.MacOS;
 using VizAura.Models;
 
@@ -22,17 +22,14 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
 {
     private readonly ILogger<FrameConfigViewModel> logger;
     private readonly WowScreenMacOS screen;
-    private readonly WowProcessInfo processInfo;
     private readonly AddonConfig addonConfig;
-    private readonly object addonImageLock = new();
     private DispatcherTimer? updateTimer;
-    private Image<Bgra32>? currentAddonImage;
 
     private DataFrameMeta currentMeta = DataFrameMeta.Empty;
     private DataFrame[] currentFrames = [];
     private Rectangle screenRect;
     private Image<Bgra32>? currentScreenImage;
-    private bool waitingForNormalMode = false;
+    private bool waitingForNormalMode;
 
     /// <summary>
     /// 当前步骤提示
@@ -115,7 +112,6 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
         AddonConfig addonConfig)
     {
         this.logger = logger;
-        this.processInfo = processInfo;
         this.addonConfig = addonConfig;
 
         // 获取窗口矩形 (从 macOS 获取窗口位置和大小)
@@ -187,16 +183,6 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
                 
                 // 触发 Bitmap 更新事件,让 View 调用 InvalidateVisual
                 OnBitmapUpdated?.Invoke();
-                
-                // 如果有 Addon 图像,也更新
-                lock (addonImageLock)
-                {
-                    if (currentAddonImage != null && AddonBitmap != null)
-                    {
-                        UpdateBitmapPixels(AddonBitmap, currentAddonImage);
-                        OnPropertyChanged(nameof(AddonBitmap));
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -232,11 +218,6 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
         StatusMessage = "手动配置已停止";
         currentScreenImage?.Dispose();
         currentScreenImage = null;
-
-        // 不停止定时器,继续预览
-        // updateTimer?.Stop();
-        // 不禁用屏幕捕获,继续预览
-        // screen.Enabled = false;
     }
 
     /// <summary>
@@ -413,40 +394,6 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// 更新 WriteableBitmap 的像素数据 (复用 Bitmap,不创建新对象)
-    /// </summary>
-    /// <param name="bitmap">WriteableBitmap</param>
-    /// <param name="image">ImageSharp 图像</param>
-    private static void UpdateBitmapPixels(WriteableBitmap bitmap, Image<Bgra32> image)
-    {
-        using var frameBuffer = bitmap.Lock();
-        
-        // 逐行复制像素数据
-        image.ProcessPixelRows(accessor =>
-        {
-            unsafe
-            {
-                var destPtr = (byte*)frameBuffer.Address;
-                var stride = frameBuffer.RowBytes;
-                
-                for (int y = 0; y < accessor.Height; y++)
-                {
-                    var row = accessor.GetRowSpan(y);
-                    fixed (Bgra32* srcPtr = row)
-                    {
-                        Buffer.MemoryCopy(
-                            srcPtr,
-                            destPtr + (y * stride),
-                            stride,
-                            row.Length * 4
-                        );
-                    }
-                }
-            }
-        });
-    }
-
-    /// <summary>
     /// 验证 Frame 间隔是否合法
     /// </summary>
     /// <param name="frames">Frame 数组</param>
@@ -483,34 +430,6 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     }
     
     /// <summary>
-    /// 尝试解析种族和职业
-    /// </summary>
-    /// <param name="race">种族</param>
-    /// <param name="class">职业</param>
-    /// <param name="version">客户端版本</param>
-    /// <returns>是否成功</returns>
-    private bool TryResolveRaceAndClass(out UnitRace race, out UnitClass @class, out ClientVersion version)
-    {
-        if (screen.Data.Length < 46)
-        {
-            race = 0;
-            @class = 0;
-            version = 0;
-            return false;
-        }
-
-        int value = screen.Data[46];
-
-        // RACE_ID * 10000 + CLASS_ID * 100 + ClientVersion
-        race = (UnitRace)(value / 10000);
-        @class = (UnitClass)(value / 100 % 100);
-        version = (ClientVersion)(value % 10);
-
-        return Enum.IsDefined(race) && Enum.IsDefined(@class) && Enum.IsDefined(version) &&
-            race != UnitRace.None && @class != UnitClass.None && version != ClientVersion.None;
-    }
-
-    /// <summary>
     /// 释放资源
     /// </summary>
     public void Dispose()
@@ -519,8 +438,7 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
         currentScreenImage = null;
         updateTimer?.Stop();
         screen.OnFrameUpdated -= OnScreenFrameUpdated;
-        screen?.Dispose();
-        currentAddonImage?.Dispose();
+        screen.Dispose();
         FullScreenBitmap?.Dispose();
         AddonBitmap?.Dispose();
     }

@@ -20,7 +20,9 @@
       "Bash(grep:*)",
       "Bash(find:*)",
       "Bash(dotnet run:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(rg:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

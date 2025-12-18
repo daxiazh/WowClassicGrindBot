@@ -10,7 +10,6 @@ namespace Core;
 public interface IAddonDataProvider : IDisposable
 {
     private static readonly Bgra32 firstColor = new(0, 0, 0, 255);
-    private static readonly Bgra32 lastColor = new(30, 132, 129, 255);
 
     void UpdateData();
     void InitFrames(DataFrame[] frames);
@@ -21,18 +20,16 @@ public interface IAddonDataProvider : IDisposable
     static void InternalUpdate(Image<Bgra32> bd,
         ReadOnlySpan<DataFrame> frames, Span<int> output)
     {
+        // 1. 首帧校验 (Frame[0] 必须为 0)
         ref readonly Bgra32 first = ref bd.DangerousGetPixelRowMemory(frames[0].Y)
             .Span[frames[0].X];
 
-        ref readonly Bgra32 last = ref bd.DangerousGetPixelRowMemory(frames[^1].Y)
-            .Span[frames[^1].X];
-
-        if (!first.Equals(firstColor) ||
-            !last.Equals(lastColor))
+        if (!first.Equals(firstColor))
         {
             return;
         }
 
+        // 2. 读取所有帧数据
         for (int i = 0; i < frames.Length; i++)
         {
             DataFrame frame = frames[i];
@@ -42,6 +39,54 @@ public interface IAddonDataProvider : IDisposable
 
             output[frame.Index] = pixel.B | (pixel.G << 8) | (pixel.R << 16);
         }
+
+        // 3. CRC16 校验 (Frame[0..n-2] 的数据 vs Frame[n-1] 的 CRC)
+        int receivedCRC = output[^1];
+        int calculatedCRC = CalculateCRC16(output[..^1]);
+
+        if (receivedCRC != calculatedCRC)
+        {
+            // CRC 校验失败,清空数据防止使用脏数据
+            output.Clear();
+            return;
+        }
+    }
+
+    /// <summary>
+    /// 计算 CRC16-CCITT 校验码 (公开方法供 AddonDataSnapshot 复用)
+    /// </summary>
+    /// <param name="data">待校验的数据</param>
+    /// <returns>CRC16 校验码</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    // ReSharper disable once InconsistentNaming
+    public static int CalculateCRC16(ReadOnlySpan<int> data)
+    {
+        ushort crc = 0xFFFF;
+        const ushort poly = 0x8005;
+
+        foreach (int value in data)
+        {
+            // 将 24bit 值拆成 3 个字节进行 CRC 计算
+            for (int shift = 16; shift >= 0; shift -= 8)
+            {
+                byte b = (byte)((value >> shift) & 0xFF);
+                crc ^= (ushort)(b << 8);
+
+                for (int i = 0; i < 8; i++)
+                {
+                    if ((crc & 0x8000) != 0)
+                    {
+                        crc = (ushort)((crc << 1) ^ poly);
+                    }
+                    else
+                    {
+                        crc <<= 1;
+                    }
+                }
+            }
+        }
+
+        return crc;
     }
 
     int GetInt(int index)

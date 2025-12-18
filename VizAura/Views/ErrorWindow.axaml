@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:VizAura.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="500"
+        x:Class="VizAura.Views.ErrorWindow"
+        x:DataType="vm:ErrorWindowViewModel"
+        Title="程序异常"
+        Width="700"
+        Height="500"
+        WindowStartupLocation="CenterScreen"
+        CanResize="True">
+
+    <Grid Margin="20" RowDefinitions="Auto,10,Auto,10,*,15,Auto">
+        <!-- 异常类型 -->
+        <StackPanel Grid.Row="0" Spacing="5">
+            <TextBlock Text="异常类型" FontSize="12" Foreground="Gray"/>
+            <TextBlock Text="{Binding ExceptionType}" 
+                       FontSize="16" 
+                       FontWeight="Bold"
+                       Foreground="#F44336"/>
+        </StackPanel>
+
+        <!-- 异常消息 -->
+        <StackPanel Grid.Row="2" Spacing="5">
+            <TextBlock Text="错误信息" FontSize="12" Foreground="Gray"/>
+            <TextBlock Text="{Binding Message}" 
+                       FontSize="14"
+                       TextWrapping="Wrap"
+                       Foreground="#333333"/>
+        </StackPanel>
+
+        <!-- 完整异常信息 (可滚动的文本框) -->
+        <Border Grid.Row="4" 
+                BorderBrush="#E0E0E0" 
+                BorderThickness="1" 
+                CornerRadius="4">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto">
+                <TextBox Text="{Binding FullText}" 
+                         IsReadOnly="True"
+                         Background="#F5F5F5"
+                         FontFamily="Consolas,Monaco,Courier New,monospace"
+                         FontSize="11"
+                         TextWrapping="NoWrap"
+                         BorderThickness="0"
+                         AcceptsReturn="True"/>
+            </ScrollViewer>
+        </Border>
+
+        <!-- 操作按钮 -->
+        <StackPanel Grid.Row="6" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right"
+                    Spacing="10">
+            <Button Content="📋 复制到剪贴板" 
+                    Command="{Binding CopyToClipboardCommand}"
+                    Background="#2196F3"
+                    Foreground="White"
+                    Padding="12,6"
+                    CornerRadius="4"/>
+            
+            <Button Content="关闭" 
+                    Click="CloseButton_Click"
+                    Background="#9E9E9E"
+                    Foreground="White"
+                    Padding="12,6"
+                    CornerRadius="4"/>
+        </StackPanel>
+    </Grid>
+</Window>

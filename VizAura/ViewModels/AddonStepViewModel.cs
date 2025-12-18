@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using VizAura.Models;
+using VizAura.Services;
 
 namespace VizAura.ViewModels;
 
@@ -17,8 +18,8 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
 {
     private readonly ILogger<AddonStepViewModel> logger;
     private readonly IServiceProvider serviceProvider;
+    private readonly IWowProcessInfoProvider processInfoProvider;
     private string currentWowPath = string.Empty;
-    private WowProcessInfo? currentProcessInfo;
 
     public string StepId => "addon_installation";
     public string StepName => "检查 DataToColor 插件";
@@ -58,22 +59,28 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
     /// </summary>
     /// <param name="logger">日志记录器</param>
     /// <param name="serviceProvider">服务提供者</param>
-    public AddonStepViewModel(ILogger<AddonStepViewModel> logger, IServiceProvider serviceProvider)
+    /// <param name="processInfoProvider">WoW 进程信息提供者</param>
+    public AddonStepViewModel(
+        ILogger<AddonStepViewModel> logger,
+        IServiceProvider serviceProvider,
+        IWowProcessInfoProvider processInfoProvider)
     {
         this.logger = logger;
         this.serviceProvider = serviceProvider;
+        this.processInfoProvider = processInfoProvider;
     }
 
     /// <summary>
     /// 执行插件检查
     /// </summary>
-    /// <param name="context">上一步传递的 WoW 进程信息</param>
+    /// <param name="context">上一步传递的 WoW 进程信息(已弃用,从 Provider 获取)</param>
     /// <param name="ct">取消令牌</param>
     /// <returns>检查结果</returns>
     public async Task<CheckResult> CheckAsync(WowProcessInfo? context, CancellationToken ct)
     {
-        var processInfo = context!;
-        currentProcessInfo = processInfo;
+        // 直接从 Provider 获取,不使用 context 参数
+        var processInfo = processInfoProvider.ProcessInfo 
+            ?? throw new InvalidOperationException("WowProcessInfo 未设置,请先完成进程检测步骤");
 
         SetContext(processInfo.WowPath);
 
@@ -134,13 +141,13 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
         if (!success)
         {
             ErrorMessage = message;
-            return new CheckResult(false, processInfo);
+            return new CheckResult(false, null);
         }
 
         AddonPath = addonPath;
         AddonVersion = version;
 
-        return new CheckResult(true, processInfo);
+        return new CheckResult(true, null);
     }
 
     /// <summary>
@@ -159,7 +166,8 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
     [RelayCommand]
     private async Task InstallAddon()
     {
-        if (currentProcessInfo == null)
+        var processInfo = processInfoProvider.ProcessInfo;
+        if (processInfo == null)
         {
             logger.LogWarning("无法打开插件配置:缺少 WoW 进程信息");
             return;
@@ -170,7 +178,7 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
             logger.LogInformation("打开插件配置窗口");
 
             // 创建 VizAuraWowProcess 适配器
-            var wowProcess = new VizAura.Services.VizAuraWowProcess(currentProcessInfo);
+            var wowProcess = new VizAura.Services.VizAuraWowProcess(processInfo);
 
             // 创建 AddonConfigurator
             var configuratorLogger = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
@@ -210,7 +218,8 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
     /// </summary>
     private async Task RecheckAsync()
     {
-        if (currentProcessInfo == null)
+        var processInfo = processInfoProvider.ProcessInfo;
+        if (processInfo == null)
         {
             logger.LogWarning("无法重新验证:缺少进程信息");
             return;
@@ -219,7 +228,7 @@ public sealed partial class AddonStepViewModel : ObservableObject, IStepViewMode
         try
         {
             Status = ValidationStatus.InProgress;
-            var result = await CheckAsync(currentProcessInfo, CancellationToken.None);
+            var result = await CheckAsync(null, CancellationToken.None);
             
             // CheckAsync 内部已经设置了 Status 和相关属性
             logger.LogInformation($"重新验证完成,结果: {(result.Success ? "成功" : "失败")}");

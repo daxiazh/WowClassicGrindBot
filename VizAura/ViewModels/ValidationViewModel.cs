@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using VizAura.Models;
+using VizAura.Services;
 
 namespace VizAura.ViewModels;
 
@@ -16,6 +17,7 @@ namespace VizAura.ViewModels;
 public sealed partial class ValidationViewModel : ViewModelBase
 {
     private readonly ILogger<ValidationViewModel> logger;
+    private readonly IWowProcessInfoProvider processInfoProvider;
     private readonly Action<WowProcessInfo> onAllValid;
     private CancellationTokenSource? cts;
 
@@ -42,13 +44,16 @@ public sealed partial class ValidationViewModel : ViewModelBase
     /// </summary>
     /// <param name="logger">日志记录器</param>
     /// <param name="serviceProvider">服务提供者</param>
+    /// <param name="processInfoProvider">WoW 进程信息提供者</param>
     /// <param name="onAllValid">所有验证通过时的回调</param>
     public ValidationViewModel(
         ILogger<ValidationViewModel> logger,
         IServiceProvider serviceProvider,
+        IWowProcessInfoProvider processInfoProvider,
         Action<WowProcessInfo> onAllValid)
     {
         this.logger = logger;
+        this.processInfoProvider = processInfoProvider;
         this.onAllValid = onAllValid;
 
         Steps.Add(serviceProvider.GetRequiredService<WowProcessStepViewModel>());
@@ -115,23 +120,8 @@ public sealed partial class ValidationViewModel : ViewModelBase
         // 如果已经全部成功
         if (CurrentStepIndex >= Steps.Count)
         {
-            // 收集上下文信息
-            WowProcessInfo? context = null;
-            foreach (var step in Steps)
-            {
-                if (step is WowProcessStepViewModel wowStep)
-                {
-                    context = new WowProcessInfo
-                    {
-                        Process = System.Diagnostics.Process.GetProcessById(wowStep.ProcessId),
-                        WindowId = wowStep.WindowId,
-                        WowPath = wowStep.WowPath ?? string.Empty,
-                        Version = new Version()
-                    };
-                    break;
-                }
-            }
-
+            // 直接从 Provider 获取 WowProcessInfo (第一步已经设置了)
+            var context = processInfoProvider.ProcessInfo;
             if (context != null)
             {
                 onAllValid(context);
@@ -141,25 +131,9 @@ public sealed partial class ValidationViewModel : ViewModelBase
 
         var currentStep = Steps[CurrentStepIndex];
         
-        // 收集上下文: 向前查找第一个 WowProcessStepViewModel
-        WowProcessInfo? previousContext = null;
-        for (int i = CurrentStepIndex - 1; i >= 0; i--)
-        {
-            if (Steps[i] is WowProcessStepViewModel wowStep)
-            {
-                previousContext = new WowProcessInfo
-                {
-                    Process = System.Diagnostics.Process.GetProcessById(wowStep.ProcessId),
-                    WindowId = wowStep.WindowId,
-                    WowPath = wowStep.WowPath ?? string.Empty,
-                    Version = new Version()
-                };
-                break;
-            }
-        }
-
+        // 不再需要手动收集 previousContext,各步骤直接从 Provider 获取
         currentStep.Status = ValidationStatus.InProgress;
-        var result = await currentStep.CheckAsync(previousContext, ct);
+        var result = await currentStep.CheckAsync(null, ct);
         currentStep.Status = result.Success ? ValidationStatus.Success : ValidationStatus.Failed;
 
         if (result.Success)
@@ -167,7 +141,7 @@ public sealed partial class ValidationViewModel : ViewModelBase
             // 成功后推进到下一步
             CurrentStepIndex++;
             UpdateExpandedState();
-            logger.LogInformation($"步骤 {CurrentStepIndex} 成功,推进到步骤 {CurrentStepIndex + 1}");
+            logger.LogInformation("步骤 {CurrentStepIndex} 成功,推进到步骤 {CurrentStepIndex}", CurrentStepIndex, CurrentStepIndex + 1);
         }
         else
         {

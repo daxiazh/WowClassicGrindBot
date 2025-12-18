@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using VizAura.MacOS;
 using VizAura.Models;
+using VizAura.Services;
 
 namespace VizAura.ViewModels;
 
@@ -17,14 +18,19 @@ namespace VizAura.ViewModels;
 public sealed partial class WowProcessStepViewModel : ObservableObject, IStepViewModel
 {
     private readonly ILogger<WowProcessStepViewModel> logger;
+    private readonly IWowProcessInfoProvider processInfoProvider;
 
     /// <summary>
     /// 构造函数
     /// </summary>
     /// <param name="logger">日志记录器</param>
-    public WowProcessStepViewModel(ILogger<WowProcessStepViewModel> logger)
+    /// <param name="processInfoProvider">WoW 进程信息提供者</param>
+    public WowProcessStepViewModel(
+        ILogger<WowProcessStepViewModel> logger,
+        IWowProcessInfoProvider processInfoProvider)
     {
         this.logger = logger;
+        this.processInfoProvider = processInfoProvider;
     }
 
     public string StepId => "wow_process";
@@ -68,6 +74,9 @@ public sealed partial class WowProcessStepViewModel : ObservableObject, IStepVie
 
     [ObservableProperty]
     private uint windowId;
+    
+    [ObservableProperty]
+    private Version version = new();
 
     public string SuccessMessage => $"✓ 进程: {ProcessName} (PID: {ProcessId})";
 
@@ -97,7 +106,9 @@ public sealed partial class WowProcessStepViewModel : ObservableObject, IStepVie
         ProcessId = process.Id;
         WowPath = path;
         WindowId = id;
+        Version = version;
 
+        // 直接设置到 Provider,供其他步骤使用
         var processInfo = new WowProcessInfo
         {
             Process = process,
@@ -105,6 +116,7 @@ public sealed partial class WowProcessStepViewModel : ObservableObject, IStepVie
             WowPath = path,
             Version = version
         };
+        processInfoProvider.SetProcessInfo(processInfo);
 
         return new CheckResult(true, processInfo);
     }
