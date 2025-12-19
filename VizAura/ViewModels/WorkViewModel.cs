@@ -67,104 +67,39 @@ public sealed partial class WorkViewModel : ViewModelBase
     [ObservableProperty] private int globalTime;
 
     /// <summary>
-    /// Hekili Primary 队列技能 1
+    /// Hekili 是否启用自动模式
     /// </summary>
-    [ObservableProperty] private int primarySpell1;
+    [ObservableProperty] private bool isHekiliAutoMode;
 
     /// <summary>
-    /// Hekili Primary 队列技能 2
+    /// Hekili 推荐技能 1 ID
     /// </summary>
-    [ObservableProperty] private int primarySpell2;
+    [ObservableProperty] private int spell1;
 
     /// <summary>
-    /// Hekili AOE 队列技能 1
+    /// Hekili 推荐技能 2 ID
     /// </summary>
-    [ObservableProperty] private int aoeSpell1;
+    [ObservableProperty] private int spell2;
 
     /// <summary>
-    /// Hekili AOE 队列技能 2
+    /// Hekili 推荐技能 1 名称
     /// </summary>
-    [ObservableProperty] private int aoeSpell2;
+    [ObservableProperty] private string spell1Name = "-";
 
     /// <summary>
-    /// Hekili Cooldowns 队列技能 1
+    /// Hekili 推荐技能 2 名称
     /// </summary>
-    [ObservableProperty] private int cooldownsSpell1;
+    [ObservableProperty] private string spell2Name = "-";
 
     /// <summary>
-    /// Hekili Cooldowns 队列技能 2
+    /// Hekili 推荐技能 1 冷却时间 (秒)
     /// </summary>
-    [ObservableProperty] private int cooldownsSpell2;
+    [ObservableProperty] private double spell1CooldownSec;
 
     /// <summary>
-    /// Hekili Defensives 队列技能 1
+    /// Hekili 推荐技能 2 冷却时间 (秒)
     /// </summary>
-    [ObservableProperty] private int defensivesSpell1;
-
-    /// <summary>
-    /// Hekili Defensives 队列技能 2
-    /// </summary>
-    [ObservableProperty] private int defensivesSpell2;
-
-    /// <summary>
-    /// Hekili Interrupts 队列技能 1
-    /// </summary>
-    [ObservableProperty] private int interruptsSpell1;
-
-    /// <summary>
-    /// Hekili Interrupts 队列技能 2
-    /// </summary>
-    [ObservableProperty] private int interruptsSpell2;
-
-    /// <summary>
-    /// Hekili Primary 队列技能 1 名称
-    /// </summary>
-    [ObservableProperty] private string primarySpell1Name = "-";
-
-    /// <summary>
-    /// Hekili Primary 队列技能 2 名称
-    /// </summary>
-    [ObservableProperty] private string primarySpell2Name = "-";
-
-    /// <summary>
-    /// Hekili AOE 队列技能 1 名称
-    /// </summary>
-    [ObservableProperty] private string aoeSpell1Name = "-";
-
-    /// <summary>
-    /// Hekili AOE 队列技能 2 名称
-    /// </summary>
-    [ObservableProperty] private string aoeSpell2Name = "-";
-
-    /// <summary>
-    /// Hekili Cooldowns 队列技能 1 名称
-    /// </summary>
-    [ObservableProperty] private string cooldownsSpell1Name = "-";
-
-    /// <summary>
-    /// Hekili Cooldowns 队列技能 2 名称
-    /// </summary>
-    [ObservableProperty] private string cooldownsSpell2Name = "-";
-
-    /// <summary>
-    /// Hekili Defensives 队列技能 1 名称
-    /// </summary>
-    [ObservableProperty] private string defensivesSpell1Name = "-";
-
-    /// <summary>
-    /// Hekili Defensives 队列技能 2 名称
-    /// </summary>
-    [ObservableProperty] private string defensivesSpell2Name = "-";
-
-    /// <summary>
-    /// Hekili Interrupts 队列技能 1 名称
-    /// </summary>
-    [ObservableProperty] private string interruptsSpell1Name = "-";
-
-    /// <summary>
-    /// Hekili Interrupts 队列技能 2 名称
-    /// </summary>
-    [ObservableProperty] private string interruptsSpell2Name = "-";
+    [ObservableProperty] private double spell2CooldownSec;
 
     /// <summary>
     /// CRC 校验状态 (true=正常, false=数据异常/被遮挡)
@@ -267,29 +202,32 @@ public sealed partial class WorkViewModel : ViewModelBase
                     TargetHealthMax = playerReader.TargetMaxHealth();
                     TargetHealthCurrent = playerReader.TargetHealth();
                     
-                    // 读取 Hekili 技能推荐
-                    PrimarySpell1 = hekiliReader.PrimarySpell1;
-                    PrimarySpell2 = hekiliReader.PrimarySpell2;
-                    AoeSpell1 = hekiliReader.AOESpell1;
-                    AoeSpell2 = hekiliReader.AOESpell2;
-                    CooldownsSpell1 = hekiliReader.CooldownsSpell1;
-                    CooldownsSpell2 = hekiliReader.CooldownsSpell2;
-                    DefensivesSpell1 = hekiliReader.DefensivesSpell1;
-                    DefensivesSpell2 = hekiliReader.DefensivesSpell2;
-                    InterruptsSpell1 = hekiliReader.InterruptsSpell1;
-                    InterruptsSpell2 = hekiliReader.InterruptsSpell2;
+                    // 读取 Hekili 自动模式状态
+                    IsHekiliAutoMode = hekiliReader.IsAutoModeEnabled;
                     
-                    // 查询并更新技能名称
-                    PrimarySpell1Name = GetSpellName(PrimarySpell1);
-                    PrimarySpell2Name = GetSpellName(PrimarySpell2);
-                    AoeSpell1Name = GetSpellName(AoeSpell1);
-                    AoeSpell2Name = GetSpellName(AoeSpell2);
-                    CooldownsSpell1Name = GetSpellName(CooldownsSpell1);
-                    CooldownsSpell2Name = GetSpellName(CooldownsSpell2);
-                    DefensivesSpell1Name = GetSpellName(DefensivesSpell1);
-                    DefensivesSpell2Name = GetSpellName(DefensivesSpell2);
-                    InterruptsSpell1Name = GetSpellName(InterruptsSpell1);
-                    InterruptsSpell2Name = GetSpellName(InterruptsSpell2);
+                    if (IsHekiliAutoMode)
+                    {
+                        // 读取技能 1
+                        Spell1 = hekiliReader.Spell1;
+                        Spell1Name = GetSpellName(Spell1);
+                        Spell1CooldownSec = hekiliReader.Spell1CD / 1000.0;
+                        
+                        // 读取技能 2
+                        Spell2 = hekiliReader.Spell2;
+                        Spell2Name = GetSpellName(Spell2);
+                        Spell2CooldownSec = hekiliReader.Spell2CD / 1000.0;
+                    }
+                    else
+                    {
+                        // 清空显示
+                        Spell1 = 0;
+                        Spell1Name = "-";
+                        Spell1CooldownSec = 0;
+                        
+                        Spell2 = 0;
+                        Spell2Name = "-";
+                        Spell2CooldownSec = 0;
+                    }
                     
                     GlobalTime = currentGlobalTime;
                     ShowAddonWarning = false;

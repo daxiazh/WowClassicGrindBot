@@ -5,7 +5,7 @@
 -- Trigger between emitting game data and frame location data
 local SETUP_SEQUENCE = false
 -- Total number of data frames generated
-local NUMBER_OF_FRAMES = 118
+local NUMBER_OF_FRAMES = 113  -- 原值118 → 113 (Hekili占用Frame[106-110], GlobalTime在111, CRC在112)
 -- Set number of pixel rows
 local FRAME_ROWS = 1
 -- Size of data squares in px. Varies based on rounding errors as well as dimension size. Use as a guideline, but not 100% accurate.
@@ -1071,30 +1071,26 @@ function DataToColor:CreateFrames()
                 Pixel(int, 0, 105)
             end
 
-            -- Hekili 推荐技能 (5队列×2技能 = 10 slots)
+            -- Hekili 推荐技能 (仅自动模式下的前2个技能)
             local hekiliRecs = DataToColor:GetHekiliRecommendations()
-            if hekiliRecs then
-                Pixel(int, hekiliRecs.Primary[1] and hekiliRecs.Primary[1].actionID or 0, 106)
-                Pixel(int, hekiliRecs.Primary[2] and hekiliRecs.Primary[2].actionID or 0, 107)
-                Pixel(int, hekiliRecs.AOE[1] and hekiliRecs.AOE[1].actionID or 0, 108)
-                Pixel(int, hekiliRecs.AOE[2] and hekiliRecs.AOE[2].actionID or 0, 109)
-                Pixel(int, hekiliRecs.Cooldowns[1] and hekiliRecs.Cooldowns[1].actionID or 0, 110)
-                Pixel(int, hekiliRecs.Cooldowns[2] and hekiliRecs.Cooldowns[2].actionID or 0, 111)
-                Pixel(int, hekiliRecs.Defensives[1] and hekiliRecs.Defensives[1].actionID or 0, 112)
-                Pixel(int, hekiliRecs.Defensives[2] and hekiliRecs.Defensives[2].actionID or 0, 113)
-                Pixel(int, hekiliRecs.Interrupts[1] and hekiliRecs.Interrupts[1].actionID or 0, 114)
-                Pixel(int, hekiliRecs.Interrupts[2] and hekiliRecs.Interrupts[2].actionID or 0, 115)
+            if hekiliRecs and #hekiliRecs > 0 then
+                -- Frame[106]: 状态标志 (1 = 自动模式已启用)
+                Pixel(int, 1, 106)
+                
+                -- Frame[107-108]: 技能 ID
+                Pixel(int, hekiliRecs[1] and hekiliRecs[1].actionID or 0, 107)
+                Pixel(int, hekiliRecs[2] and hekiliRecs[2].actionID or 0, 108)
+                
+                -- Frame[109-110]: 技能 CD (毫秒)
+                Pixel(int, hekiliRecs[1] and hekiliRecs[1].cooldown or 0, 109)
+                Pixel(int, hekiliRecs[2] and hekiliRecs[2].cooldown or 0, 110)
             else
+                -- Hekili 未启用或非自动模式,全部清零
                 Pixel(int, 0, 106)
                 Pixel(int, 0, 107)
                 Pixel(int, 0, 108)
                 Pixel(int, 0, 109)
                 Pixel(int, 0, 110)
-                Pixel(int, 0, 111)
-                Pixel(int, 0, 112)
-                Pixel(int, 0, 113)
-                Pixel(int, 0, 114)
-                Pixel(int, 0, 115)
             end
 
             UpdateGlobalTime()

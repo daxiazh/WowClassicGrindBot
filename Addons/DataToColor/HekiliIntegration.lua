@@ -6,61 +6,56 @@
 local Load = select(2, ...)
 local DataToColor = unpack(Load)
 
---- 获取 Hekili 所有队列的前两个推荐技能
--- 用于 DataToColor 编码,供 C# 端识别当前推荐的技能
--- @return table 包含5个队列的推荐技能数据,格式:
---   {
---     Primary = { {actionID, actionName, texture}, {actionID, actionName, texture} },
---     AOE = { ... },
---     Cooldowns = { ... },
---     Defensives = { ... },
---     Interrupts = { ... }
---   }
---   如果 Hekili 未加载或无推荐,对应队列返回空表 {}
+--- 获取 Hekili Primary 队列前2个推荐(仅自动模式)
+-- 用于 DataToColor 编码,供 C# 端识别当前推荐的技能及冷却时间
+-- @return table|nil 自动模式下返回技能列表,否则返回 nil
+--   格式: { {actionID=123, cooldown=1500}, {actionID=456, cooldown=0} }
+--   actionID: 技能 ID
+--   cooldown: 冷却时间(毫秒)
 function DataToColor:GetHekiliRecommendations()
-    local recommendations = {
-        Primary = {},
-        AOE = {},
-        Cooldowns = {},
-        Defensives = {},
-        Interrupts = {}
-    }
-    
     -- 检查 Hekili 是否加载
     if not _G.Hekili then
-        return recommendations
+        return nil
     end
     
-    -- 队列名称列表(对应 Hekili 的5个显示框架)
-    local queueNames = { "Primary", "AOE", "Cooldowns", "Defensives", "Interrupts" }
+    -- 检查是否为自动模式
+    local mode = _G.Hekili.DB.profile.toggles.mode.value
+    if mode ~= "automatic" then
+        return nil
+    end
     
-    -- 遍历每个队列
-    for _, queueName in ipairs(queueNames) do
-        local displayName = "HekiliDisplay" .. queueName
-        local frame = _G[displayName]
-        
-        -- 检查框架是否存在且有推荐数据
-        if frame and frame.Recommendations then
-            -- 获取前两个推荐
-            for i = 1, 2 do
-                local rec = frame.Recommendations[i]
-                if rec and rec.actionID then
-                    table.insert(recommendations[queueName], {
-                        actionID = rec.actionID or 0,
-                        actionName = rec.actionName or "",
-                        texture = rec.texture or 0
-                    })
-                end
+    -- 获取 Primary 显示框架 (通过 DisplayPool 访问)
+    local primaryFrame = _G.Hekili.DisplayPool and _G.Hekili.DisplayPool["Primary"]
+    if not primaryFrame or not primaryFrame.Recommendations then
+        return nil
+    end
+    
+    local recommendations = {}
+    
+    -- 获取前 2 个推荐
+    for i = 1, 2 do
+        local rec = primaryFrame.Recommendations[i]
+        if rec and rec.actionID then
+            -- 获取技能冷却时间
+            local start, duration = GetSpellCooldown(rec.actionID)
+            local cdRemains = 0
+            if start > 0 and duration > 0 then
+                cdRemains = math.max(0, (start + duration) - GetTime())
             end
+            
+            table.insert(recommendations, {
+                actionID = rec.actionID,
+                cooldown = math.floor(cdRemains * 1000)  -- 转为毫秒
+            })
         end
     end
     
     return recommendations
 end
 
---- 测试 Hekili 集成功能,打印所有队列的推荐技能
+--- 测试 Hekili 集成功能,打印推荐技能和 CD
 function DataToColor:TestHekili()
-    DataToColor:Print("=== Hekili 集成测试 ===")
+    DataToColor:Print("=== Hekili 集成测试 (自动模式) ===")
     
     -- 检查 Hekili 是否加载
     if not _G.Hekili then
@@ -70,27 +65,31 @@ function DataToColor:TestHekili()
     
     DataToColor:Print("|cff00ff00✓ Hekili 已加载|r (版本: " .. tostring(_G.Hekili.Version or "未知") .. ")")
     
+    -- 检查模式
+    local mode = _G.Hekili.DB.profile.toggles.mode.value
+    DataToColor:Print("当前模式: |cffffff00" .. tostring(mode) .. "|r")
+    
     -- 获取推荐
     local recs = self:GetHekiliRecommendations()
-    local queueNames = { "Primary", "AOE", "Cooldowns", "Defensives", "Interrupts" }
-    local hasAnyRec = false
     
-    for _, queueName in ipairs(queueNames) do
-        local queue = recs[queueName]
-        if queue and #queue > 0 then
-            hasAnyRec = true
-            DataToColor:Print("|cff00ff00" .. queueName .. " 队列:|r")
-            for i, rec in ipairs(queue) do
-                DataToColor:Print("  [" .. i .. "] ID:|cffffff00" .. rec.actionID .. "|r  名称:|cffff00ff" .. rec.actionName .. "|r  图标:" .. rec.texture)
-            end
+    if not recs then
+        DataToColor:Print("|cffff0000未获取到推荐|r")
+        if mode ~= "automatic" then
+            DataToColor:Print("  原因: Hekili 未处于自动模式")
+            DataToColor:Print("  提示: 切换到自动模式后重试")
         else
-            DataToColor:Print("|cff808080" .. queueName .. ": (无推荐)|r")
+            DataToColor:Print("  提示: 进入战斗或确保 Hekili Primary 队列有推荐")
         end
+        DataToColor:Print("=== 测试完成 ===")
+        return
     end
     
-    if not hasAnyRec then
-        DataToColor:Print("|cffff0000所有队列均无推荐|r")
-        DataToColor:Print("  提示: 进入战斗或确保 Hekili 界面显示")
+    DataToColor:Print("|cff00ff00✓ 获取到 " .. #recs .. " 个推荐技能|r")
+    
+    for i, rec in ipairs(recs) do
+        local cdSec = rec.cooldown / 1000
+        DataToColor:Print(string.format("  [%d] ID:|cffffff00%d|r  CD:|cffff00ff%.1fs|r (%dms)", 
+            i, rec.actionID, cdSec, rec.cooldown))
     end
     
     DataToColor:Print("=== 测试完成 ===")

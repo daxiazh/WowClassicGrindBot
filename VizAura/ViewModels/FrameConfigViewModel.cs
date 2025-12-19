@@ -395,6 +395,7 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// 验证 Frame 间隔是否合法
+    /// 使用相对误差验证以适应不同分辨率的 UI Scale
     /// </summary>
     /// <param name="frames">Frame 数组</param>
     /// <param name="meta">Meta 信息</param>
@@ -402,25 +403,34 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     /// <returns>是否合法</returns>
     private static bool ValidateFrameSpacing(DataFrame[] frames, DataFrameMeta meta, out string? error)
     {
-        if (frames.Length < 2)
+        if (frames.Length < 3)
         {
             error = null;
             return true;
         }
         
-        // 期望的间隔 = cellSize + spacing
-        int expectedSpacing = meta.Sizes + meta.Spacing;
+        // 计算实际平均间隔 (使用前几个 Frame 来估算)
+        int sampleCount = Math.Min(10, frames.Length - 1);
+        double totalSpacing = 0;
+        for (int i = 1; i <= sampleCount; i++)
+        {
+            totalSpacing += frames[i].X - frames[i - 1].X;
+        }
+        double avgSpacing = totalSpacing / sampleCount;
         
-        // 检查连续 frame 的 X 间隔
+        // 允许的相对误差: ±25% (适应不同 UI Scale)
+        const double maxRelativeError = 0.25;
+        double maxAllowedError = avgSpacing * maxRelativeError;
+        
+        // 检查所有 Frame 间隔是否一致
         for (int i = 2; i < frames.Length; i++)
         {
             int actualSpacing = frames[i].X - frames[i - 1].X;
-            int difference = Math.Abs(actualSpacing - expectedSpacing);
+            double deviation = Math.Abs(actualSpacing - avgSpacing);
             
-            // 允许 ±1 像素的误差
-            if (difference > 1)
+            if (deviation > maxAllowedError)
             {
-                error = $"Frame[{i}] 间隔异常\n期望:{expectedSpacing}, 实际:{actualSpacing}";
+                error = $"Frame[{i}] 间隔异常\n平均间隔:{avgSpacing:F1}, 实际:{actualSpacing}\n偏差:{deviation:F1} (允许:{maxAllowedError:F1})";
                 return false;
             }
         }

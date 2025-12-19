@@ -52,131 +52,95 @@
                 </StackPanel>
             </Border>
 
-            <!-- Hekili 技能推荐区域 -->
+            <!-- Hekili 技能推荐区域 (仅自动模式) -->
             <Border Background="#1E1E1E"
                     BorderBrush="#4CAF50"
                     BorderThickness="2"
                     CornerRadius="8"
-                    Padding="15">
+                    Padding="15"
+                    IsVisible="{Binding IsHekiliAutoMode}">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="⚔️ Hekili 技能推荐"
+                    <TextBlock Text="⚔️ Hekili 技能推荐 (自动模式)"
                                FontSize="16"
                                FontWeight="Bold"
                                Foreground="#4CAF50"
                                HorizontalAlignment="Center"/>
                     
-                    <!-- 5个队列横向排列 -->
-                    <Grid ColumnDefinitions="*,*,*,*,*">
-                        <!-- Primary 队列 -->
-                        <StackPanel Grid.Column="0" Spacing="8" HorizontalAlignment="Center">
-                            <TextBlock Text="Primary"
-                                       FontSize="12"
-                                       Foreground="#9E9E9E"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding PrimarySpell1Name}"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="#2196F3"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="120"/>
-                            <TextBlock Text="{Binding PrimarySpell2Name}"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="#2196F3"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="120"/>
-                        </StackPanel>
-
-                        <!-- AOE 队列 -->
-                        <StackPanel Grid.Column="1" Spacing="8" HorizontalAlignment="Center">
-                            <TextBlock Text="AOE"
-                                       FontSize="12"
-                                       Foreground="#9E9E9E"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding AoeSpell1Name}"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="#FF9800"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="120"/>
-                            <TextBlock Text="{Binding AoeSpell2Name}"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="#FF9800"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="120"/>
-                        </StackPanel>
-
-                        <!-- Cooldowns 队列 -->
-                        <StackPanel Grid.Column="2" Spacing="8" HorizontalAlignment="Center">
-                            <TextBlock Text="Cooldowns"
-                                       FontSize="12"
-                                       Foreground="#9E9E9E"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding CooldownsSpell1Name}"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="#9C27B0"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="120"/>
-                            <TextBlock Text="{Binding CooldownsSpell2Name}"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="#9C27B0"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="120"/>
-                        </StackPanel>
-
-                        <!-- Defensives 队列 -->
-                        <StackPanel Grid.Column="3" Spacing="8" HorizontalAlignment="Center">
-                            <TextBlock Text="Defensives"
-                                       FontSize="12"
-                                       Foreground="#9E9E9E"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding DefensivesSpell1Name}"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="#00BCD4"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="120"/>
-                            <TextBlock Text="{Binding DefensivesSpell2Name}"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="#00BCD4"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="120"/>
-                        </StackPanel>
-
-                        <!-- Interrupts 队列 -->
-                        <StackPanel Grid.Column="4" Spacing="8" HorizontalAlignment="Center">
-                            <TextBlock Text="Interrupts"
-                                       FontSize="12"
-                                       Foreground="#9E9E9E"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding InterruptsSpell1Name}"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="#F44336"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="120"/>
-                            <TextBlock Text="{Binding InterruptsSpell2Name}"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Foreground="#F44336"
-                                       HorizontalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="120"/>
-                        </StackPanel>
-                    </Grid>
+                    <!-- 技能 1 -->
+                    <Border Background="#2A2A2A"
+                            BorderBrush="#2196F3"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <TextBlock Grid.Column="0"
+                                       Text="1️⃣"
+                                       FontSize="20"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0"/>
+                            <StackPanel Grid.Column="1" Spacing="3">
+                                <TextBlock Text="{Binding Spell1Name}"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="#2196F3"/>
+                                <TextBlock FontSize="13"
+                                           Foreground="#9E9E9E">
+                                    <Run Text="CD: "/>
+                                    <Run Text="{Binding Spell1CooldownSec, StringFormat={}{0:F1}}"
+                                         Foreground="#FF9800"/>
+                                    <Run Text=" 秒"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- 技能 2 -->
+                    <Border Background="#2A2A2A"
+                            BorderBrush="#2196F3"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <TextBlock Grid.Column="0"
+                                       Text="2️⃣"
+                                       FontSize="20"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0"/>
+                            <StackPanel Grid.Column="1" Spacing="3">
+                                <TextBlock Text="{Binding Spell2Name}"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="#2196F3"/>
+                                <TextBlock FontSize="13"
+                                           Foreground="#9E9E9E">
+                                    <Run Text="CD: "/>
+                                    <Run Text="{Binding Spell2CooldownSec, StringFormat={}{0:F1}}"
+                                         Foreground="#FF9800"/>
+                                    <Run Text=" 秒"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+            
+            <!-- Hekili 未启用或非自动模式警告 -->
+            <Border Background="#424242"
+                    BorderBrush="#757575"
+                    BorderThickness="2"
+                    CornerRadius="8"
+                    Padding="15"
+                    IsVisible="{Binding !IsHekiliAutoMode}">
+                <StackPanel Spacing="5" HorizontalAlignment="Center">
+                    <TextBlock Text="⚠️ Hekili 自动模式未启用"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="#FFC107"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="请在 Hekili 中切换到「自动模式」以查看技能推荐"
+                               FontSize="12"
+                               Foreground="#9E9E9E"
+                               HorizontalAlignment="Center"/>
                 </StackPanel>
             </Border>
 
