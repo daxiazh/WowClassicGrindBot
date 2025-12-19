@@ -160,6 +160,11 @@ public sealed partial class WorkViewModel : ViewModelBase
     [ObservableProperty] private string addonWarningMessage = string.Empty;
 
     /// <summary>
+    /// VizAura 自动施法是否启用 (从 Lua 端读取)
+    /// </summary>
+    [ObservableProperty] private bool isAutoCastEnabled;
+
+    /// <summary>
     /// 构造函数 - 所有依赖通过 DI 注入
     /// 依赖解析链:
     ///   WorkViewModel (Scoped)
@@ -253,6 +258,9 @@ public sealed partial class WorkViewModel : ViewModelBase
 
                     // 读取 Hekili 自动模式状态
                     IsHekiliAutoMode = hekiliReader.IsAutoModeEnabled;
+                    
+                    // 读取 VizAura 自动施法开关状态
+                    IsAutoCastEnabled = addonBits.VizAuraAutoCast_Enabled();
 
                     if (IsHekiliAutoMode)
                     {

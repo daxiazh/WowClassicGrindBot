@@ -60,11 +60,31 @@
                     Padding="15"
                     IsVisible="{Binding IsHekiliAutoMode}">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="⚔️ Hekili 技能推荐 (自动模式)"
-                               FontSize="16"
-                               FontWeight="Bold"
-                               Foreground="#4CAF50"
-                               HorizontalAlignment="Center"/>
+                    <!-- 标题栏：显示自动施法状态 -->
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <TextBlock Grid.Column="0"
+                                   Text="⚔️ Hekili 技能推荐 (自动模式)"
+                                   FontSize="16"
+                                   FontWeight="Bold"
+                                   Foreground="#4CAF50"
+                                   VerticalAlignment="Center"/>
+                        
+                        <!-- 自动施法状态指示器 -->
+                        <Border Grid.Column="2"
+                                CornerRadius="4"
+                                Padding="8,4"
+                                VerticalAlignment="Center">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding IsAutoCastEnabled, Converter={StaticResource BoolToColorConverter}}"/>
+                            </Border.Background>
+                            <TextBlock FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="White">
+                                <Run Text="自动施法: "/>
+                                <Run Text="{Binding IsAutoCastEnabled, Converter={StaticResource BoolToStringConverter}}"/>
+                            </TextBlock>
+                        </Border>
+                    </Grid>
                     
                     <!-- 技能 1 -->
                     <Border Background="#2A2A2A"

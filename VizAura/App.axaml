@@ -11,6 +11,8 @@
         <converters:EnumEqualityConverter x:Key="EnumEqualityConverter"/>
         <converters:StatusBackgroundConverter x:Key="StatusBackgroundConverter"/>
         <converters:StatusBorderBrushConverter x:Key="StatusBorderBrushConverter"/>
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
     </Application.Resources>
 
     <Application.DataTemplates>
