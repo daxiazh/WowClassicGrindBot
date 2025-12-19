@@ -1,6 +1,8 @@
-﻿using Newtonsoft.Json;
+using System;
+using Newtonsoft.Json;
 
 using System.IO;
+using System.Reflection;
 
 using static Newtonsoft.Json.JsonConvert;
 using static System.IO.File;
@@ -15,7 +17,7 @@ public static class DataConfigMeta
 public sealed class DataConfig
 {
     public int Version = DataConfigMeta.Version;
-    public string Root { get; set; } = Join("..", "json");
+    public string Root { get; set; } = GetDefaultRootPath();
 
     [JsonIgnore]
     public string Class => Join(Root, "class");
@@ -97,5 +99,46 @@ public sealed class DataConfig
         {
             Directory.Delete(directory, true);
         }
+    }
+
+    private static string GetDefaultRootPath()
+    {
+        // 尝试多种方式查找数据目录
+        
+        // 1. 获取当前程序集位置
+        string assemblyLocation = Assembly.GetExecutingAssembly().Location;
+        if (!string.IsNullOrEmpty(assemblyLocation))
+        {
+            string assemblyDir = GetDirectoryName(assemblyLocation);
+            string jsonPath = Join(assemblyDir, "json");
+            if (Directory.Exists(jsonPath))
+            {
+                return jsonPath;
+            }
+            
+            // 检查上级目录
+            string parentJsonPath = Join(GetDirectoryName(assemblyDir), "json");
+            if (Directory.Exists(parentJsonPath))
+            {
+                return parentJsonPath;
+            }
+        }
+        
+        // 2. 检查当前工作目录
+        string currentDirJsonPath = Join(Environment.CurrentDirectory, "json");
+        if (Directory.Exists(currentDirJsonPath))
+        {
+            return currentDirJsonPath;
+        }
+        
+        // 3. 检查当前工作目录的父目录
+        string parentDirJsonPath = Join(GetDirectoryName(Environment.CurrentDirectory), "json");
+        if (Directory.Exists(parentDirJsonPath))
+        {
+            return parentDirJsonPath;
+        }
+        
+        // 4. 回退到默认相对路径
+        return Join("..", "json");
     }
 }

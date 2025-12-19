@@ -269,6 +269,9 @@ public sealed class WowScreenMacOS
     {
         lock (frameLock)
         {
+            if (screenImage == null)
+                return (-1, 0);  // 未找到
+            
             int maxY = Math.Min(screenImage!.Height / 10, 100);
             
             // screenImage.SaveAsBmp("screen.bmp"); // 调试代码
