@@ -140,6 +140,10 @@ static class Program
         // 生命周期: 一次检测会话一个读取器实例,依赖 IAddonDataProvider
         services.AddScoped<PlayerReader>();
         
+        // HekiliReader - Hekili 技能推荐读取器
+        // 生命周期: 一次检测会话一个读取器实例,依赖 IAddonDataProvider
+        services.AddScoped<HekiliReader>();
+        
         // WorkViewModel - 工作状态的 ViewModel
         // 生命周期: 一次检测会话一个实例,在 Running 状态时活跃
         services.AddScoped<WorkViewModel>();
@@ -155,6 +159,7 @@ static class Program
         services.AddSingleton<WorldMapAreaDB>();
         services.AddSingleton<FactionTemplateDB>();
         services.AddSingleton<AreaDB>();
+        services.AddSingleton<SpellDB>();
         
         // Addon 组件服务 - 无状态工具类,全局共享
         // 说明: AddonBits/SpellInRange/Stance 只是数据解析工具,不持有状态

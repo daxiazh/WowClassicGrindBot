@@ -12,6 +12,8 @@ local FRAME_ROWS = 1
 local CELL_SIZE = 5 -- 1-9
 -- Spacing in px between data squares.
 local CELL_SPACING = 0 -- 0 or 1
+-- 调试模式: 在屏幕上显示数据 (生产环境应设为 false 以节省性能)
+local DEBUG_DISPLAY = false
 
 local GLOBAL_TIME_CELL = NUMBER_OF_FRAMES - 2
 
@@ -496,6 +498,7 @@ end
 -- Function to mass generate all of the initial frames for the pixel reader
 function DataToColor:CreateFrames()
     local valueCache = {}
+    local colorCache = {}  -- 存储每个 Frame 的 RGB 字节数组,用于 CRC 计算
     local frames = {}
     local updateCount = {}
 
@@ -512,12 +515,27 @@ function DataToColor:CreateFrames()
         return int(self, floor(f * 100000))
     end
 
-    local function Pixel(func, value, slot)
+    local function Pixel(func, value, slot)        
+        -- 根据 valueCache 判断是否需要更新屏幕
         if valueCache[slot] ~= value then
             valueCache[slot] = value
+            
+            -- 调用编码函数获取 RGBA 值
+            local r, g, b, a = func(self, value)
+            
+            -- 转换为 RGB 字节 (0-255)
+            local R = floor(r * 255)
+            local G = floor(g * 255)
+            local B = floor(b * 255)
+            
+            -- 总是更新 colorCache (原地更新,避免 GC)
+            local rgb = colorCache[slot]
+            rgb[1] = R
+            rgb[2] = G
+            rgb[3] = B
+            
             local frame = frames[slot]
-            frame:SetBackdropColor(func(self, value))
-
+            frame:SetBackdropColor(r, g, b, a)
             updateCount[slot] = updateCount[slot] + 1
             return true
         end
@@ -544,18 +562,17 @@ function DataToColor:CreateFrames()
     end
 
     -- 计算 CRC16-CCITT 校验码
-    -- 对 Frame[0] 到 Frame[NUMBER_OF_FRAMES - 2] 进行校验
+    -- 对 Frame[0] 到 Frame[NUMBER_OF_FRAMES - 2] 的 RGB 字节进行校验
     local function CalculateCRC16()
         local crc = 0xFFFF
         local poly = 0x8005
         
         -- 遍历所有数据帧 (不包括最后一帧,最后一帧用于存储 CRC)
         for i = 0, NUMBER_OF_FRAMES - 2 do
-            local value = valueCache[i] or 0
+            local rgb = colorCache[i]
             
-            -- 将 24bit 值拆成 3 个字节进行 CRC 计算
-            for shift = 16, 0, -8 do
-                local byte = band(rshift(value, shift), 0xFF)
+            -- 直接遍历 R, G, B 三个字节
+            for _, byte in ipairs(rgb) do
                 crc = bit.bxor(crc, bit.lshift(byte, 8))
                 
                 for _ = 1, 8 do
@@ -570,6 +587,65 @@ function DataToColor:CreateFrames()
         end
         
         return crc
+    end
+    
+    -- 创建数据显示文本框 (仅调试模式)
+    local UpdateDataDisplay
+    if DEBUG_DISPLAY then
+        local dataDisplayFrame = CreateFrame("Frame", "DataToColorDataDisplay", UIParent)
+        dataDisplayFrame:SetPoint("TOPLEFT", 10, -50)
+        dataDisplayFrame:SetWidth(1200)
+        dataDisplayFrame:SetHeight(800)
+        dataDisplayFrame:SetFrameStrata("TOOLTIP")
+            
+        local dataText = dataDisplayFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        dataText:SetPoint("TOPLEFT", 8, -8)
+        dataText:SetJustifyH("LEFT")
+        dataText:SetJustifyV("TOP")
+        dataText:SetTextColor(1, 1, 0, 1)  -- 黄色,更醒目
+        dataText:SetText("Data: -----")
+        
+        UpdateDataDisplay = function()
+            -- 每行显示 10 个值
+            local lines = {}
+            
+            -- 添加玩家位置调试信息
+            local x, y = DataToColor:GetPosition()
+            if x and y then
+                local encodedX = floor(x * 10 * 100000)
+                local encodedY = floor(y * 10 * 100000)
+                table.insert(lines, string.format("Player Pos: x=%.6f y=%.6f", x, y))
+                table.insert(lines, string.format("Encoded: X=%d Y=%d", encodedX, encodedY))
+                table.insert(lines, string.format("valueCache[1]=%.2f [2]=%.2f", valueCache[1] or 0, valueCache[2] or 0))
+                
+                -- 显示 colorCache (RGB 字节)
+                local rgb1 = colorCache[1]
+                local rgb2 = colorCache[2]
+                if rgb1 and rgb2 then
+                    local color1 = rgb1[3] + rgb1[2] * 256 + rgb1[1] * 65536
+                    local color2 = rgb2[3] + rgb2[2] * 256 + rgb2[1] * 65536
+                    table.insert(lines, string.format("colorCache[1]=%d [2]=%d", color1, color2))
+                end
+                table.insert(lines, "")
+            end
+            
+            for i = 0, NUMBER_OF_FRAMES - 1 do
+                if i % 10 == 0 then
+                    table.insert(lines, "")
+                end
+                local value = valueCache[i] or 0
+                lines[#lines] = lines[#lines] .. string.format("%d,", value)
+            end
+            
+            -- 添加 CRC 信息
+            local crc16 = CalculateCRC16()
+            table.insert(lines, string.format("CRC: %d", crc16))
+            
+            dataText:SetText(table.concat(lines, "\n"))
+        end
+    else
+        -- 生产模式: 空函数,零性能损耗
+        UpdateDataDisplay = function() end
     end
 
     local function updateFrames()
@@ -1026,6 +1102,9 @@ function DataToColor:CreateFrames()
             -- 计算并写入 CRC16 校验码到最后一帧
             local crc16 = CalculateCRC16()
             Pixel(int, crc16, NUMBER_OF_FRAMES - 1)
+            
+            -- 更新数据显示
+            UpdateDataDisplay()
 
             DataToColor:ConsumeChanges()
 
@@ -1044,6 +1123,9 @@ function DataToColor:CreateFrames()
             -- 初始化阶段也需要计算并写入 CRC16
             local crc16 = CalculateCRC16()
             Pixel(int, crc16, NUMBER_OF_FRAMES - 1)
+            
+            -- 更新数据显示
+            UpdateDataDisplay()
         end
 
         if SETUP_SEQUENCE then
@@ -1117,6 +1199,7 @@ function DataToColor:CreateFrames()
         local x = floor(frame / FRAME_ROWS) + offsetX -- 偏移列, 因为第 0,1,2 列现在是定位标记
         frames[frame] = genFrame("frame_" .. tostring(frame), x, y)
         valueCache[frame] = -1
+        colorCache[frame] = {0, 0, 0}  -- 预分配 RGB 字节数组,避免 GC
         updateCount[frame] = 0
     end
 

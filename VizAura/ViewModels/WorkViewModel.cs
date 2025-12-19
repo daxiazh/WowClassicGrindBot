@@ -4,7 +4,6 @@ using CommunityToolkit.Mvvm.Input;
 using Core;
 using Core.Database;
 using Microsoft.Extensions.Logging;
-using SharedLib;
 using System.IO;
 using VizAura.MacOS;
 using VizAura.Models;
@@ -24,6 +23,8 @@ public sealed partial class WorkViewModel : ViewModelBase
     private readonly WowScreenMacOS screen;
     private readonly AddonDataSnapshot addonDataSnapshot;
     private readonly PlayerReader playerReader;
+    private readonly HekiliReader hekiliReader;
+    private readonly SpellDB spellDB;
 
     public string StatusMessage => $"正在监控进程: {processInfo.ProcessName} (PID: {processInfo.ProcessId})";
 
@@ -66,6 +67,106 @@ public sealed partial class WorkViewModel : ViewModelBase
     [ObservableProperty] private int globalTime;
 
     /// <summary>
+    /// Hekili Primary 队列技能 1
+    /// </summary>
+    [ObservableProperty] private int primarySpell1;
+
+    /// <summary>
+    /// Hekili Primary 队列技能 2
+    /// </summary>
+    [ObservableProperty] private int primarySpell2;
+
+    /// <summary>
+    /// Hekili AOE 队列技能 1
+    /// </summary>
+    [ObservableProperty] private int aoeSpell1;
+
+    /// <summary>
+    /// Hekili AOE 队列技能 2
+    /// </summary>
+    [ObservableProperty] private int aoeSpell2;
+
+    /// <summary>
+    /// Hekili Cooldowns 队列技能 1
+    /// </summary>
+    [ObservableProperty] private int cooldownsSpell1;
+
+    /// <summary>
+    /// Hekili Cooldowns 队列技能 2
+    /// </summary>
+    [ObservableProperty] private int cooldownsSpell2;
+
+    /// <summary>
+    /// Hekili Defensives 队列技能 1
+    /// </summary>
+    [ObservableProperty] private int defensivesSpell1;
+
+    /// <summary>
+    /// Hekili Defensives 队列技能 2
+    /// </summary>
+    [ObservableProperty] private int defensivesSpell2;
+
+    /// <summary>
+    /// Hekili Interrupts 队列技能 1
+    /// </summary>
+    [ObservableProperty] private int interruptsSpell1;
+
+    /// <summary>
+    /// Hekili Interrupts 队列技能 2
+    /// </summary>
+    [ObservableProperty] private int interruptsSpell2;
+
+    /// <summary>
+    /// Hekili Primary 队列技能 1 名称
+    /// </summary>
+    [ObservableProperty] private string primarySpell1Name = "-";
+
+    /// <summary>
+    /// Hekili Primary 队列技能 2 名称
+    /// </summary>
+    [ObservableProperty] private string primarySpell2Name = "-";
+
+    /// <summary>
+    /// Hekili AOE 队列技能 1 名称
+    /// </summary>
+    [ObservableProperty] private string aoeSpell1Name = "-";
+
+    /// <summary>
+    /// Hekili AOE 队列技能 2 名称
+    /// </summary>
+    [ObservableProperty] private string aoeSpell2Name = "-";
+
+    /// <summary>
+    /// Hekili Cooldowns 队列技能 1 名称
+    /// </summary>
+    [ObservableProperty] private string cooldownsSpell1Name = "-";
+
+    /// <summary>
+    /// Hekili Cooldowns 队列技能 2 名称
+    /// </summary>
+    [ObservableProperty] private string cooldownsSpell2Name = "-";
+
+    /// <summary>
+    /// Hekili Defensives 队列技能 1 名称
+    /// </summary>
+    [ObservableProperty] private string defensivesSpell1Name = "-";
+
+    /// <summary>
+    /// Hekili Defensives 队列技能 2 名称
+    /// </summary>
+    [ObservableProperty] private string defensivesSpell2Name = "-";
+
+    /// <summary>
+    /// Hekili Interrupts 队列技能 1 名称
+    /// </summary>
+    [ObservableProperty] private string interruptsSpell1Name = "-";
+
+    /// <summary>
+    /// Hekili Interrupts 队列技能 2 名称
+    /// </summary>
+    [ObservableProperty] private string interruptsSpell2Name = "-";
+
+    /// <summary>
     /// CRC 校验状态 (true=正常, false=数据异常/被遮挡)
     /// </summary>
     [ObservableProperty] private bool crcValid = true;
@@ -101,18 +202,25 @@ public sealed partial class WorkViewModel : ViewModelBase
     /// <param name="screen">macOS 屏幕捕获实例 (Scoped)</param>
     /// <param name="addonDataSnapshot">Addon 数据快照 (Scoped)</param>
     /// <param name="playerReader">玩家数据读取器 (Scoped)</param>
+    /// <param name="hekiliReader">Hekili 数据读取器 (Scoped)</param>
+    /// <param name="spellDB">技能数据库 (Singleton)</param>
     public WorkViewModel(
         ILogger<WorkViewModel> logger,
         WowProcessInfo processInfo,
         WowScreenMacOS screen,
         AddonDataSnapshot addonDataSnapshot,
-        PlayerReader playerReader)
+        PlayerReader playerReader,
+        HekiliReader hekiliReader,
+        SpellDB spellDB)
     {
+        screen.Enabled = true;
         this.logger = logger;
         this.processInfo = processInfo;
         this.screen = screen;
         this.addonDataSnapshot = addonDataSnapshot;
         this.playerReader = playerReader;
+        this.hekiliReader = hekiliReader;
+        this.spellDB = spellDB;
     }
 
     /// <summary>
@@ -121,8 +229,6 @@ public sealed partial class WorkViewModel : ViewModelBase
     /// </summary>
     public void OnEnter()
     {
-        logger.LogInformation("进入 Running 状态");
-        
         // 订阅帧更新事件 (每次 ScreenCaptureKit 捕获到新帧时触发)
         screen.OnFrameUpdated += OnScreenFrameUpdated;
     }
@@ -161,6 +267,30 @@ public sealed partial class WorkViewModel : ViewModelBase
                     TargetHealthMax = playerReader.TargetMaxHealth();
                     TargetHealthCurrent = playerReader.TargetHealth();
                     
+                    // 读取 Hekili 技能推荐
+                    PrimarySpell1 = hekiliReader.PrimarySpell1;
+                    PrimarySpell2 = hekiliReader.PrimarySpell2;
+                    AoeSpell1 = hekiliReader.AOESpell1;
+                    AoeSpell2 = hekiliReader.AOESpell2;
+                    CooldownsSpell1 = hekiliReader.CooldownsSpell1;
+                    CooldownsSpell2 = hekiliReader.CooldownsSpell2;
+                    DefensivesSpell1 = hekiliReader.DefensivesSpell1;
+                    DefensivesSpell2 = hekiliReader.DefensivesSpell2;
+                    InterruptsSpell1 = hekiliReader.InterruptsSpell1;
+                    InterruptsSpell2 = hekiliReader.InterruptsSpell2;
+                    
+                    // 查询并更新技能名称
+                    PrimarySpell1Name = GetSpellName(PrimarySpell1);
+                    PrimarySpell2Name = GetSpellName(PrimarySpell2);
+                    AoeSpell1Name = GetSpellName(AoeSpell1);
+                    AoeSpell2Name = GetSpellName(AoeSpell2);
+                    CooldownsSpell1Name = GetSpellName(CooldownsSpell1);
+                    CooldownsSpell2Name = GetSpellName(CooldownsSpell2);
+                    DefensivesSpell1Name = GetSpellName(DefensivesSpell1);
+                    DefensivesSpell2Name = GetSpellName(DefensivesSpell2);
+                    InterruptsSpell1Name = GetSpellName(InterruptsSpell1);
+                    InterruptsSpell2Name = GetSpellName(InterruptsSpell2);
+                    
                     GlobalTime = currentGlobalTime;
                     ShowAddonWarning = false;
                 }
@@ -175,6 +305,22 @@ public sealed partial class WorkViewModel : ViewModelBase
                 }
             }
         });
+    }
+    
+    /// <summary>
+    /// 获取技能名称
+    /// </summary>
+    /// <param name="actionId">技能 ID</param>
+    /// <returns>技能名称,如果 ID 为 0 返回 "-",查不到返回 ID 字符串</returns>
+    private string GetSpellName(int actionId)
+    {
+        if (actionId == 0)
+            return "-";
+        
+        if (spellDB.Spells.TryGetValue(actionId, out var spell))
+            return spell.Name;
+        
+        return actionId.ToString();
     }
     
     /// <summary>
@@ -221,14 +367,10 @@ public sealed partial class WorkViewModel : ViewModelBase
     /// </summary>
     public void OnExit()
     {
-        logger.LogInformation("退出 Running 状态");
-
         // 取消事件订阅
         screen.OnFrameUpdated -= OnScreenFrameUpdated;
         
         // 手动释放 native 资源 (在 Scope 销毁前提前释放)
         screen.Dispose();
-        
-        logger.LogInformation("WowScreenMacOS 已释放,等待 Scope 销毁释放其他服务");
     }
 }

@@ -52,103 +52,208 @@
                 </StackPanel>
             </Border>
 
-            <!-- 数据显示区域 -->
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" Margin="0,10,0,0">
+            <!-- Hekili 技能推荐区域 -->
+            <Border Background="#1E1E1E"
+                    BorderBrush="#4CAF50"
+                    BorderThickness="2"
+                    CornerRadius="8"
+                    Padding="15">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="⚔️ Hekili 技能推荐"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Foreground="#4CAF50"
+                               HorizontalAlignment="Center"/>
+                    
+                    <!-- 5个队列横向排列 -->
+                    <Grid ColumnDefinitions="*,*,*,*,*">
+                        <!-- Primary 队列 -->
+                        <StackPanel Grid.Column="0" Spacing="8" HorizontalAlignment="Center">
+                            <TextBlock Text="Primary"
+                                       FontSize="12"
+                                       Foreground="#9E9E9E"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding PrimarySpell1Name}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="#2196F3"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="120"/>
+                            <TextBlock Text="{Binding PrimarySpell2Name}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="#2196F3"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="120"/>
+                        </StackPanel>
+
+                        <!-- AOE 队列 -->
+                        <StackPanel Grid.Column="1" Spacing="8" HorizontalAlignment="Center">
+                            <TextBlock Text="AOE"
+                                       FontSize="12"
+                                       Foreground="#9E9E9E"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding AoeSpell1Name}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="#FF9800"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="120"/>
+                            <TextBlock Text="{Binding AoeSpell2Name}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="#FF9800"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="120"/>
+                        </StackPanel>
+
+                        <!-- Cooldowns 队列 -->
+                        <StackPanel Grid.Column="2" Spacing="8" HorizontalAlignment="Center">
+                            <TextBlock Text="Cooldowns"
+                                       FontSize="12"
+                                       Foreground="#9E9E9E"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding CooldownsSpell1Name}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="#9C27B0"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="120"/>
+                            <TextBlock Text="{Binding CooldownsSpell2Name}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="#9C27B0"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="120"/>
+                        </StackPanel>
+
+                        <!-- Defensives 队列 -->
+                        <StackPanel Grid.Column="3" Spacing="8" HorizontalAlignment="Center">
+                            <TextBlock Text="Defensives"
+                                       FontSize="12"
+                                       Foreground="#9E9E9E"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding DefensivesSpell1Name}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="#00BCD4"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="120"/>
+                            <TextBlock Text="{Binding DefensivesSpell2Name}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="#00BCD4"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="120"/>
+                        </StackPanel>
+
+                        <!-- Interrupts 队列 -->
+                        <StackPanel Grid.Column="4" Spacing="8" HorizontalAlignment="Center">
+                            <TextBlock Text="Interrupts"
+                                       FontSize="12"
+                                       Foreground="#9E9E9E"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding InterruptsSpell1Name}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="#F44336"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="120"/>
+                            <TextBlock Text="{Binding InterruptsSpell2Name}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="#F44336"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="120"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- 紧凑的玩家状态栏 -->
+            <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto">
                 <!-- 玩家生命值 -->
-                <Border Grid.Row="0" Grid.Column="0"
-                        BorderBrush="#E0E0E0"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Padding="15"
-                        Margin="0,0,5,5">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="❤️ 玩家生命值"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"/>
-                        <ProgressBar Value="{Binding PlayerHealthCurrent}"
-                                     Maximum="{Binding PlayerHealthMax}"
-                                     Height="20"
-                                     Foreground="#F44336"/>
-                        <TextBlock FontSize="12"
-                                   Foreground="#666">
-                            <Run Text="{Binding PlayerHealthCurrent}"/>
-                            <Run Text="/"/>
-                            <Run Text="{Binding PlayerHealthMax}"/>
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
+                <StackPanel Grid.Column="0" Spacing="3" Margin="0,0,5,0">
+                    <TextBlock Text="❤️ 生命值"
+                               FontSize="11"
+                               FontWeight="SemiBold"/>
+                    <ProgressBar Value="{Binding PlayerHealthCurrent}"
+                                 Maximum="{Binding PlayerHealthMax}"
+                                 Height="10"
+                                 Foreground="#F44336"/>
+                    <TextBlock FontSize="10"
+                               Foreground="#666">
+                        <Run Text="{Binding PlayerHealthCurrent}"/>
+                        <Run Text="/"/>
+                        <Run Text="{Binding PlayerHealthMax}"/>
+                    </TextBlock>
+                </StackPanel>
 
                 <!-- 玩家法力值 -->
-                <Border Grid.Row="0" Grid.Column="1"
-                        BorderBrush="#E0E0E0"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Padding="15"
-                        Margin="5,0,0,5">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="💙 玩家法力值"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"/>
-                        <ProgressBar Value="{Binding PlayerManaCurrent}"
-                                     Maximum="{Binding PlayerManaMax}"
-                                     Height="20"
-                                     Foreground="#2196F3"/>
-                        <TextBlock FontSize="12"
-                                   Foreground="#666">
-                            <Run Text="{Binding PlayerManaCurrent}"/>
-                            <Run Text="/"/>
-                            <Run Text="{Binding PlayerManaMax}"/>
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
+                <StackPanel Grid.Column="1" Spacing="3" Margin="5,0">
+                    <TextBlock Text="💙 法力值"
+                               FontSize="11"
+                               FontWeight="SemiBold"/>
+                    <ProgressBar Value="{Binding PlayerManaCurrent}"
+                                 Maximum="{Binding PlayerManaMax}"
+                                 Height="10"
+                                 Foreground="#2196F3"/>
+                    <TextBlock FontSize="10"
+                               Foreground="#666">
+                        <Run Text="{Binding PlayerManaCurrent}"/>
+                        <Run Text="/"/>
+                        <Run Text="{Binding PlayerManaMax}"/>
+                    </TextBlock>
+                </StackPanel>
 
                 <!-- 目标生命值 -->
-                <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                        BorderBrush="#E0E0E0"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Padding="15"
-                        Margin="0,5,0,5">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="🎯 目标生命值"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"/>
-                        <ProgressBar Value="{Binding TargetHealthCurrent}"
-                                     Maximum="{Binding TargetHealthMax}"
-                                     Height="20"
-                                     Foreground="#FF9800"/>
-                        <TextBlock FontSize="12"
-                                   Foreground="#666">
-                            <Run Text="{Binding TargetHealthCurrent}"/>
-                            <Run Text="/"/>
-                            <Run Text="{Binding TargetHealthMax}"/>
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
-
-                <!-- 调试信息 -->
-                <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
-                        Background="#F5F5F5"
-                        BorderBrush="#E0E0E0"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Padding="15"
-                        Margin="0,5,0,0">
-                    <StackPanel Spacing="5">
-                        <TextBlock Text="📊 调试信息"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"/>
-                        <TextBlock FontSize="11"
-                                   Foreground="#666"
-                                   FontFamily="Consolas,Menlo,monospace">
-                            <Run Text="GlobalTime: "/>
-                            <Run Text="{Binding GlobalTime}"/>
-                            <Run Text="  |  Frames: "/>
-                            <Run Text="{Binding WelcomeMessage}"/>
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
+                <StackPanel Grid.Column="2" Spacing="3" Margin="5,0,0,0">
+                    <TextBlock Text="🎯 目标"
+                               FontSize="11"
+                               FontWeight="SemiBold"/>
+                    <ProgressBar Value="{Binding TargetHealthCurrent}"
+                                 Maximum="{Binding TargetHealthMax}"
+                                 Height="10"
+                                 Foreground="#FF9800"/>
+                    <TextBlock FontSize="10"
+                               Foreground="#666">
+                        <Run Text="{Binding TargetHealthCurrent}"/>
+                        <Run Text="/"/>
+                        <Run Text="{Binding TargetHealthMax}"/>
+                    </TextBlock>
+                </StackPanel>
             </Grid>
+
+            <!-- 调试信息 -->
+            <Border Background="#F5F5F5"
+                    BorderBrush="#E0E0E0"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="15">
+                <StackPanel Spacing="5">
+                    <TextBlock Text="📊 调试信息"
+                               FontSize="13"
+                               FontWeight="SemiBold"/>
+                    <TextBlock FontSize="11"
+                               Foreground="#666"
+                               FontFamily="Consolas,Menlo,monospace">
+                        <Run Text="GlobalTime: "/>
+                        <Run Text="{Binding GlobalTime}"/>
+                        <Run Text="  |  Frames: "/>
+                        <Run Text="{Binding WelcomeMessage}"/>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </Grid>
 </UserControl>

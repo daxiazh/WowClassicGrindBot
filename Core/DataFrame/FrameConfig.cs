@@ -117,16 +117,21 @@ public static class FrameConfig
 
     public static bool TryGetNextPoint(Image<Bgra32> bmp, int i, int startX, int startY, out int x, out int y)
     {
-        for (int xi = startX; xi < bmp.Width; xi++)
+        // 从上到下扫描行,从左到右扫描列
+        for (int yi = startY; yi < bmp.Height - 1; yi++)
         {
-            for (int yi = startY; yi < bmp.Height; yi++)
+            for (int xi = startX; xi < bmp.Width - 1; xi++)
             {
                 Bgra32 pixel = bmp[xi, yi];
                 if (pixel.B == i && pixel.R == 0 && pixel.G == 0)
                 {
-                    x = xi;
-                    y = yi;
-                    return true;
+                    pixel = bmp[xi + 1, yi];
+                    if (pixel.B == i && pixel.R == 0 && pixel.G == 0)
+                    { // 连续两个像素都是这个值时才认为找到了下一个点, 减少误差
+                        x = xi + 1;
+                        y = yi;
+                        return true;
+                    }
                 }
             }
         }

@@ -98,6 +98,8 @@ public sealed class WowScreenMacOS
             // 更新 addon 数据快照 (直接从原始像素指针读取,零拷贝)
             if (addonDataSnapshot != null)
             {
+                if(false && screenImage != null)
+                    screenImage.SaveAsBmp("screenbmp.bmp");
                 addonDataSnapshot.UpdateFromRawData(data, width, height, bytesPerRow);
             }
         }
