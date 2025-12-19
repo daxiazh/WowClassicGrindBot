@@ -61,7 +61,7 @@
                     IsVisible="{Binding IsHekiliAutoMode}">
                 <StackPanel Spacing="10">
                     <!-- 标题栏：显示自动施法状态 -->
-                    <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                         <TextBlock Grid.Column="0"
                                    Text="⚔️ Hekili 技能推荐 (自动模式)"
                                    FontSize="16"
@@ -69,8 +69,18 @@
                                    Foreground="#4CAF50"
                                    VerticalAlignment="Center"/>
                         
+                        <!-- 按键发送时间显示 -->
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding LastKeySentDisplay}"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFC107"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,10,0"
+                                   IsVisible="{Binding LastKeySentDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                        
                         <!-- 自动施法状态指示器 -->
-                        <Border Grid.Column="2"
+                        <Border Grid.Column="3"
                                 CornerRadius="4"
                                 Padding="8,4"
                                 VerticalAlignment="Center">
@@ -94,19 +104,26 @@
                             Padding="12"
                             Cursor="Hand"
                             PointerPressed="OnSpell1Click">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                             <TextBlock Grid.Column="0"
                                        Text="1️⃣"
                                        FontSize="20"
                                        VerticalAlignment="Center"
                                        Margin="0,0,10,0"/>
                             <StackPanel Grid.Column="1" Spacing="3">
-                                <TextBlock Text="{Binding Spell1Name}"
-                                           FontSize="16"
+                                <TextBlock FontSize="16"
                                            FontWeight="Bold"
-                                           Foreground="#2196F3"/>
+                                           Foreground="#2196F3">
+                                    <Run Text="{Binding Spell1Name}"/>
+                                </TextBlock>
                             </StackPanel>
-                            <Border Grid.Column="2"
+                            <!-- 技能可用状态指示器 -->
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding Spell1Usable, Converter={StaticResource BoolToUsableIconConverter}}"
+                                       FontSize="16"
+                                       VerticalAlignment="Center"
+                                       Margin="10,0,0,0"/>
+                            <Border Grid.Column="3"
                                     Background="#424242"
                                     BorderBrush="#FFC107"
                                     BorderThickness="1"

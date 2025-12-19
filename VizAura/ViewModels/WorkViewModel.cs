@@ -110,6 +110,16 @@ public sealed partial class WorkViewModel : ViewModelBase
     [ObservableProperty] private string spell2Keybind = "";
 
     /// <summary>
+    /// Hekili 推荐技能 1 是否可用
+    /// </summary>
+    [ObservableProperty] private bool spell1Usable;
+
+    /// <summary>
+    /// 最后一次按键发送时间（用于 UI 显示）
+    /// </summary>
+    [ObservableProperty] private string lastKeySentDisplay = "";
+
+    /// <summary>
     /// 发送技能 1 快捷键命令
     /// </summary>
     [RelayCommand]
@@ -268,7 +278,7 @@ public sealed partial class WorkViewModel : ViewModelBase
                         Spell1 = hekiliReader.Spell1;
                         Spell1Name = GetSpellName(Spell1);
                         Spell1Keybind = hekiliReader.Spell1Keybind;
-                        bool spell1Usable = hekiliReader.Spell1Usable;
+                        Spell1Usable = hekiliReader.Spell1Usable;
 
                         // 读取技能 2
                         Spell2 = hekiliReader.Spell2;
@@ -387,6 +397,7 @@ public sealed partial class WorkViewModel : ViewModelBase
         if (success)
         {
             lastKeybindSentTime = now;
+            LastKeySentDisplay = $"⚡ {DateTime.Now:HH:mm:ss.fff}";
             logger.LogDebug($"自动发送快捷键: {Spell1Keybind} ({Spell1Name})");
         }
         else

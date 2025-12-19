@@ -41,11 +41,35 @@ function DataToColor:GetHekiliRecommendations()
         if rec and rec.actionID and btn then
             local keybind = rec.keybind or ""
             
-            -- 直接使用 Hekili 的 Button.unusable 状态
-            -- unusable = true: 技能不可用 (能量/距离/条件/CD/GCD/施法中 任一不满足)
-            -- unusable = false: 可以立即施法
-            local unusableValue = btn.unusable
-            local usable = not btn.unusable
+            -- 检查技能是否可用
+            -- 说明: 直接使用 Hekili 的 exact_time（最佳释放时机）
+            -- Hekili 已综合考虑: 法力/能量/怒气、CD、GCD、施法中、连击点数、能量管理、优先级等
+            local usable = true
+            local now = GetTime()
+            
+            -- 1. 检查 Hekili 推荐的释放时机
+            -- exact_time: Hekili 计算的最佳释放时间点
+            -- 如果 exact_time > now，说明 Hekili 认为现在不应该释放
+            if rec.exact_time then
+                local delay = rec.exact_time - now
+                if delay > 0.05 then  -- 留 50ms 容差
+                    usable = false
+                end
+            end
+            
+            -- 2. 二次检查：法力/能量/怒气是否足够（防止 Hekili 数据延迟）
+            if usable then
+                local ability = _G.Hekili.Class.abilities[rec.actionID]
+                if ability then
+                    local spellName = ability.actualName or ability.name
+                    if spellName then
+                        local isUsable, notEnoughPower = IsUsableSpell(spellName)
+                        if notEnoughPower then
+                            usable = false
+                        end
+                    end
+                end
+            end
             
             table.insert(recommendations, {
                 actionID = rec.actionID,

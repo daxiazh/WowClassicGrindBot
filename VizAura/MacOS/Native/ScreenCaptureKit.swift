@@ -69,7 +69,7 @@ class ScreenCaptureManager: NSObject, SCStreamOutput, SCStreamDelegate {
             config.height = Int(pixelHeight)
             config.colorSpaceName = CGColorSpace.sRGB
             config.pixelFormat = kCVPixelFormatType_32BGRA  // BGRA 格式,与 WowScreenDXGI 一致
-            config.minimumFrameInterval = CMTime(value: 1, timescale: 60)  // 60 FPS
+            config.minimumFrameInterval = CMTime(value: 1, timescale: 20)  // 20 FPS
             config.queueDepth = 2  // 增加缓冲
             config.showsCursor = false  // 不显示鼠标
             // config.captureResolution = .nominal

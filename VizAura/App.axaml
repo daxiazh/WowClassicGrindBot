@@ -13,6 +13,7 @@
         <converters:StatusBorderBrushConverter x:Key="StatusBorderBrushConverter"/>
         <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
         <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
+        <converters:BoolToUsableIconConverter x:Key="BoolToUsableIconConverter"/>
     </Application.Resources>
 
     <Application.DataTemplates>
