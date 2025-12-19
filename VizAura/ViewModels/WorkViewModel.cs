@@ -338,11 +338,14 @@ public sealed partial class WorkViewModel : ViewModelBase
 
     /// <summary>
     /// 自动发送 Hekili 推荐的技能快捷键
-    /// 条件: 自动模式 + 战斗中 + 目标有效 + WoW激活 + 有快捷键 + 技能可用 + 防抖
+    /// 条件: Lua开关启用 + 自动模式 + 战斗中 + 目标有效 + WoW激活 + 有快捷键 + 技能可用 + 防抖
     /// 说明: Usable 包含 Hekili 的所有检查 (能量/距离/条件/CD/GCD/施法等)
     /// </summary>
     private void AutoSendKeybind()
     {
+        // 0. 检查 Lua 端是否允许自动施法 (通过 WoW 游戏内 UI 按钮控制)
+        if (!addonBits.VizAuraAutoCast_Enabled()) return;
+
         // 1. 检查 Hekili 自动模式
         if (!IsHekiliAutoMode) return;
 

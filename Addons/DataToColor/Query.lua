@@ -175,7 +175,8 @@ function DataToColor:Bits3()
         (DataToColor.channeling and 2 or 0) ^ 7 +
         (LootFrame:IsShown() and 2 or 0) ^ 8 +
         (ChatFrame1EditBox:IsVisible() and 2 or 0) ^ 9 +
-        (DataToColor:SoftTargetInteractEnabled() and 2 or 0) ^ 10
+        (DataToColor:SoftTargetInteractEnabled() and 2 or 0) ^ 10 +
+        (DataToColor.DATA_CONFIG.VIZAURA_AUTO_CAST_ENABLED and 2 or 0) ^ 11
 end
 
 function DataToColor:CustomTrigger(t)

@@ -6,7 +6,7 @@
 ## Version: 1.7.70
 ## RequiredDeps:
 ## OptionalDeps: Ace3, LibRangeCheck, LibClassicCasterino, Hekili
-## SavedVariables:
+## SavedVariables: DataToColorDB
 
 embeds.xml
 
@@ -30,3 +30,5 @@ DataToColor.lua
 SellJunk.lua
 
 HekiliIntegration.lua
+
+ConfigUI.lua

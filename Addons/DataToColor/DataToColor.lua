@@ -110,7 +110,8 @@ DataToColor.DATA_CONFIG = {
     DECLINE_PARTY_REQUESTS = false, -- O
     AUTO_REPAIR_ITEMS = true, -- O
     AUTO_RESURRECT = true,
-    AUTO_SELL_GREY_ITEMS = true
+    AUTO_SELL_GREY_ITEMS = true,
+    VIZAURA_AUTO_CAST_ENABLED = true -- 允许 VizAura 自动释放技能 (将从 SavedVariables 加载)
 }
 
 local FRAME_CHANGE_RATE = 5
@@ -252,6 +253,9 @@ function DataToColor:OnInitialize()
 
     DataToColor:InitUpdateQueues()
     DataToColor:InitTrigger(DataToColor.customTrigger1)
+    
+    -- 初始化配置（从 SavedVariables 加载）
+    DataToColor:InitConfig()
 end
 
 function DataToColor:SetupRequirements()

@@ -109,4 +109,6 @@ public sealed class AddonBits : IReader, IGameMenuWindowShown
     public bool ChatInputIsVisible() => v3[Mask._9];
 
     public bool SoftInteract_Enabled() => v3[Mask._10];
+
+    public bool VizAuraAutoCast_Enabled() => v3[Mask._11];
 }
