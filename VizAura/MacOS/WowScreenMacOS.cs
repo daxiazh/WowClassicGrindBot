@@ -181,6 +181,14 @@ public sealed class WowScreenMacOS
         }
     }
     
+    public void CopyAddonDataSnapshot(AddonDataSnapshot snapshot)
+    {
+        lock (frameLock)
+        {
+            addonDataSnapshot?.CopyTo(snapshot);
+        }
+    }
+    
     /// <summary>
     /// 复制完整帧数据
     /// </summary>

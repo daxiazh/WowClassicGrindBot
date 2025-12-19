@@ -180,3 +180,4 @@ dotnet run -c Release
 - Session 统计保存在 `Json/History/` 目录
 
 - 确保所有的服务都应该在 ConfigureServices() 中注册
+- 可以通过 git 来查看本地的修改

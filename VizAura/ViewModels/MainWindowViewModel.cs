@@ -14,6 +14,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 {
     private readonly ILogger<MainWindowViewModel> logger;
     private readonly IServiceProvider serviceProvider;
+    
+    /// <summary>
+    /// 当前检测会话的 Scope
+    /// 生命周期: 每次进入 Validating 状态时创建,重新检测或退出时销毁
+    /// 说明: Scope 销毁时会自动释放所有 Scoped 服务 (WowScreenMacOS, PlayerReader 等)
+    /// </summary>
+    private IServiceScope? currentScope;
 
     /// <summary>
     /// 当前应用状态
@@ -83,7 +90,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             
             // 尝试回退到 Validating 状态
             currentState = AppState.Validating;
-            CurrentViewModel = CreateValidationViewModel();
+            currentScope = serviceProvider.CreateScope();
+            CurrentViewModel = CreateValidationViewModel(currentScope);
             if (CurrentViewModel is ValidationViewModel vm)
                 vm.OnEnter();
         }
@@ -91,9 +99,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>
     /// 退出当前状态
+    /// 资源释放流程:
+    ///   1. 调用 ViewModel.OnExit() - 手动释放 native 资源 (如 WowScreenMacOS.Dispose())
+    ///   2. 销毁 Scope - 自动释放所有 Scoped 服务
     /// </summary>
     private void ExitCurrentState()
     {
+        // 1. 调用 OnExit 手动清理 (如 WowScreenMacOS.Dispose)
         if (CurrentViewModel is ValidationViewModel validationVm)
         {
             validationVm.OnExit();
@@ -102,22 +114,38 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             workVm.OnExit();
         }
+        
+        // 2. 销毁 Scope - 自动释放所有 Scoped 服务
+        // 包括: WorkViewModel, WowScreenMacOS, PlayerReader, AddonDataSnapshot, DataFrame[], 
+        //       DataConfig, StartupClientVersion, WowProcessInfo
+        currentScope?.Dispose();
+        currentScope = null;
+        
+        logger.LogInformation("已销毁当前 Scope,所有 Scoped 服务已释放");
     }
 
     /// <summary>
     /// 进入新状态
+    /// 资源创建流程:
+    ///   1. 创建新 Scope - 全新的检测会话环境,无旧数据污染
+    ///   2. 从 Scope 解析 ViewModel - 自动创建所有 Scoped 依赖
     /// </summary>
     /// <param name="state">新状态</param>
     private void EnterNewState(AppState state)
     {
+        // 1. 创建新 Scope (新的检测会话)
+        currentScope = serviceProvider.CreateScope();
+        logger.LogInformation("已创建新 Scope,开始新的检测会话");
+        
+        // 2. 从 Scope 中解析 ViewModel
         CurrentViewModel = state switch
         {
-            AppState.Validating => CreateValidationViewModel(),
-            AppState.Running => CreateWorkViewModel(),
+            AppState.Validating => CreateValidationViewModel(currentScope),
+            AppState.Running => CreateWorkViewModel(currentScope),
             _ => throw new ArgumentException($"未知状态: {state}")
         };
 
-        // 调用 OnEnter
+        // 3. 调用 OnEnter
         if (CurrentViewModel is ValidationViewModel validationVm)
         {
             validationVm.OnEnter();
@@ -131,10 +159,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>
     /// 创建 ValidationViewModel
     /// </summary>
-    private ValidationViewModel CreateValidationViewModel()
+    /// <param name="scope">当前检测会话的 Scope</param>
+    private ValidationViewModel CreateValidationViewModel(IServiceScope scope)
     {
-        var logger = serviceProvider.GetRequiredService<ILogger<ValidationViewModel>>();
-        var processInfoProvider = serviceProvider.GetRequiredService<VizAura.Services.IWowProcessInfoProvider>();
+        // 从 Scope 中获取服务 (注意: 使用 scope.ServiceProvider 而不是根容器)
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<ValidationViewModel>>();
+        var processInfoProvider = scope.ServiceProvider.GetRequiredService<VizAura.Services.IWowProcessInfoProvider>();
 
         return new ValidationViewModel(
             logger,
@@ -150,17 +180,22 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// 创建 WorkViewModel (DI 自动解析所有依赖)
+    /// 创建 WorkViewModel
+    /// 从 Scope 中解析所有 Scoped 依赖:
+    ///   WorkViewModel → WowScreenMacOS, PlayerReader, AddonDataSnapshot
+    ///                 → DataFrame[], WowProcessInfo, DataConfig...
     /// </summary>
-    private WorkViewModel CreateWorkViewModel()
+    /// <param name="scope">当前检测会话的 Scope</param>
+    private WorkViewModel CreateWorkViewModel(IServiceScope scope)
     {
         if (currentProcessInfo == null)
         {
             throw new InvalidOperationException("无法创建 WorkViewModel: 缺少 WoW 进程信息");
         }
 
-        // DI 自动解析所有依赖: WowProcessInfo → StartupClientVersion → DataConfig → CreatureDB/WorldMapAreaDB
-        return ActivatorUtilities.CreateInstance<WorkViewModel>(serviceProvider);
+        // 从 Scope 中解析 WorkViewModel (及其所有 Scoped 依赖)
+        // 注意: 必须使用 scope.ServiceProvider 而不是根容器,以确保获取 Scoped 服务
+        return scope.ServiceProvider.GetRequiredService<WorkViewModel>();
     }
 
     /// <summary>

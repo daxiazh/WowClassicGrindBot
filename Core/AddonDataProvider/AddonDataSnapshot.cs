@@ -13,6 +13,19 @@ public sealed class AddonDataSnapshot : IAddonDataProvider
     private readonly DataFrame[] frames;
     private readonly int[] data;
 
+    private int validationFailureCount;
+    private AddonValidationResult lastValidationResult;
+
+    /// <summary>
+    /// 验证失败计数
+    /// </summary>
+    public int ValidationFailureCount => validationFailureCount;
+
+    /// <summary>
+    /// 最后一次验证结果
+    /// </summary>
+    public AddonValidationResult LastValidationResult => lastValidationResult;
+
     /// <summary>
     /// 构造函数
     /// </summary>
@@ -34,52 +47,64 @@ public sealed class AddonDataSnapshot : IAddonDataProvider
     {
         byte* source = (byte*)dataPtr.ToPointer();
         int pixelSize = sizeof(Bgra32);
-        
+
         // 1. 首帧校验 (Frame[0] 必须为 0,即黑色)
         DataFrame firstFrame = frames[0];
         if (firstFrame.Y >= height || firstFrame.X >= width)
+        {
+            validationFailureCount++;
+            lastValidationResult = AddonValidationResult.BoundsOutOfRange;
             return; // 坐标越界
-        
+        }
+
         byte* firstPixelPtr = source + (firstFrame.Y * bytesPerRow) + (firstFrame.X * pixelSize);
         Bgra32* firstPixel = (Bgra32*)firstPixelPtr;
-        
+
         if (firstPixel->R != 0 || firstPixel->G != 0 || firstPixel->B != 0)
         {
+            validationFailureCount++;
+            lastValidationResult = AddonValidationResult.FirstFrameFailed;
             return; // 首帧校验失败
         }
-        
+
         // 2. 读取所有帧数据
         for (int i = 0; i < frames.Length; i++)
         {
             DataFrame frame = frames[i];
-            
+
             // 边界检查
             if (frame.Y >= height || frame.X >= width)
             {
                 data[frame.Index] = 0;
                 continue;
             }
-            
+
             // 计算像素地址
             byte* pixelPtr = source + (frame.Y * bytesPerRow) + (frame.X * pixelSize);
             Bgra32* pixel = (Bgra32*)pixelPtr;
-            
+
             // 解析颜色值到整数: value = R * 65536 + G * 256 + B
             data[frame.Index] = pixel->B | (pixel->G << 8) | (pixel->R << 16);
         }
-        
+
         // 3. CRC16 校验 (Frame[0..n-2] 的数据 vs Frame[n-1] 的 CRC)
         int receivedCRC = data[^1];
         int calculatedCRC = IAddonDataProvider.CalculateCRC16(data[..^1]);
-        
+
         if (receivedCRC != calculatedCRC)
         {
             // CRC 校验失败,清空数据防止使用脏数据
             Array.Clear(data);
+            validationFailureCount++;
+            lastValidationResult = AddonValidationResult.CrcFailed;
             return;
         }
+
+        // 验证成功,重置失败计数
+        validationFailureCount = 0;
+        lastValidationResult = AddonValidationResult.Success;
     }
-    
+
     /// <summary>
     /// 从屏幕图像更新数据 (用于兼容性,如 FrameConfigViewModel)
     /// </summary>
@@ -107,10 +132,21 @@ public sealed class AddonDataSnapshot : IAddonDataProvider
     /// <summary>
     /// 初始化 Frames (已在构造函数中初始化)
     /// </summary>
-    /// <param name="frames">DataFrame 数组</param>
-    public void InitFrames(DataFrame[] frames)
+    /// <param name="_">DataFrame 数组</param>
+    public void InitFrames(DataFrame[] _)
     {
         // 已在构造函数中初始化,此方法保留用于接口兼容
+        throw new NotImplementedException();
+    }
+
+    public void CopyTo(AddonDataSnapshot target)
+    {
+        // 复制数据数组                                                              
+        Array.Copy(this.data, target.data, data.Length);
+
+        // 复制验证统计                                                                   
+        target.validationFailureCount = this.validationFailureCount;
+        target.lastValidationResult = this.lastValidationResult;
     }
 
     /// <summary>

@@ -8,7 +8,7 @@ using System.Numerics;
 
 namespace Core;
 
-public sealed partial class PlayerReader : IMouseOverReader, IReader
+public sealed class PlayerReader : IMouseOverReader, IReader
 {
     private readonly IAddonDataProvider reader;
     private readonly WorldMapAreaDB worldMapAreaDB;
