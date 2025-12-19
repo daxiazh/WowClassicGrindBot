@@ -164,6 +164,81 @@ class ScreenCaptureManager: NSObject, SCStreamOutput, SCStreamDelegate {
     }
 }
 
+// MARK: - 键盘按键模拟
+
+/// 键盘按键模拟器
+/// 使用 CoreGraphics 的 HID 事件系统模拟硬件按键
+class KeyboardSimulator {
+    
+    /// 发送按键
+    /// - Parameters:
+    ///   - keyCode: macOS Virtual Key Code (0-127)
+    ///   - shiftPressed: 是否按下 Shift 键
+    ///   - ctrlPressed: 是否按下 Ctrl 键
+    ///   - altPressed: 是否按下 Alt/Option 键
+    ///   - cmdPressed: 是否按下 Command 键
+    ///   - useRandomDelay: 是否使用随机延迟模拟人类行为 (60-150ms)
+    /// - Returns: 是否成功发送
+    static func sendKey(
+        keyCode: CGKeyCode,
+        shiftPressed: Bool = false,
+        ctrlPressed: Bool = false,
+        altPressed: Bool = false,
+        cmdPressed: Bool = false,
+        useRandomDelay: Bool = true
+    ) -> Bool {
+        // 1. 创建基于 HID 系统状态的事件源
+        // .hidSystemState 是模拟硬件来源的关键
+        guard let source = CGEventSource(stateID: .hidSystemState) else {
+            print("KeyboardSimulator: Failed to create event source")
+            return false
+        }
+        
+        // 2. 设置键盘类型 (0 = 标准美式键盘)
+        source.keyboardType = 0
+        
+        // 3. 构建修饰键 flags
+        var flags: CGEventFlags = []
+        if shiftPressed { flags.insert(.maskShift) }
+        if ctrlPressed { flags.insert(.maskControl) }
+        if altPressed { flags.insert(.maskAlternate) }
+        if cmdPressed { flags.insert(.maskCommand) }
+        
+        // 4. 创建按下事件 (KeyDown)
+        guard let keyDownEvent = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) else {
+            print("KeyboardSimulator: Failed to create key down event")
+            return false
+        }
+        keyDownEvent.flags = flags
+        // 清理 UserData 字段 (物理按键该字段通常为 0)
+        keyDownEvent.setIntegerValueField(.eventSourceUserData, value: 0)
+        
+        // 5. 创建弹起事件 (KeyUp)
+        guard let keyUpEvent = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
+            print("KeyboardSimulator: Failed to create key up event")
+            return false
+        }
+        keyUpEvent.flags = flags
+        keyUpEvent.setIntegerValueField(.eventSourceUserData, value: 0)
+        
+        // 6. 发送事件到系统全局 HID 事件流
+        keyDownEvent.post(tap: .cghidEventTap)
+        
+        // 7. 模拟物理按键的行程时间 (人类通常在 60ms 到 150ms 之间)
+        if useRandomDelay {
+            let randomDelay = UInt32.random(in: 60000...150000) // 微秒单位
+            usleep(randomDelay)
+        } else {
+            usleep(10000) // 默认 10ms
+        }
+        
+        keyUpEvent.post(tap: .cghidEventTap)
+        
+        print("KeyboardSimulator: Sent key \(keyCode) with modifiers: shift=\(shiftPressed), ctrl=\(ctrlPressed), alt=\(altPressed), cmd=\(cmdPressed)")
+        return true
+    }
+}
+
 // MARK: - C 导出函数
 
 /// 创建屏幕捕获流
@@ -195,4 +270,41 @@ public func sc_create_stream(windowID: UInt32, callback: @escaping FrameCallback
 public func sc_stop_stream(_ handle: UnsafeMutableRawPointer) {
     let manager = Unmanaged<ScreenCaptureManager>.fromOpaque(handle).takeRetainedValue()
     manager.stopCapture()
+}
+
+/// 检查指定进程是否为前台活动应用
+/// - Parameter pid: 进程 ID
+/// - Returns: 是否为前台活动应用
+@_cdecl("is_process_frontmost")
+public func is_process_frontmost(pid: Int32) -> Bool {
+    guard let runningApp = NSRunningApplication(processIdentifier: pid) else {
+        return false
+    }
+    return runningApp.isActive
+}
+
+/// 发送按键（接收原始 keyCode 和修饰键）
+/// - Parameters:
+///   - keyCode: macOS Virtual Key Code (0-127)
+///   - shiftPressed: 是否按下 Shift 键
+///   - ctrlPressed: 是否按下 Ctrl 键
+///   - altPressed: 是否按下 Alt/Option 键
+///   - cmdPressed: 是否按下 Command 键
+/// - Returns: 是否成功发送
+@_cdecl("kb_send_key")
+public func kb_send_key(
+    keyCode: UInt16,
+    shiftPressed: Bool,
+    ctrlPressed: Bool,
+    altPressed: Bool,
+    cmdPressed: Bool
+) -> Bool {
+    return KeyboardSimulator.sendKey(
+        keyCode: CGKeyCode(keyCode),
+        shiftPressed: shiftPressed,
+        ctrlPressed: ctrlPressed,
+        altPressed: altPressed,
+        cmdPressed: cmdPressed,
+        useRandomDelay: true
+    )
 }

@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.Input;
 using Core;
 using Core.Database;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using VizAura.MacOS;
 using VizAura.Models;
@@ -18,13 +20,19 @@ public sealed partial class WorkViewModel : ViewModelBase
 {
     private readonly ILogger<WorkViewModel> logger;
     private readonly WowProcessInfo processInfo;
-    
+
     // 核心依赖 - 全部通过 DI 注入 (Scoped 生命周期)
     private readonly WowScreenMacOS screen;
     private readonly AddonDataSnapshot addonDataSnapshot;
     private readonly PlayerReader playerReader;
     private readonly HekiliReader hekiliReader;
     private readonly SpellDB spellDB;
+    private readonly AddonBits addonBits;
+    private readonly IEnumerable<IReader> readers;
+
+    // 自动按键相关
+    private DateTime lastKeybindSentTime = DateTime.MinValue;
+    private const int KEYBIND_COOLDOWN_MS = 50; // 按键内部 CD (50ms)
 
     public string StatusMessage => $"正在监控进程: {processInfo.ProcessName} (PID: {processInfo.ProcessId})";
 
@@ -112,20 +120,50 @@ public sealed partial class WorkViewModel : ViewModelBase
     [ObservableProperty] private string spell2Keybind = "";
 
     /// <summary>
+    /// 发送技能 1 快捷键命令
+    /// </summary>
+    [RelayCommand]
+    private void SendSpell1Keybind()
+    {
+        if (string.IsNullOrEmpty(Spell1Keybind)) return;
+
+        bool success = KeybindMapper.SendKeybind(Spell1Keybind);
+        if (!success)
+        {
+            logger.LogWarning($"发送快捷键失败: {Spell1Keybind}");
+        }
+    }
+
+    /// <summary>
+    /// 发送技能 2 快捷键命令
+    /// </summary>
+    [RelayCommand]
+    private void SendSpell2Keybind()
+    {
+        if (string.IsNullOrEmpty(Spell2Keybind)) return;
+
+        bool success = KeybindMapper.SendKeybind(Spell2Keybind);
+        if (!success)
+        {
+            logger.LogWarning($"发送快捷键失败: {Spell2Keybind}");
+        }
+    }
+
+    /// <summary>
     /// CRC 校验状态 (true=正常, false=数据异常/被遮挡)
     /// </summary>
     [ObservableProperty] private bool crcValid = true;
-    
+
     /// <summary>
     /// Addon 读取失败计数
     /// </summary>
     [ObservableProperty] private int addonReadFailureCount;
-    
+
     /// <summary>
     /// 是否显示 Addon 警告
     /// </summary>
     [ObservableProperty] private bool showAddonWarning;
-    
+
     /// <summary>
     /// Addon 警告消息
     /// </summary>
@@ -149,6 +187,8 @@ public sealed partial class WorkViewModel : ViewModelBase
     /// <param name="playerReader">玩家数据读取器 (Scoped)</param>
     /// <param name="hekiliReader">Hekili 数据读取器 (Scoped)</param>
     /// <param name="spellDB">技能数据库 (Singleton)</param>
+    /// <param name="addonBits">战斗状态判断 (Scoped)</param>
+    /// <param name="readers">所有 IReader 实现集合 (Scoped)</param>
     public WorkViewModel(
         ILogger<WorkViewModel> logger,
         WowProcessInfo processInfo,
@@ -156,9 +196,10 @@ public sealed partial class WorkViewModel : ViewModelBase
         AddonDataSnapshot addonDataSnapshot,
         PlayerReader playerReader,
         HekiliReader hekiliReader,
-        SpellDB spellDB)
+        SpellDB spellDB,
+        AddonBits addonBits,
+        IEnumerable<IReader> readers)
     {
-        screen.Enabled = true;
         this.logger = logger;
         this.processInfo = processInfo;
         this.screen = screen;
@@ -166,6 +207,8 @@ public sealed partial class WorkViewModel : ViewModelBase
         this.playerReader = playerReader;
         this.hekiliReader = hekiliReader;
         this.spellDB = spellDB;
+        this.addonBits = addonBits;
+        this.readers = readers;
     }
 
     /// <summary>
@@ -189,13 +232,19 @@ public sealed partial class WorkViewModel : ViewModelBase
         {
             // 复制当前的 AddonDataSnapshot 到 UI 线程缓冲区
             screen.CopyAddonDataSnapshot(addonDataSnapshot);
-            
+
+            // 更新所有 IReader 实现
+            foreach (var reader in readers)
+            {
+                reader.Update(addonDataSnapshot);
+            }
+
             // 读取验证统计
             int failureCount = addonDataSnapshot.ValidationFailureCount;
             var result = addonDataSnapshot.LastValidationResult;
-            
+
             AddonReadFailureCount = failureCount;
-            
+
             if (result == AddonValidationResult.Success)
             {
                 // 验证成功,从快照读取 Player 数据
@@ -208,13 +257,13 @@ public sealed partial class WorkViewModel : ViewModelBase
                     PlayerHealthCurrent = playerReader.HealthCurrent();
                     PlayerManaMax = playerReader.ManaMax();
                     PlayerManaCurrent = playerReader.ManaCurrent();
-                    
+
                     TargetHealthMax = playerReader.TargetMaxHealth();
                     TargetHealthCurrent = playerReader.TargetHealth();
-                    
+
                     // 读取 Hekili 自动模式状态
                     IsHekiliAutoMode = hekiliReader.IsAutoModeEnabled;
-                    
+
                     if (IsHekiliAutoMode)
                     {
                         // 读取技能 1
@@ -222,12 +271,15 @@ public sealed partial class WorkViewModel : ViewModelBase
                         Spell1Name = GetSpellName(Spell1);
                         Spell1CooldownSec = hekiliReader.Spell1CD / 1000.0;
                         Spell1Keybind = hekiliReader.Spell1Keybind;
-                        
+
                         // 读取技能 2
                         Spell2 = hekiliReader.Spell2;
                         Spell2Name = GetSpellName(Spell2);
                         Spell2CooldownSec = hekiliReader.Spell2CD / 1000.0;
                         Spell2Keybind = hekiliReader.Spell2Keybind;
+
+                        // 自动发送快捷键
+                        AutoSendKeybind();
                     }
                     else
                     {
@@ -236,13 +288,13 @@ public sealed partial class WorkViewModel : ViewModelBase
                         Spell1Name = "-";
                         Spell1CooldownSec = 0;
                         Spell1Keybind = "";
-                        
+
                         Spell2 = 0;
                         Spell2Name = "-";
                         Spell2CooldownSec = 0;
                         Spell2Keybind = "";
                     }
-                    
+
                     GlobalTime = currentGlobalTime;
                     ShowAddonWarning = false;
                 }
@@ -258,7 +310,7 @@ public sealed partial class WorkViewModel : ViewModelBase
             }
         });
     }
-    
+
     /// <summary>
     /// 获取技能名称
     /// </summary>
@@ -268,13 +320,13 @@ public sealed partial class WorkViewModel : ViewModelBase
     {
         if (actionId == 0)
             return "-";
-        
+
         if (spellDB.Spells.TryGetValue(actionId, out var spell))
             return spell.Name;
-        
+
         return actionId.ToString();
     }
-    
+
     /// <summary>
     /// 根据验证结果生成警告消息
     /// </summary>
@@ -284,19 +336,61 @@ public sealed partial class WorkViewModel : ViewModelBase
     {
         return result switch
         {
-            AddonValidationResult.FirstFrameFailed => 
+            AddonValidationResult.FirstFrameFailed =>
                 "❌ 未检测到 Addon 数据\n\n可能原因:\n• 不在游戏画面\n• 插件未加载\n• 窗口被遮挡",
-            
-            AddonValidationResult.BoundsOutOfRange => 
+
+            AddonValidationResult.BoundsOutOfRange =>
                 "❌ Frame 坐标越界\n\n可能原因:\n• 分辨率已改变\n\n建议: 点击下方按钮重新配置 Frame",
-            
-            AddonValidationResult.CrcFailed => 
+
+            AddonValidationResult.CrcFailed =>
                 "❌ 数据校验失败\n\n可能原因:\n• 窗口部分被遮挡\n• 分辨率变化",
-            
+
             _ => "未知错误"
         };
     }
-    
+
+    /// <summary>
+    /// 自动发送 Hekili 推荐的技能快捷键
+    /// 条件: Hekili 自动模式 + 战斗中 + WoW 激活 + 技能 1 无 CD + 有快捷键 + 防抖
+    /// </summary>
+    private void AutoSendKeybind()
+    {
+        // 1. 检查 Hekili 自动模式
+        if (!IsHekiliAutoMode) return;
+
+        // 2. 检查战斗状态
+        if (!addonBits.Combat()) return;
+
+        // 检查目标还活着且是敌对
+        if (addonBits.Target_Dead() || !addonBits.Target_Hostile()) return;
+
+        // 3. 检查 WoW 进程是否为前台活动窗口
+        if (!WinAPI.ScreenCaptureKitInterop.is_process_frontmost(processInfo.ProcessId)) return;
+
+        // 4. 检查技能 1 是否有快捷键
+        if (string.IsNullOrEmpty(Spell1Keybind)) return;
+
+        // 5. 检查技能 1 CD (大于 50ms 视为在 CD)
+        if (Spell1CooldownSec > 0.05) return;
+
+        // 6. 防抖: 避免短时间内重复发送
+        var now = DateTime.UtcNow;
+        var elapsed = (now - lastKeybindSentTime).TotalMilliseconds;
+        if (elapsed < KEYBIND_COOLDOWN_MS) return;
+
+        // 7. 发送快捷键
+        bool success = KeybindMapper.SendKeybind(Spell1Keybind);
+        if (success)
+        {
+            lastKeybindSentTime = now;
+            logger.LogDebug($"自动发送快捷键: {Spell1Keybind} ({Spell1Name})");
+        }
+        else
+        {
+            logger.LogWarning($"自动发送快捷键失败: {Spell1Keybind} ({Spell1Name})");
+        }
+    }
+
     /// <summary>
     /// 重新配置 Frame 命令
     /// </summary>
@@ -321,7 +415,7 @@ public sealed partial class WorkViewModel : ViewModelBase
     {
         // 取消事件订阅
         screen.OnFrameUpdated -= OnScreenFrameUpdated;
-        
+
         // 手动释放 native 资源 (在 Scope 销毁前提前释放)
         screen.Dispose();
     }

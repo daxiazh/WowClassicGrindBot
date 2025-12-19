@@ -71,7 +71,9 @@
                             BorderBrush="#2196F3"
                             BorderThickness="1"
                             CornerRadius="6"
-                            Padding="12">
+                            Padding="12"
+                            Cursor="Hand"
+                            PointerPressed="OnSpell1Click">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <TextBlock Grid.Column="0"
                                        Text="1️⃣"
@@ -114,7 +116,9 @@
                             BorderBrush="#2196F3"
                             BorderThickness="1"
                             CornerRadius="6"
-                            Padding="12">
+                            Padding="12"
+                            Cursor="Hand"
+                            PointerPressed="OnSpell2Click">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <TextBlock Grid.Column="0"
                                        Text="2️⃣"

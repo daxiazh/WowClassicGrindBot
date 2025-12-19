@@ -10,7 +10,7 @@
         Icon="/Assets/avalonia-logo.ico"
         Title="VizAura"
         Width="700"
-        Height="500">
+        Height="600">
 
     <DockPanel>
         <!-- 顶部菜单栏 -->

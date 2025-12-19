@@ -45,4 +45,32 @@ public static class ScreenCaptureKitInterop
     /// <param name="handle">由 sc_create_stream 返回的管理器句柄</param>
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void sc_stop_stream(IntPtr handle);
+    
+    /// <summary>
+    /// 检查指定进程是否为前台活动应用
+    /// </summary>
+    /// <param name="pid">进程 ID</param>
+    /// <returns>是否为前台活动应用</returns>
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool is_process_frontmost(int pid);
+    
+    /// <summary>
+    /// 发送按键
+    /// </summary>
+    /// <param name="keyCode">macOS Virtual Key Code (0-127)</param>
+    /// <param name="shiftPressed">是否按下 Shift 键</param>
+    /// <param name="ctrlPressed">是否按下 Ctrl 键</param>
+    /// <param name="altPressed">是否按下 Alt/Option 键</param>
+    /// <param name="cmdPressed">是否按下 Command 键</param>
+    /// <returns>是否成功发送</returns>
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool kb_send_key(
+        ushort keyCode,
+        [MarshalAs(UnmanagedType.I1)] bool shiftPressed,
+        [MarshalAs(UnmanagedType.I1)] bool ctrlPressed,
+        [MarshalAs(UnmanagedType.I1)] bool altPressed,
+        [MarshalAs(UnmanagedType.I1)] bool cmdPressed
+    );
 }

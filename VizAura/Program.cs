@@ -5,6 +5,7 @@ using System;
 using System.Threading;
 using Core;
 using Core.Database;
+using Core.Extensions;
 using SharedLib;
 using VizAura.MacOS;
 using VizAura.Models;
@@ -136,13 +137,14 @@ static class Program
             return new WowScreenMacOS(processInfo.WindowId, rect, frames);
         });
         
-        // PlayerReader - 玩家状态数据读取器
+        // IReader 实现 - 数据读取器
         // 生命周期: 一次检测会话一个读取器实例,依赖 IAddonDataProvider
-        services.AddScoped<PlayerReader>();
-        
-        // HekiliReader - Hekili 技能推荐读取器
-        // 生命周期: 一次检测会话一个读取器实例,依赖 IAddonDataProvider
-        services.AddScoped<HekiliReader>();
+        // 说明: 使用 ForwardScoped 同时注册具体类和接口,支持通过 IEnumerable<IReader> 批量更新
+        services.ForwardScoped<PlayerReader, IReader>();
+        services.ForwardScoped<HekiliReader, IReader>();
+        services.ForwardScoped<AddonBits, IReader>();
+        services.ForwardScoped<SpellInRange, IReader>();
+        services.ForwardScoped<Stance, IReader>();
         
         // WorkViewModel - 工作状态的 ViewModel
         // 生命周期: 一次检测会话一个实例,在 Running 状态时活跃
@@ -160,12 +162,6 @@ static class Program
         services.AddSingleton<FactionTemplateDB>();
         services.AddSingleton<AreaDB>();
         services.AddSingleton<SpellDB>();
-        
-        // Addon 组件服务 - 无状态工具类,全局共享
-        // 说明: AddonBits/SpellInRange/Stance 只是数据解析工具,不持有状态
-        services.AddSingleton<AddonBits>();
-        services.AddSingleton<SpellInRange>();
-        services.AddSingleton<Stance>();
 
         return services.BuildServiceProvider();
     }

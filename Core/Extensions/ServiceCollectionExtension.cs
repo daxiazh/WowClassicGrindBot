@@ -56,4 +56,17 @@ public static class ServiceCollectionExtension
         static TService GetRequired(IServiceProvider x)
             => x.GetRequiredService<TService>();
     }
+
+    public static IServiceCollection ForwardScoped<TService, TInterface>(
+        this IServiceCollection services)
+        where TService : class, TInterface
+    {
+        services.AddScoped(typeof(TService));
+        services.AddScoped(typeof(TInterface), GetRequired);
+
+        return services;
+
+        static TService GetRequired(IServiceProvider x)
+            => x.GetRequiredService<TService>();
+    }
 }
