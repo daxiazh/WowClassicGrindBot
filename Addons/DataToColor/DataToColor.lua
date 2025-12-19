@@ -255,8 +255,8 @@ function DataToColor:OnInitialize()
 end
 
 function DataToColor:SetupRequirements()
-    SetCVar("autoInteract", 1)
-    SetCVar("autoLootDefault", 1)
+    -- SetCVar("autoInteract", 1)
+    -- SetCVar("autoLootDefault", 1)
     -- /run SetCVar("cameraSmoothStyle", 2) -- always
     SetCVar('Contrast', 50, '[]')
     SetCVar('Brightness', 50, '[]')
