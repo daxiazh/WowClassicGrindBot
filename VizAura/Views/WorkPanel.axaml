@@ -43,23 +43,12 @@
                                    VerticalAlignment="Center"/>
                     </StackPanel>
                     
-                    <StackPanel Orientation="Horizontal" Spacing="15">
-                        <TextBlock FontSize="12"
-                                   Foreground="#FFCCBC">
-                            <Run Text="失败次数: "/>
-                            <Run Text="{Binding AddonReadFailureCount}"
-                                 FontWeight="Bold"/>
-                        </TextBlock>
-                        
-                        <!-- 重新配置 Frame 按钮 (仅在分辨率改变时显示) -->
-                        <Button Content="🔧 重新配置 Frame"
-                                Command="{Binding ReconfigureFrameCommand}"
-                                Background="#D32F2F"
-                                Foreground="White"
-                                Padding="10,5"
-                                CornerRadius="4"
-                                IsVisible="{Binding AddonWarningMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                    </StackPanel>
+                    <TextBlock FontSize="12"
+                               Foreground="#FFCCBC">
+                        <Run Text="失败次数: "/>
+                        <Run Text="{Binding AddonReadFailureCount}"
+                             FontWeight="Bold"/>
+                    </TextBlock>
                 </StackPanel>
             </Border>
 

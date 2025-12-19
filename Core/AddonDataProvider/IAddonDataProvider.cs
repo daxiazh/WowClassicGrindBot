@@ -82,6 +82,8 @@ public interface IAddonDataProvider : IDisposable
                     {
                         crc <<= 1;
                     }
+                    // 关键: 每次移位后都截断到 16 位,与 Lua 实现保持一致
+                    crc &= 0xFFFF;
                 }
             }
         }

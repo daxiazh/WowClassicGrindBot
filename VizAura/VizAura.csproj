@@ -57,10 +57,10 @@
     </ItemGroup>
     <Copy SourceFiles="@(AddonsFiles)" 
           DestinationFolder="$(TargetDir)Addons/%(RecursiveDir)" 
-          SkipUnchangedFiles="true" />
+          SkipUnchangedFiles="false" />
     <Copy SourceFiles="@(JsonFiles)" 
           DestinationFolder="$(TargetDir)../json/%(RecursiveDir)" 
-          SkipUnchangedFiles="true" />
+          SkipUnchangedFiles="false" />
   </Target>
 
   <!-- 发布时复制 Addons 和 json 文件夹 (跨平台) -->
@@ -71,10 +71,10 @@
     </ItemGroup>
     <Copy SourceFiles="@(AddonsPublishFiles)" 
           DestinationFolder="$(PublishDir)Addons/%(RecursiveDir)" 
-          SkipUnchangedFiles="true" />
+          SkipUnchangedFiles="false" />
     <Copy SourceFiles="@(JsonPublishFiles)" 
           DestinationFolder="$(PublishDir)../json/%(RecursiveDir)" 
-          SkipUnchangedFiles="true" />
+          SkipUnchangedFiles="false" />
   </Target>
 </Project>
 

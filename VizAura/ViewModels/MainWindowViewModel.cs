@@ -254,4 +254,44 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             logger.LogError(ex, "打开 AddOns 配置对话框时出错");
         }
     }
+
+    /// <summary>
+    /// 清除所有配置命令
+    /// 删除 addon_config.json 和 frame_config.json,强制重新验证
+    /// </summary>
+    [RelayCommand]
+    private void ResetAllConfig()
+    {
+        logger.LogInformation("用户请求清除所有配置");
+
+        try
+        {
+            // 删除 addon_config.json
+            if (Core.AddonConfig.Exists())
+            {
+                Core.AddonConfig.Delete();
+                logger.LogInformation("已删除 addon_config.json");
+            }
+
+            // 删除 frame_config.json
+            if (Core.FrameConfig.Exists())
+            {
+                Core.FrameConfig.Delete();
+                logger.LogInformation("已删除 frame_config.json");
+            }
+
+            // 重置状态
+            currentProcessInfo = null;
+            CanConfigureAddons = false;
+
+            // 转换到 Validating 状态,重新开始验证流程
+            TransitionTo(AppState.Validating);
+
+            logger.LogInformation("配置已清除,请重新验证环境");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "清除配置时出错");
+        }
+    }
 }

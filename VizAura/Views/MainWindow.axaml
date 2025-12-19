@@ -17,6 +17,7 @@
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="配置">
                 <MenuItem Header="🔄 重新验证环境" Command="{Binding RevalidateCommand}"/>
+                <MenuItem Header="🗑️ 清除所有配置" Command="{Binding ResetAllConfigCommand}"/>
                 <Separator/>
                 <MenuItem Header="📦 AddOns 管理" Command="{Binding ShowAddonsConfigCommand}" IsEnabled="{Binding CanConfigureAddons}"/>
             </MenuItem>
