@@ -5,7 +5,7 @@
 -- Trigger between emitting game data and frame location data
 local SETUP_SEQUENCE = false
 -- Total number of data frames generated
-local NUMBER_OF_FRAMES = 113  -- 原值118 → 113 (Hekili占用Frame[106-110], GlobalTime在111, CRC在112)
+local NUMBER_OF_FRAMES = 115  -- 原值118 → 115 (Hekili占用Frame[106-112]: 状态+2技能ID+2CD+2快捷键, GlobalTime在113, CRC在114)
 -- Set number of pixel rows
 local FRAME_ROWS = 1
 -- Size of data squares in px. Varies based on rounding errors as well as dimension size. Use as a guideline, but not 100% accurate.
@@ -560,6 +560,26 @@ function DataToColor:CreateFrames()
         end
         return 0
     end
+    
+    -- 将快捷键字符串编码为整数 (最多 3 个字符, 每字符 8 位)
+    -- 字符串 "123" -> 字节 [49, 50, 51] -> 整数 (49 << 16) | (50 << 8) | 51 = 3224115
+    local function EncodeKeybind(str)
+        if not str or str == "" then
+            return 0
+        end
+        
+        -- 限制最多 3 个字符
+        str = sub(str, 1, 3)
+        local result = 0
+        
+        for i = 1, #str do
+            local b = byte(str, i)
+            -- 左移 (3-i)*8 位: 第1个字符在高位, 第3个字符在低位
+            result = result + bit.lshift(b, (3 - i) * 8)
+        end
+        
+        return result
+    end
 
     -- 计算 CRC16-CCITT 校验码
     -- 对 Frame[0] 到 Frame[NUMBER_OF_FRAMES - 2] 的 RGB 字节进行校验
@@ -1084,6 +1104,10 @@ function DataToColor:CreateFrames()
                 -- Frame[109-110]: 技能 CD (毫秒)
                 Pixel(int, hekiliRecs[1] and hekiliRecs[1].cooldown or 0, 109)
                 Pixel(int, hekiliRecs[2] and hekiliRecs[2].cooldown or 0, 110)
+                
+                -- Frame[111-112]: 快捷键 (编码为整数, 最多3字符)
+                Pixel(int, hekiliRecs[1] and EncodeKeybind(hekiliRecs[1].keybind) or 0, 111)
+                Pixel(int, hekiliRecs[2] and EncodeKeybind(hekiliRecs[2].keybind) or 0, 112)
             else
                 -- Hekili 未启用或非自动模式,全部清零
                 Pixel(int, 0, 106)
@@ -1091,6 +1115,8 @@ function DataToColor:CreateFrames()
                 Pixel(int, 0, 108)
                 Pixel(int, 0, 109)
                 Pixel(int, 0, 110)
+                Pixel(int, 0, 111)
+                Pixel(int, 0, 112)
             end
 
             UpdateGlobalTime()

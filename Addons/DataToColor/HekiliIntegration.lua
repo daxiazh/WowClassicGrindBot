@@ -43,9 +43,13 @@ function DataToColor:GetHekiliRecommendations()
                 cdRemains = math.max(0, (start + duration) - GetTime())
             end
             
+            -- 获取快捷键 (如果有)
+            local keybind = rec.keybind or ""
+            
             table.insert(recommendations, {
                 actionID = rec.actionID,
-                cooldown = math.floor(cdRemains * 1000)  -- 转为毫秒
+                cooldown = math.floor(cdRemains * 1000),  -- 转为毫秒
+                keybind = keybind  -- 快捷键字符串
             })
         end
     end

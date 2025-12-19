@@ -102,6 +102,16 @@ public sealed partial class WorkViewModel : ViewModelBase
     [ObservableProperty] private double spell2CooldownSec;
 
     /// <summary>
+    /// Hekili 推荐技能 1 快捷键
+    /// </summary>
+    [ObservableProperty] private string spell1Keybind = "";
+
+    /// <summary>
+    /// Hekili 推荐技能 2 快捷键
+    /// </summary>
+    [ObservableProperty] private string spell2Keybind = "";
+
+    /// <summary>
     /// CRC 校验状态 (true=正常, false=数据异常/被遮挡)
     /// </summary>
     [ObservableProperty] private bool crcValid = true;
@@ -211,11 +221,13 @@ public sealed partial class WorkViewModel : ViewModelBase
                         Spell1 = hekiliReader.Spell1;
                         Spell1Name = GetSpellName(Spell1);
                         Spell1CooldownSec = hekiliReader.Spell1CD / 1000.0;
+                        Spell1Keybind = hekiliReader.Spell1Keybind;
                         
                         // 读取技能 2
                         Spell2 = hekiliReader.Spell2;
                         Spell2Name = GetSpellName(Spell2);
                         Spell2CooldownSec = hekiliReader.Spell2CD / 1000.0;
+                        Spell2Keybind = hekiliReader.Spell2Keybind;
                     }
                     else
                     {
@@ -223,10 +235,12 @@ public sealed partial class WorkViewModel : ViewModelBase
                         Spell1 = 0;
                         Spell1Name = "-";
                         Spell1CooldownSec = 0;
+                        Spell1Keybind = "";
                         
                         Spell2 = 0;
                         Spell2Name = "-";
                         Spell2CooldownSec = 0;
+                        Spell2Keybind = "";
                     }
                     
                     GlobalTime = currentGlobalTime;

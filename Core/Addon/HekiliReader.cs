@@ -1,4 +1,5 @@
 using SharedLib;
+using System.Text;
 
 namespace Core;
 
@@ -43,6 +44,42 @@ public sealed class HekiliReader : IReader
     /// 推荐技能 2 冷却时间 (毫秒)
     /// </summary>
     public int Spell2CD => reader.GetInt(110);
+
+    /// <summary>
+    /// 推荐技能 1 快捷键
+    /// </summary>
+    public string Spell1Keybind => DecodeKeybind(reader.GetInt(111));
+
+    /// <summary>
+    /// 推荐技能 2 快捷键
+    /// </summary>
+    public string Spell2Keybind => DecodeKeybind(reader.GetInt(112));
+
+    /// <summary>
+    /// 解码快捷键 (从整数解码为字符串, 最多3字符)
+    /// 逆向 Lua 的 EncodeKeybind 函数
+    /// </summary>
+    /// <param name="encoded">编码后的整数</param>
+    /// <returns>快捷键字符串</returns>
+    private static string DecodeKeybind(int encoded)
+    {
+        if (encoded == 0)
+            return string.Empty;
+
+        var sb = new StringBuilder(3);
+        
+        // 提取 3 个字节 (从高位到低位)
+        for (int i = 2; i >= 0; i--)
+        {
+            int shift = i * 8;
+            int byteValue = (encoded >> shift) & 0xFF;
+            
+            if (byteValue > 0)
+                sb.Append((char)byteValue);
+        }
+
+        return sb.ToString();
+    }
 
     public void Update(IAddonDataProvider reader) { }
 }
