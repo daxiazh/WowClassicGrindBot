@@ -32,6 +32,11 @@ public sealed class BoolToStringConverter : IValueConverter
     /// </summary>
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotSupportedException();
+        if (value is string stringValue)
+        {
+            return stringValue == "已启用";
+        }
+    
+        return false;
     }
 }
