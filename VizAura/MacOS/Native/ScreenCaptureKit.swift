@@ -234,7 +234,7 @@ class KeyboardSimulator {
         
         keyUpEvent.post(tap: .cghidEventTap)
         
-        print("KeyboardSimulator: Sent key \(keyCode) with modifiers: shift=\(shiftPressed), ctrl=\(ctrlPressed), alt=\(altPressed), cmd=\(cmdPressed)")
+        // print("KeyboardSimulator: Sent key \(keyCode) with modifiers: shift=\(shiftPressed), ctrl=\(ctrlPressed), alt=\(altPressed), cmd=\(cmdPressed)")
         return true
     }
 }

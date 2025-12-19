@@ -5,7 +5,15 @@ namespace Core;
 
 /// <summary>
 /// Hekili 技能推荐读取器 (仅自动模式)
-/// 说明: 只读取自动模式下 Primary 队列的前 2 个推荐技能及其冷却时间
+/// 说明: 只读取自动模式下 Primary 队列的前 2 个推荐技能及其可用性
+/// Frame 布局:
+///   [106] IsAutoModeEnabled (0/1)
+///   [107] Spell1 ID
+///   [108] Spell2 ID
+///   [109] Spell1 Usable (0=不可用, 1=可用)
+///   [110] Spell2 Usable (0=不可用, 1=可用)
+///   [111] Spell1 Keybind (编码)
+///   [112] Spell2 Keybind (编码)
 /// </summary>
 public sealed class HekiliReader : IReader
 {
@@ -36,14 +44,17 @@ public sealed class HekiliReader : IReader
     public int Spell2 => reader.GetInt(108);
 
     /// <summary>
-    /// 推荐技能 1 冷却时间 (毫秒)
+    /// 推荐技能 1 是否可用
+    /// 说明: 直接使用 Hekili 的 Button.unusable 状态
+    /// false = 能量不足/距离不够/条件不满足/CD中/GCD中/施法中
+    /// true = 可以立即施法
     /// </summary>
-    public int Spell1CD => reader.GetInt(109);
+    public bool Spell1Usable => reader.GetInt(109) == 1;
 
     /// <summary>
-    /// 推荐技能 2 冷却时间 (毫秒)
+    /// 推荐技能 2 是否可用
     /// </summary>
-    public int Spell2CD => reader.GetInt(110);
+    public bool Spell2Usable => reader.GetInt(110) == 1;
 
     /// <summary>
     /// 推荐技能 1 快捷键

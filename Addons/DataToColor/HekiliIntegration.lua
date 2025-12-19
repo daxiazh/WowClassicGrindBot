@@ -7,11 +7,12 @@ local Load = select(2, ...)
 local DataToColor = unpack(Load)
 
 --- 获取 Hekili Primary 队列前2个推荐(仅自动模式)
--- 用于 DataToColor 编码,供 C# 端识别当前推荐的技能及冷却时间
+-- 用于 DataToColor 编码,供 C# 端识别当前推荐的技能及可用性
 -- @return table|nil 自动模式下返回技能列表,否则返回 nil
---   格式: { {actionID=123, cooldown=1500}, {actionID=456, cooldown=0} }
+--   格式: { {actionID=123, usable=true, keybind="1"}, {actionID=456, usable=false, keybind="2"} }
 --   actionID: 技能 ID
---   cooldown: 冷却时间(毫秒)
+--   usable: 是否可用 (Hekili 的 Button.unusable 取反, 包含能量/距离/条件/CD/GCD等所有检查)
+--   keybind: 快捷键字符串
 function DataToColor:GetHekiliRecommendations()
     -- 检查 Hekili 是否加载
     if not _G.Hekili then
@@ -35,21 +36,21 @@ function DataToColor:GetHekiliRecommendations()
     -- 获取前 2 个推荐
     for i = 1, 2 do
         local rec = primaryFrame.Recommendations[i]
-        if rec and rec.actionID then
-            -- 获取技能冷却时间
-            local start, duration = GetSpellCooldown(rec.actionID)
-            local cdRemains = 0
-            if start > 0 and duration > 0 then
-                cdRemains = math.max(0, (start + duration) - GetTime())
-            end
-            
-            -- 获取快捷键 (如果有)
+        local btn = primaryFrame.Buttons[i]
+        
+        if rec and rec.actionID and btn then
             local keybind = rec.keybind or ""
+            
+            -- 直接使用 Hekili 的 Button.unusable 状态
+            -- unusable = true: 技能不可用 (能量/距离/条件/CD/GCD/施法中 任一不满足)
+            -- unusable = false: 可以立即施法
+            local unusableValue = btn.unusable
+            local usable = not btn.unusable
             
             table.insert(recommendations, {
                 actionID = rec.actionID,
-                cooldown = math.floor(cdRemains * 1000),  -- 转为毫秒
-                keybind = keybind  -- 快捷键字符串
+                usable = usable,  -- true=可用, false=不可用
+                keybind = keybind
             })
         end
     end
@@ -91,9 +92,9 @@ function DataToColor:TestHekili()
     DataToColor:Print("|cff00ff00✓ 获取到 " .. #recs .. " 个推荐技能|r")
     
     for i, rec in ipairs(recs) do
-        local cdSec = rec.cooldown / 1000
-        DataToColor:Print(string.format("  [%d] ID:|cffffff00%d|r  CD:|cffff00ff%.1fs|r (%dms)", 
-            i, rec.actionID, cdSec, rec.cooldown))
+        local usableText = rec.usable and "|cff00ff00可用|r" or "|cffff0000不可用|r"
+        DataToColor:Print(string.format("  [%d] ID:|cffffff00%d|r  状态:%s  快捷键:|cff00ffff%s|r", 
+            i, rec.actionID, usableText, rec.keybind ~= "" and rec.keybind or "无"))
     end
     
     DataToColor:Print("=== 测试完成 ===")

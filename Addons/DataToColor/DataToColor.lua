@@ -1101,9 +1101,12 @@ function DataToColor:CreateFrames()
                 Pixel(int, hekiliRecs[1] and hekiliRecs[1].actionID or 0, 107)
                 Pixel(int, hekiliRecs[2] and hekiliRecs[2].actionID or 0, 108)
                 
-                -- Frame[109-110]: 技能 CD (毫秒)
-                Pixel(int, hekiliRecs[1] and hekiliRecs[1].cooldown or 0, 109)
-                Pixel(int, hekiliRecs[2] and hekiliRecs[2].cooldown or 0, 110)
+                -- Frame[109-110]: 技能可用性 (0=不可用, 1=可用)
+                local spell1UsableValue = hekiliRecs[1] and (hekiliRecs[1].usable and 1 or 0) or 0
+                local spell2UsableValue = hekiliRecs[2] and (hekiliRecs[2].usable and 1 or 0) or 0
+                                
+                Pixel(int, spell1UsableValue, 109)
+                Pixel(int, spell2UsableValue, 110)
                 
                 -- Frame[111-112]: 快捷键 (编码为整数, 最多3字符)
                 Pixel(int, hekiliRecs[1] and EncodeKeybind(hekiliRecs[1].keybind) or 0, 111)

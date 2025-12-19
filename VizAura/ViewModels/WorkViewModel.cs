@@ -100,16 +100,6 @@ public sealed partial class WorkViewModel : ViewModelBase
     [ObservableProperty] private string spell2Name = "-";
 
     /// <summary>
-    /// Hekili 推荐技能 1 冷却时间 (秒)
-    /// </summary>
-    [ObservableProperty] private double spell1CooldownSec;
-
-    /// <summary>
-    /// Hekili 推荐技能 2 冷却时间 (秒)
-    /// </summary>
-    [ObservableProperty] private double spell2CooldownSec;
-
-    /// <summary>
     /// Hekili 推荐技能 1 快捷键
     /// </summary>
     [ObservableProperty] private string spell1Keybind = "";
@@ -269,15 +259,14 @@ public sealed partial class WorkViewModel : ViewModelBase
                         // 读取技能 1
                         Spell1 = hekiliReader.Spell1;
                         Spell1Name = GetSpellName(Spell1);
-                        Spell1CooldownSec = hekiliReader.Spell1CD / 1000.0;
                         Spell1Keybind = hekiliReader.Spell1Keybind;
+                        bool spell1Usable = hekiliReader.Spell1Usable;
 
                         // 读取技能 2
                         Spell2 = hekiliReader.Spell2;
                         Spell2Name = GetSpellName(Spell2);
-                        Spell2CooldownSec = hekiliReader.Spell2CD / 1000.0;
                         Spell2Keybind = hekiliReader.Spell2Keybind;
-
+                        
                         // 自动发送快捷键
                         AutoSendKeybind();
                     }
@@ -286,12 +275,10 @@ public sealed partial class WorkViewModel : ViewModelBase
                         // 清空显示
                         Spell1 = 0;
                         Spell1Name = "-";
-                        Spell1CooldownSec = 0;
                         Spell1Keybind = "";
 
                         Spell2 = 0;
                         Spell2Name = "-";
-                        Spell2CooldownSec = 0;
                         Spell2Keybind = "";
                     }
 
@@ -351,7 +338,8 @@ public sealed partial class WorkViewModel : ViewModelBase
 
     /// <summary>
     /// 自动发送 Hekili 推荐的技能快捷键
-    /// 条件: Hekili 自动模式 + 战斗中 + WoW 激活 + 技能 1 无 CD + 有快捷键 + 防抖
+    /// 条件: 自动模式 + 战斗中 + 目标有效 + WoW激活 + 有快捷键 + 技能可用 + 防抖
+    /// 说明: Usable 包含 Hekili 的所有检查 (能量/距离/条件/CD/GCD/施法等)
     /// </summary>
     private void AutoSendKeybind()
     {
@@ -361,24 +349,29 @@ public sealed partial class WorkViewModel : ViewModelBase
         // 2. 检查战斗状态
         if (!addonBits.Combat()) return;
 
-        // 检查目标还活着且是敌对
+        // 3. 检查目标还活着且是敌对
         if (addonBits.Target_Dead() || !addonBits.Target_Hostile()) return;
 
-        // 3. 检查 WoW 进程是否为前台活动窗口
+        // 4. 检查 WoW 进程是否为前台活动窗口
         if (!WinAPI.ScreenCaptureKitInterop.is_process_frontmost(processInfo.ProcessId)) return;
 
-        // 4. 检查技能 1 是否有快捷键
+        // 5. 检查技能 1 是否有快捷键
         if (string.IsNullOrEmpty(Spell1Keybind)) return;
 
-        // 5. 检查技能 1 CD (大于 50ms 视为在 CD)
-        if (Spell1CooldownSec > 0.05) return;
+        // 6. 检查技能 1 是否可用
+        // Hekili 的 unusable 状态已包含所有检查:
+        // - 能量不足 (法力/怒气/能量)
+        // - 距离不够
+        // - 条件不满足
+        // - CD/GCD/施法中
+        if (!hekiliReader.Spell1Usable) return;
 
-        // 6. 防抖: 避免短时间内重复发送
+        // 7. 防抖: 避免短时间内重复发送
         var now = DateTime.UtcNow;
         var elapsed = (now - lastKeybindSentTime).TotalMilliseconds;
         if (elapsed < KEYBIND_COOLDOWN_MS) return;
 
-        // 7. 发送快捷键
+        // 8. 发送快捷键
         bool success = KeybindMapper.SendKeybind(Spell1Keybind);
         if (success)
         {

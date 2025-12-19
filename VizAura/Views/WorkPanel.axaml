@@ -85,13 +85,6 @@
                                            FontSize="16"
                                            FontWeight="Bold"
                                            Foreground="#2196F3"/>
-                                <TextBlock FontSize="13"
-                                           Foreground="#9E9E9E">
-                                    <Run Text="CD: "/>
-                                    <Run Text="{Binding Spell1CooldownSec, StringFormat={}{0:F1}}"
-                                         Foreground="#FF9800"/>
-                                    <Run Text=" 秒"/>
-                                </TextBlock>
                             </StackPanel>
                             <Border Grid.Column="2"
                                     Background="#424242"
@@ -130,13 +123,6 @@
                                            FontSize="16"
                                            FontWeight="Bold"
                                            Foreground="#2196F3"/>
-                                <TextBlock FontSize="13"
-                                           Foreground="#9E9E9E">
-                                    <Run Text="CD: "/>
-                                    <Run Text="{Binding Spell2CooldownSec, StringFormat={}{0:F1}}"
-                                         Foreground="#FF9800"/>
-                                    <Run Text=" 秒"/>
-                                </TextBlock>
                             </StackPanel>
                             <Border Grid.Column="2"
                                     Background="#424242"
