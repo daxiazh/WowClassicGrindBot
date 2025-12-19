@@ -32,7 +32,9 @@ public sealed partial class WorkViewModel : ViewModelBase
 
     // 自动按键相关
     private DateTime lastKeybindSentTime = DateTime.MinValue;
-    private const int KEYBIND_COOLDOWN_MS = 50; // 按键内部 CD (50ms)
+    private int lastSentSpellId = 0;  // 上次发送的技能 ID
+    private const int KEYBIND_COOLDOWN_MS = 50; // 全局按键最小间隔 (50ms)
+    private const int SAME_SPELL_COOLDOWN_MS = 500; // 同一技能强制冷却 (500ms)
 
     public string StatusMessage => $"正在监控进程: {processInfo.ProcessName} (PID: {processInfo.ProcessId})";
 
@@ -390,19 +392,34 @@ public sealed partial class WorkViewModel : ViewModelBase
         // 7. 防抖: 避免短时间内重复发送
         var now = DateTime.UtcNow;
         var elapsed = (now - lastKeybindSentTime).TotalMilliseconds;
-        if (elapsed < KEYBIND_COOLDOWN_MS) return;
+        
+        // 7.1 全局按键最小间隔检查
+        if (elapsed < KEYBIND_COOLDOWN_MS)
+        {
+            return;
+        }
+        
+        // 7.2 同一技能强制冷却检查（防止技能释放后 GCD 延迟导致重复发送）
+        if (Spell1 == lastSentSpellId && elapsed < SAME_SPELL_COOLDOWN_MS)
+        {
+            logger.LogDebug($"[自动按键] 同一技能冷却中: {Spell1Name} | 已过: {elapsed:F0}ms / {SAME_SPELL_COOLDOWN_MS}ms");
+            return;
+        }
 
         // 8. 发送快捷键
+        logger.LogInformation($"[自动按键] 准备发送: {Spell1Keybind} ({Spell1Name}) [ID:{Spell1}] | 距上次: {elapsed:F0}ms");
+        
         bool success = KeybindMapper.SendKeybind(Spell1Keybind);
         if (success)
         {
             lastKeybindSentTime = now;
+            lastSentSpellId = Spell1;  // 记录发送的技能 ID
             LastKeySentDisplay = $"⚡ {DateTime.Now:HH:mm:ss.fff}";
-            logger.LogDebug($"自动发送快捷键: {Spell1Keybind} ({Spell1Name})");
+            logger.LogInformation($"[自动按键] ✓ 发送成功: {Spell1Keybind} ({Spell1Name})");
         }
         else
         {
-            logger.LogWarning($"自动发送快捷键失败: {Spell1Keybind} ({Spell1Name})");
+            logger.LogWarning($"[自动按键] ✗ 发送失败: {Spell1Keybind} ({Spell1Name})");
         }
     }
 
