@@ -177,6 +177,11 @@ public sealed partial class WorkViewModel : ViewModelBase
     [ObservableProperty] private bool isAutoCastEnabled;
 
     /// <summary>
+    /// 是否启用 UI 更新 (关闭可大幅减少内存分配)
+    /// </summary>
+    [ObservableProperty] private bool enableUIUpdates = false;
+
+    /// <summary>
     /// 构造函数 - 所有依赖通过 DI 注入
     /// 依赖解析链:
     ///   WorkViewModel (Scoped)
@@ -234,88 +239,90 @@ public sealed partial class WorkViewModel : ViewModelBase
     /// </summary>
     private void OnScreenFrameUpdated()
     {
-        // 切换到 UI 线程,复制快照并读取数据
-        Dispatcher.UIThread.Post(() =>
+        // 1. 同步执行 (native 线程): 数据读取
+        screen.CopyAddonDataSnapshot(addonDataSnapshot);
+        
+        foreach (var reader in readers)
         {
-            // 复制当前的 AddonDataSnapshot 到 UI 线程缓冲区
-            screen.CopyAddonDataSnapshot(addonDataSnapshot);
-
-            // 更新所有 IReader 实现
-            foreach (var reader in readers)
+            reader.Update(addonDataSnapshot);
+        }
+        
+        // 2. 同步执行: 技能释放逻辑 (无 UI 更新)
+        AutoSendKeybind();
+        
+        // 3. 异步执行 (UI 线程): UI 更新 (仅当开关启用时)
+        if (EnableUIUpdates)
+        {
+            Dispatcher.UIThread.Post(() =>
             {
-                reader.Update(addonDataSnapshot);
-            }
+                // 读取验证统计
+                int failureCount = addonDataSnapshot.ValidationFailureCount;
+                var result = addonDataSnapshot.LastValidationResult;
 
-            // 读取验证统计
-            int failureCount = addonDataSnapshot.ValidationFailureCount;
-            var result = addonDataSnapshot.LastValidationResult;
+                AddonReadFailureCount = failureCount;
 
-            AddonReadFailureCount = failureCount;
-
-            if (result == AddonValidationResult.Success)
-            {
-                // 验证成功,从快照读取 Player 数据
-                // GlobalTime 在倒数第二帧 (data.Length - 2)
-                int currentGlobalTime = addonDataSnapshot.GetInt(addonDataSnapshot.Data.Length - 2);
-                if (currentGlobalTime > 0)
+                if (result == AddonValidationResult.Success)
                 {
-                    // 使用 PlayerReader 读取玩家数据
-                    PlayerHealthMax = playerReader.HealthMax();
-                    PlayerHealthCurrent = playerReader.HealthCurrent();
-                    PlayerManaMax = playerReader.ManaMax();
-                    PlayerManaCurrent = playerReader.ManaCurrent();
-
-                    TargetHealthMax = playerReader.TargetMaxHealth();
-                    TargetHealthCurrent = playerReader.TargetHealth();
-
-                    // 读取 Hekili 自动模式状态
-                    IsHekiliAutoMode = hekiliReader.IsAutoModeEnabled;
-                    
-                    // 读取 VizAura 自动施法开关状态
-                    IsAutoCastEnabled = addonBits.VizAuraAutoCast_Enabled();
-
-                    if (IsHekiliAutoMode)
+                    // 验证成功,从快照读取 Player 数据
+                    // GlobalTime 在倒数第二帧 (data.Length - 2)
+                    int currentGlobalTime = addonDataSnapshot.GetInt(addonDataSnapshot.Data.Length - 2);
+                    if (currentGlobalTime > 0)
                     {
-                        // 读取技能 1
-                        Spell1 = hekiliReader.Spell1;
-                        Spell1Name = GetSpellName(Spell1);
-                        Spell1Keybind = hekiliReader.Spell1Keybind;
-                        Spell1Usable = hekiliReader.Spell1Usable;
+                        // 使用 PlayerReader 读取玩家数据
+                        PlayerHealthMax = playerReader.HealthMax();
+                        PlayerHealthCurrent = playerReader.HealthCurrent();
+                        PlayerManaMax = playerReader.ManaMax();
+                        PlayerManaCurrent = playerReader.ManaCurrent();
 
-                        // 读取技能 2
-                        Spell2 = hekiliReader.Spell2;
-                        Spell2Name = GetSpellName(Spell2);
-                        Spell2Keybind = hekiliReader.Spell2Keybind;
+                        TargetHealthMax = playerReader.TargetMaxHealth();
+                        TargetHealthCurrent = playerReader.TargetHealth();
+
+                        // 读取 Hekili 自动模式状态
+                        IsHekiliAutoMode = hekiliReader.IsAutoModeEnabled;
                         
-                        // 自动发送快捷键
-                        AutoSendKeybind();
-                    }
-                    else
-                    {
-                        // 清空显示
-                        Spell1 = 0;
-                        Spell1Name = "-";
-                        Spell1Keybind = "";
+                        // 读取 VizAura 自动施法开关状态
+                        IsAutoCastEnabled = addonBits.VizAuraAutoCast_Enabled();
 
-                        Spell2 = 0;
-                        Spell2Name = "-";
-                        Spell2Keybind = "";
-                    }
+                        if (IsHekiliAutoMode)
+                        {
+                            // 读取技能 1
+                            Spell1 = hekiliReader.Spell1;
+                            Spell1Name = GetSpellName(Spell1);
+                            Spell1Keybind = hekiliReader.Spell1Keybind;
+                            Spell1Usable = hekiliReader.Spell1Usable;
 
-                    GlobalTime = currentGlobalTime;
-                    ShowAddonWarning = false;
+                            // 读取技能 2
+                            Spell2 = hekiliReader.Spell2;
+                            Spell2Name = GetSpellName(Spell2);
+                            Spell2Keybind = hekiliReader.Spell2Keybind;
+                        }
+                        else
+                        {
+                            // 清空显示
+                            Spell1 = 0;
+                            Spell1Name = "-";
+                            Spell1Keybind = "";
+
+                            Spell2 = 0;
+                            Spell2Name = "-";
+                            Spell2Keybind = "";
+                        }
+
+                        GlobalTime = currentGlobalTime;
+                        ShowAddonWarning = false;
+                    }
                 }
-            }
-            else
-            {
-                // 失败次数超过阈值 (30 次) 才显示警告
-                if (failureCount > 30)
+                else
                 {
-                    ShowAddonWarning = true;
-                    AddonWarningMessage = GenerateWarningMessage(result);
+                    // 失败次数超过阈值 (30 次) 才显示警告
+                    if (failureCount > 30)
+                    {
+                        ShowAddonWarning = true;
+                        AddonWarningMessage = GenerateWarningMessage(result);
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     /// <summary>
@@ -367,7 +374,7 @@ public sealed partial class WorkViewModel : ViewModelBase
         if (!addonBits.VizAuraAutoCast_Enabled()) return;
 
         // 1. 检查 Hekili 自动模式
-        if (!IsHekiliAutoMode) return;
+        if (!hekiliReader.IsAutoModeEnabled) return;
 
         // 2. 检查战斗状态
         if (!addonBits.Combat()) return;
@@ -379,7 +386,7 @@ public sealed partial class WorkViewModel : ViewModelBase
         if (!WinAPI.ScreenCaptureKitInterop.is_process_frontmost(processInfo.ProcessId)) return;
 
         // 5. 检查技能 1 是否有快捷键
-        if (string.IsNullOrEmpty(Spell1Keybind)) return;
+        if (string.IsNullOrEmpty(hekiliReader.Spell1Keybind)) return;
 
         // 6. 检查技能 1 是否可用
         // Hekili 的 unusable 状态已包含所有检查:
@@ -402,24 +409,24 @@ public sealed partial class WorkViewModel : ViewModelBase
         // 7.2 同一技能强制冷却检查（防止技能释放后 GCD 延迟导致重复发送）
         if (Spell1 == lastSentSpellId && elapsed < SAME_SPELL_COOLDOWN_MS)
         {
-            logger.LogDebug($"[自动按键] 同一技能冷却中: {Spell1Name} | 已过: {elapsed:F0}ms / {SAME_SPELL_COOLDOWN_MS}ms");
+            // logger.LogDebug("[自动按键] 同一技能冷却中: {Spell1Name} | 已过: {Elapsed}ms / {SameSpellCooldownMs}ms", Spell1Name, elapsed, SAME_SPELL_COOLDOWN_MS);
             return;
         }
 
         // 8. 发送快捷键
-        logger.LogInformation($"[自动按键] 准备发送: {Spell1Keybind} ({Spell1Name}) [ID:{Spell1}] | 距上次: {elapsed:F0}ms");
+        // logger.LogDebug("[自动按键] 准备发送: {Spell1Keybind} ({Spell1Name}) [ID:{Spell1}] | 距上次: {Elapsed}ms", Spell1Keybind, Spell1Name, Spell1, elapsed);
         
-        bool success = KeybindMapper.SendKeybind(Spell1Keybind);
+        bool success = KeybindMapper.SendKeybind(hekiliReader.Spell1Keybind);
         if (success)
         {
             lastKeybindSentTime = now;
             lastSentSpellId = Spell1;  // 记录发送的技能 ID
             LastKeySentDisplay = $"⚡ {DateTime.Now:HH:mm:ss.fff}";
-            logger.LogInformation($"[自动按键] ✓ 发送成功: {Spell1Keybind} ({Spell1Name})");
+            // logger.LogDebug("[自动按键] \u2713 发送成功: {HekiliReaderSpell1Keybind} ({Spell1Name})", hekiliReader.Spell1Keybind, Spell1Name);
         }
         else
         {
-            logger.LogWarning($"[自动按键] ✗ 发送失败: {Spell1Keybind} ({Spell1Name})");
+            logger.LogWarning("[自动按键] \u2717 发送失败: {HekiliReaderSpell1Keybind} ({Spell1Name})", hekiliReader.Spell1Keybind, Spell1Name);
         }
     }
 
