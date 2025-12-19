@@ -15,7 +15,7 @@ DataToColorDB = DataToColorDB or {
 local CELL_SIZE = 5       -- 从 DataToColor.lua 获取
 local BUTTON_WIDTH = 80   -- 按钮宽度
 local BUTTON_HEIGHT = 20  -- 按钮高度
-local BUTTON_X = 0        -- X 位置（左侧）
+local BUTTON_X = 20       -- X 位置（左侧）
 local BUTTON_Y = -(CELL_SIZE + 8)  -- Y 位置（数据条下方，留 8px 间距）
 
 -- 创建常驻切换按钮
