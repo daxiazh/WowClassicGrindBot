@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 
 using System;
 using System.Collections.Frozen;
@@ -21,11 +21,68 @@ public sealed class WorldMapAreaDB
 
     public WorldMapAreaDB(DataConfig dataConfig)
     {
+        // 使用 Combine 而不是 Join 来确保获得正确的绝对路径
+        string worldMapAreaPath = Path.Combine(dataConfig.ExpDbc, "WorldMapArea.json");
+        Console.WriteLine($"[WorldMapAreaDB] 尝试加载文件: {worldMapAreaPath}");
+        Console.WriteLine($"[WorldMapAreaDB] ExpDbc 路径: {dataConfig.ExpDbc}");
+        Console.WriteLine($"[WorldMapAreaDB] Root 路径: {dataConfig.Root}");
+        
+        if (!File.Exists(worldMapAreaPath))
+        {
+            Console.WriteLine($"[WorldMapAreaDB] ❌ 文件不存在: {worldMapAreaPath}");
+            // 如果文件不存在，尝试使用项目根目录下的路径
+            string fallbackPath = Path.Combine(dataConfig.Root, "dbc", dataConfig.Exp, "WorldMapArea.json");
+            Console.WriteLine($"[WorldMapAreaDB] 尝试回退路径: {fallbackPath}");
+            
+            if (File.Exists(fallbackPath))
+            {
+                worldMapAreaPath = fallbackPath;
+                Console.WriteLine($"[WorldMapAreaDB] ✅ 使用回退路径: {worldMapAreaPath}");
+            }
+            else
+            {
+                Console.WriteLine($"[WorldMapAreaDB] ❌ 回退路径也不存在: {fallbackPath}");
+                // 列出目录内容帮助调试
+                string directory = Path.GetDirectoryName(worldMapAreaPath);
+                if (Directory.Exists(directory))
+                {
+                    Console.WriteLine($"[WorldMapAreaDB] 目录 {directory} 中的文件:");
+                    foreach (string file in Directory.GetFiles(directory))
+                    {
+                        Console.WriteLine($"[WorldMapAreaDB]   - {Path.GetFileName(file)}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[WorldMapAreaDB] 目录不存在: {directory}");
+                }
+                
+                // 再次尝试列出回退路径的目录
+                string fallbackDirectory = Path.GetDirectoryName(fallbackPath);
+                if (Directory.Exists(fallbackDirectory))
+                {
+                    Console.WriteLine($"[WorldMapAreaDB] 回退目录 {fallbackDirectory} 中的文件:");
+                    foreach (string file in Directory.GetFiles(fallbackDirectory))
+                    {
+                        Console.WriteLine($"[WorldMapAreaDB]   - {Path.GetFileName(file)}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[WorldMapAreaDB] 回退目录不存在: {fallbackDirectory}");
+                }
+                
+                throw new FileNotFoundException($"无法找到 WorldMapArea.json 文件", worldMapAreaPath);
+            }
+        }
+        else
+        {
+            Console.WriteLine($"[WorldMapAreaDB] ✅ 文件存在: {worldMapAreaPath}");
+        }
+
         ReadOnlySpan<WorldMapArea> span =
             JsonConvert.DeserializeObject<WorldMapArea[]>(
-                File.ReadAllText(
-                    Path.Join(dataConfig.ExpDbc, "WorldMapArea.json")));
-
+                File.ReadAllText(worldMapAreaPath));
 
         Dictionary<int, WorldMapArea> areahitbox = [];
         Dictionary<int, WorldMapArea> wmas = [];

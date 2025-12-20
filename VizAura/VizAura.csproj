@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -54,6 +54,8 @@
     <ItemGroup>
       <AddonsFiles Include="$(ProjectDir)../Addons/**/*.*" />
       <JsonFiles Include="$(ProjectDir)../json/**/*.*" />
+      <!-- 添加bash脚本文件 -->
+      <BashScript Include="$(ProjectDir)run.sh" />
     </ItemGroup>
     <Copy SourceFiles="@(AddonsFiles)" 
           DestinationFolder="$(TargetDir)Addons/%(RecursiveDir)" 
@@ -61,6 +63,12 @@
     <Copy SourceFiles="@(JsonFiles)" 
           DestinationFolder="$(TargetDir)../json/%(RecursiveDir)" 
           SkipUnchangedFiles="false" />
+    <!-- 复制bash脚本到输出目录 -->
+    <Copy SourceFiles="@(BashScript)" 
+          DestinationFolder="$(TargetDir)" 
+          SkipUnchangedFiles="true" />
+    <!-- 设置bash脚本的执行权限 -->
+    <Exec Command="chmod +x $(TargetDir)run.sh" Condition="'$([MSBuild]::IsOSPlatform(OSX))' Or '$([MSBuild]::IsOSPlatform(Linux))'" />
   </Target>
 
   <!-- 发布时复制 Addons 和 json 文件夹 (跨平台) -->
@@ -68,6 +76,8 @@
     <ItemGroup>
       <AddonsPublishFiles Include="$(ProjectDir)../Addons/**/*.*" />
       <JsonPublishFiles Include="$(ProjectDir)../json/**/*.*" />
+      <!-- 添加bash脚本文件 -->
+      <BashScriptPublish Include="$(ProjectDir)run.sh" />
     </ItemGroup>
     <Copy SourceFiles="@(AddonsPublishFiles)" 
           DestinationFolder="$(PublishDir)Addons/%(RecursiveDir)" 
@@ -75,6 +85,11 @@
     <Copy SourceFiles="@(JsonPublishFiles)" 
           DestinationFolder="$(PublishDir)../json/%(RecursiveDir)" 
           SkipUnchangedFiles="false" />
+    <!-- 复制bash脚本到发布目录 -->
+    <Copy SourceFiles="@(BashScriptPublish)" 
+          DestinationFolder="$(PublishDir)" 
+          SkipUnchangedFiles="true" />
+    <!-- 设置bash脚本的执行权限 -->
+    <Exec Command="chmod +x $(PublishDir)run.sh" Condition="'$([MSBuild]::IsOSPlatform(OSX))' Or '$([MSBuild]::IsOSPlatform(Linux))'" />
   </Target>
 </Project>
-

@@ -4,6 +4,9 @@ using Newtonsoft.Json;
 using System.IO;
 using System.Reflection;
 
+// 添加日志相关的命名空间
+using System.Diagnostics;
+
 using static Newtonsoft.Json.JsonConvert;
 using static System.IO.File;
 using static System.IO.Path;
@@ -17,7 +20,7 @@ public static class DataConfigMeta
 public sealed class DataConfig
 {
     public int Version = DataConfigMeta.Version;
-    public string Root { get; set; } = GetDefaultRootPath();
+    public string Root { get; } = GetDefaultRootPath();
 
     [JsonIgnore]
     public string Class => Join(Root, "class");
@@ -103,42 +106,42 @@ public sealed class DataConfig
 
     private static string GetDefaultRootPath()
     {
-        // 尝试多种方式查找数据目录
-        
-        // 1. 获取当前程序集位置
-        string assemblyLocation = Assembly.GetExecutingAssembly().Location;
-        if (!string.IsNullOrEmpty(assemblyLocation))
-        {
-            string assemblyDir = GetDirectoryName(assemblyLocation);
-            string jsonPath = Join(assemblyDir, "json");
-            if (Directory.Exists(jsonPath))
-            {
-                return jsonPath;
-            }
-            
-            // 检查上级目录
-            string parentJsonPath = Join(GetDirectoryName(assemblyDir), "json");
-            if (Directory.Exists(parentJsonPath))
-            {
-                return parentJsonPath;
-            }
-        }
-        
         // 2. 检查当前工作目录
         string currentDirJsonPath = Join(Environment.CurrentDirectory, "json");
+        Console.WriteLine($"[DataConfig] 检查当前工作目录下的json路径: {currentDirJsonPath}");
+        
         if (Directory.Exists(currentDirJsonPath))
         {
-            return currentDirJsonPath;
+            Console.WriteLine($"[DataConfig] ✅ 找到数据目录: {currentDirJsonPath}");
+            // 确保返回绝对路径
+            return GetFullPath(currentDirJsonPath);
+        }
+        else
+        {
+            Console.WriteLine($"[DataConfig] ❌ 未找到目录: {currentDirJsonPath}");
         }
         
         // 3. 检查当前工作目录的父目录
         string parentDirJsonPath = Join(GetDirectoryName(Environment.CurrentDirectory), "json");
+        Console.WriteLine($"[DataConfig] 检查当前工作目录上级目录下的json路径: {parentDirJsonPath}");
+        
         if (Directory.Exists(parentDirJsonPath))
         {
-            return parentDirJsonPath;
+            Console.WriteLine($"[DataConfig] ✅ 找到数据目录: {parentDirJsonPath}");
+            // 确保返回绝对路径
+            return GetFullPath(parentDirJsonPath);
+        }
+        else
+        {
+            Console.WriteLine($"[DataConfig] ❌ 未找到目录: {parentDirJsonPath}");
         }
         
         // 4. 回退到默认相对路径
-        return Join("..", "json");
+        string fallbackPath = Join("..", "json");
+        Console.WriteLine($"[DataConfig] 使用回退路径: {fallbackPath}");
+        Console.WriteLine($"[DataConfig] ⚠️  警告: 使用回退路径可能无法找到数据文件");
+        // 即使是回退路径也要确保返回绝对路径
+        // 使用 Combine 确保得到绝对路径
+        return GetFullPath(Combine(Environment.CurrentDirectory, fallbackPath));
     }
 }
