@@ -699,7 +699,7 @@ function DataToColor:HandlePlayerInteractionEvents()
     end
     -- Resurrect player
     if DataToColor.DATA_CONFIG.AUTO_RESURRECT then
-        DataToColor:ResurrectPlayer()
+        -- DataToColor:ResurrectPlayer() -- 不需要支持自动复活
     end
 end
 
