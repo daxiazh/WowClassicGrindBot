@@ -164,6 +164,10 @@ function DataToColor:Bits2()
 end
 
 function DataToColor:Bits3()
+    -- 检测是否按下了修饰键（Shift、Ctrl或Alt）
+    -- 只有在未按下任何修饰键且VIZAURA_AUTO_CAST_ENABLED配置启用时，才允许vizAura自动施法
+    local modifyDown = IsShiftKeyDown() or IsControlKeyDown() or IsAltKeyDown()
+    local vizAuraAutoCastEnabled = not modifyDown and DataToColor.DATA_CONFIG.VIZAURA_AUTO_CAST_ENABLED
     return
         (UnitExists(DataToColor.C.unitSoftInteract) and 1 or 0) +
         (UnitIsDead(DataToColor.C.unitSoftInteract) and 2 or 0) ^ 1 +
@@ -176,7 +180,7 @@ function DataToColor:Bits3()
         (LootFrame:IsShown() and 2 or 0) ^ 8 +
         (ChatFrame1EditBox:IsVisible() and 2 or 0) ^ 9 +
         (DataToColor:SoftTargetInteractEnabled() and 2 or 0) ^ 10 +
-        (DataToColor.DATA_CONFIG.VIZAURA_AUTO_CAST_ENABLED and 2 or 0) ^ 11
+        (vizAuraAutoCastEnabled and 2 or 0) ^ 11
 end
 
 function DataToColor:CustomTrigger(t)
