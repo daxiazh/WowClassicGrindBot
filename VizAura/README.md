@@ -86,7 +86,7 @@ dotnet run
 cd VizAura
 
 # 发布为自包含应用 (Apple Silicon)
-dotnet publish -c Release -r osx-arm64 --self-contained false
+dotnet publish -c Debug -r osx-arm64 --self-contained false
 ```
 ```bash
 # 发布为自包含应用 (Intel)
@@ -132,6 +132,63 @@ create-dmg \
 ```
 
 ⚠️ **首次运行时**: macOS 可能提示"无法打开未经验证的开发者",请在**系统设置 > 隐私与安全性**中点击"仍要打开"。
+
+### 查看 .app 运行日志
+
+**方法 1: 终端直接运行 (推荐,可实时查看日志)**
+```bash
+# 直接运行 .app 可执行文件
+/Applications/VizAura.app/Contents/MacOS/VizAura
+```
+
+**方法 2: 使用系统日志流**
+```bash
+# 实时查看 VizAura 日志
+log stream --predicate 'processImagePath CONTAINS "VizAura"' --level debug
+```
+
+**方法 3: 查看崩溃报告**
+```bash
+# 打开崩溃报告目录
+open ~/Library/Logs/DiagnosticReports/
+
+# 或列出最新的 VizAura 崩溃
+ls -lt ~/Library/Logs/DiagnosticReports/ | grep VizAura | head -5
+```
+
+**方法 4: 使用 Console.app**
+```bash
+# 打开系统控制台应用
+open -a Console
+# 然后在左侧选择 "Reports" → "Crash Reports" 查找 VizAura
+```
+
+### 配置文件位置
+
+VizAura 会根据运行环境自动选择配置文件存储位置:
+
+- **开发模式** (`dotnet run`): 配置文件保存在项目目录
+  ```
+  VizAura/
+  ├── addon_config.json
+  └── frame_config.json
+  ```
+
+- **.app Bundle 模式**: 配置文件保存在用户目录
+  ```bash
+  ~/Library/Application Support/VizAura/
+  ├── addon_config.json
+  └── frame_config.json
+  ```
+
+**查看/删除配置文件**:
+```bash
+# 查看 .app 配置目录
+ls -la ~/Library/Application\ Support/VizAura/
+
+# 删除所有配置(重新开始配置流程)
+rm -rf ~/Library/Application\ Support/VizAura/
+```
 
 ### 首次使用配置
 

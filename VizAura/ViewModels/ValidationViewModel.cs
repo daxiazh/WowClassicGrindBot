@@ -124,6 +124,8 @@ public sealed partial class ValidationViewModel : ViewModelBase
             var context = processInfoProvider.ProcessInfo;
             if (context != null)
             {
+                // 立即停止定时器,防止状态转换期间重复检查
+                cts?.Cancel();
                 onAllValid(context);
             }
             return;
