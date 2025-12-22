@@ -125,6 +125,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// 窗口关闭时清理资源
+    /// 重写 ViewModelBase.OnWindowClosing() 虚方法
+    /// </summary>
+    public override void OnWindowClosing()
+    {
+        logger.LogInformation("主窗口关闭,开始清理资源");
+        ExitCurrentState();
+    }
+
+    /// <summary>
     /// 进入新状态
     /// 资源创建流程:
     ///   1. 创建新 Scope - 全新的检测会话环境,无旧数据污染
