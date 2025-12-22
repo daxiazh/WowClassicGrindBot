@@ -92,4 +92,43 @@
     <!-- 设置bash脚本的执行权限 -->
     <Exec Command="chmod +x $(PublishDir)run.sh" Condition="'$([MSBuild]::IsOSPlatform(OSX))' Or '$([MSBuild]::IsOSPlatform(Linux))'" />
   </Target>
+
+  <!-- 创建 macOS .app Bundle (仅在 macOS 发布时执行) -->
+  <Target Name="CreateMacOSAppBundle" AfterTargets="CopyCustomContentOnPublish" Condition="'$([MSBuild]::IsOSPlatform(OSX))'">
+    <PropertyGroup>
+      <AppBundlePath>$(PublishDir)../VizAura.app</AppBundlePath>
+      <AppContentsPath>$(AppBundlePath)/Contents</AppContentsPath>
+      <AppMacOSPath>$(AppContentsPath)/MacOS</AppMacOSPath>
+      <AppResourcesPath>$(AppContentsPath)/Resources</AppResourcesPath>
+    </PropertyGroup>
+
+    <!-- 创建 .app 目录结构 -->
+    <MakeDir Directories="$(AppMacOSPath)" />
+    <MakeDir Directories="$(AppResourcesPath)" />
+
+    <!-- 复制 Info.plist -->
+    <Copy SourceFiles="$(ProjectDir)Info.plist" DestinationFolder="$(AppContentsPath)" />
+
+    <!-- 复制所有发布文件到 Contents/MacOS -->
+    <ItemGroup>
+      <PublishFiles Include="$(PublishDir)**/*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PublishFiles)" 
+          DestinationFolder="$(AppMacOSPath)/%(RecursiveDir)" 
+          SkipUnchangedFiles="false" />
+
+    <!-- 复制 json 文件夹到 Contents/MacOS 同级 -->
+    <ItemGroup>
+      <JsonAppFiles Include="$(PublishDir)../json/**/*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(JsonAppFiles)" 
+          DestinationFolder="$(AppContentsPath)/json/%(RecursiveDir)" 
+          SkipUnchangedFiles="false" />
+
+    <!-- 设置可执行文件权限 -->
+    <Exec Command="chmod +x $(AppMacOSPath)/VizAura" />
+    <Exec Command="chmod +x $(AppMacOSPath)/libScreenCapture.dylib" />
+
+    <Message Importance="high" Text="✅ macOS .app Bundle 已创建: $(AppBundlePath)" />
+  </Target>
 </Project>

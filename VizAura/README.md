@@ -59,7 +59,7 @@ macOS 输入模拟 (CGEvent API)
 ### 前置要求
 
 1. **macOS** 系统 (版本 13+)
-2. **.NET 9.0 Runtime** ([下载](https://dotnet.microsoft.com/download/dotnet/9.0))
+2. **.NET 10.0 Runtime** ([下载](https://dotnet.microsoft.com/download/dotnet/10.0))
 3. **魔兽世界客户端** (经典版/巫妖王之怒)
 4. **DataToColor 插件** (已安装并配置)
 5. **Hekili 插件** (已安装)
@@ -76,6 +76,62 @@ dotnet build
 # 运行应用
 dotnet run
 ```
+
+### 发布
+
+#### 创建独立的 .app Bundle
+
+```bash
+# 进入项目目录
+cd VizAura
+
+# 发布为自包含应用 (Apple Silicon)
+dotnet publish -c Release -r osx-arm64 --self-contained false
+```
+```bash
+# 发布为自包含应用 (Intel)
+dotnet publish -c Release -r osx-x64 --self-contained false
+```
+
+**输出位置**:
+- Apple Silicon: `bin/Release/net10.0/osx-arm64/VizAura.app`
+- Intel: `bin/Release/net10.0/osx-x64/VizAura.app`
+
+#### 分发应用
+
+**方法 1: 直接拷贝**
+```bash
+# 将 .app 拖到 /Applications 文件夹
+cp -r bin/Release/net10.0/osx-arm64/VizAura.app /Applications/
+```
+
+**方法 2: 创建压缩包**
+```bash
+# 创建 tar.gz 压缩包
+cd bin/Release/net10.0/osx-arm64/
+tar -czf VizAura-macOS-arm64.tar.gz VizAura.app
+
+# 解压使用
+tar -xzf VizAura-macOS-arm64.tar.gz
+```
+
+**方法 3: 创建 DMG 安装包** (需要 `create-dmg` 工具)
+```bash
+# 安装 create-dmg
+brew install create-dmg
+
+# 创建 DMG
+create-dmg \
+  --volname "VizAura" \
+  --window-pos 200 120 \
+  --window-size 800 400 \
+  --icon-size 100 \
+  --app-drop-link 600 185 \
+  "VizAura-Installer.dmg" \
+  "bin/Release/net10.0/osx-arm64/VizAura.app"
+```
+
+⚠️ **首次运行时**: macOS 可能提示"无法打开未经验证的开发者",请在**系统设置 > 隐私与安全性**中点击"仍要打开"。
 
 ### 首次使用配置
 
