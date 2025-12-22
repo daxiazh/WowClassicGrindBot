@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using VizAura.MacOS;
 using VizAura.Models;
 
@@ -35,6 +36,11 @@ public sealed partial class WorkViewModel : ViewModelBase
     private int lastSentSpellId = 0;  // 上次发送的技能 ID
     private const int KEYBIND_COOLDOWN_MS = 50; // 全局按键最小间隔 (50ms)
     private const int SAME_SPELL_COOLDOWN_MS = 500; // 同一技能强制冷却 (500ms)
+
+    // UI 更新优化 (线程安全)
+    private long _lastUIUpdateTicks = 0;  // 上次 UI 更新时间戳 (Ticks, 使用 Interlocked)
+    private const int UI_UPDATE_INTERVAL_MS = 66;  // UI 更新间隔 (15 FPS)
+    private volatile int _isUIUpdatePending = 0;  // UI 更新是否待处理 (0=false, 1=true, 使用 Interlocked)
 
     public string StatusMessage => $"正在监控进程: {processInfo.ProcessName} (PID: {processInfo.ProcessId})";
 
@@ -182,6 +188,31 @@ public sealed partial class WorkViewModel : ViewModelBase
     [ObservableProperty] private bool enableUIUpdates = false;
 
     /// <summary>
+    /// 自动施法状态文本 (优化: 避免 Run 元素)
+    /// </summary>
+    [ObservableProperty] private string autoCastStatusText = "";
+
+    /// <summary>
+    /// 玩家生命值文本 (优化: 避免 Run 元素)
+    /// </summary>
+    [ObservableProperty] private string playerHealthText = "";
+
+    /// <summary>
+    /// 玩家法力值文本 (优化: 避免 Run 元素)
+    /// </summary>
+    [ObservableProperty] private string playerManaText = "";
+
+    /// <summary>
+    /// 目标生命值文本 (优化: 避免 Run 元素)
+    /// </summary>
+    [ObservableProperty] private string targetHealthText = "";
+
+    /// <summary>
+    /// 调试信息文本 (优化: 避免 Run 元素)
+    /// </summary>
+    [ObservableProperty] private string debugInfoText = "";
+
+    /// <summary>
     /// 构造函数 - 所有依赖通过 DI 注入
     /// 依赖解析链:
     ///   WorkViewModel (Scoped)
@@ -253,75 +284,115 @@ public sealed partial class WorkViewModel : ViewModelBase
         // 3. 异步执行 (UI 线程): UI 更新 (仅当开关启用时)
         if (EnableUIUpdates)
         {
-            Dispatcher.UIThread.Post(() =>
+            // 优化 2: UI 更新节流 (15 FPS) - 线程安全
+            long nowTicks = DateTime.UtcNow.Ticks;
+            long lastTicks = Interlocked.Read(ref _lastUIUpdateTicks);
+            long elapsedMs = (nowTicks - lastTicks) / TimeSpan.TicksPerMillisecond;
+            
+            if (elapsedMs < UI_UPDATE_INTERVAL_MS)
+                return;
+            
+            // 优化 3: Dispatcher 积压检测 - 线程安全 (CAS 操作)
+            if (Interlocked.CompareExchange(ref _isUIUpdatePending, 1, 0) != 0)
+                return; // 上一帧还未处理完，跳过
+            
+            // 更新时间戳
+            Interlocked.Exchange(ref _lastUIUpdateTicks, nowTicks);
+            
+            // 优化 1: 消除 lambda 闭包 - 使用 InvokeAsync 调用方法
+            _ = Dispatcher.UIThread.InvokeAsync(() =>
             {
-                // 读取验证统计
-                int failureCount = addonDataSnapshot.ValidationFailureCount;
-                var result = addonDataSnapshot.LastValidationResult;
-
-                AddonReadFailureCount = failureCount;
-
-                if (result == AddonValidationResult.Success)
+                try
                 {
-                    // 验证成功,从快照读取 Player 数据
-                    // GlobalTime 在倒数第二帧 (data.Length - 2)
-                    int currentGlobalTime = addonDataSnapshot.GetInt(addonDataSnapshot.Data.Length - 2);
-                    if (currentGlobalTime > 0)
-                    {
-                        // 使用 PlayerReader 读取玩家数据
-                        PlayerHealthMax = playerReader.HealthMax();
-                        PlayerHealthCurrent = playerReader.HealthCurrent();
-                        PlayerManaMax = playerReader.ManaMax();
-                        PlayerManaCurrent = playerReader.ManaCurrent();
+                    UpdateUI();
+                }
+                finally
+                {
+                    // 原子重置标志
+                    Interlocked.Exchange(ref _isUIUpdatePending, 0);
+                }
+            }, DispatcherPriority.Background);
+        }
+    }
 
-                        TargetHealthMax = playerReader.TargetMaxHealth();
-                        TargetHealthCurrent = playerReader.TargetHealth();
+    /// <summary>
+    /// 更新 UI 显示（在 UI 线程中执行）
+    /// 说明: 从 OnScreenFrameUpdated() 的 lambda 中提取,消除闭包分配
+    /// </summary>
+    private void UpdateUI()
+    {
+        // 读取验证统计
+        int failureCount = addonDataSnapshot.ValidationFailureCount;
+        var result = addonDataSnapshot.LastValidationResult;
 
-                        // 读取 Hekili 自动模式状态
-                        IsHekiliAutoMode = hekiliReader.IsAutoModeEnabled;
-                        
-                        // 读取 VizAura 自动施法开关状态
-                        IsAutoCastEnabled = addonBits.VizAuraAutoCast_Enabled();
+        AddonReadFailureCount = failureCount;
 
-                        if (IsHekiliAutoMode)
-                        {
-                            // 读取技能 1
-                            Spell1 = hekiliReader.Spell1;
-                            Spell1Name = GetSpellName(Spell1);
-                            Spell1Keybind = hekiliReader.Spell1Keybind;
-                            Spell1Usable = hekiliReader.Spell1Usable;
+        if (result == AddonValidationResult.Success)
+        {
+            // 验证成功,从快照读取 Player 数据
+            // GlobalTime 在倒数第二帧 (data.Length - 2)
+            int currentGlobalTime = addonDataSnapshot.GetInt(addonDataSnapshot.Data.Length - 2);
+            if (currentGlobalTime > 0)
+            {
+                // 使用 PlayerReader 读取玩家数据
+                PlayerHealthMax = playerReader.HealthMax();
+                PlayerHealthCurrent = playerReader.HealthCurrent();
+                PlayerManaMax = playerReader.ManaMax();
+                PlayerManaCurrent = playerReader.ManaCurrent();
 
-                            // 读取技能 2
-                            Spell2 = hekiliReader.Spell2;
-                            Spell2Name = GetSpellName(Spell2);
-                            Spell2Keybind = hekiliReader.Spell2Keybind;
-                        }
-                        else
-                        {
-                            // 清空显示
-                            Spell1 = 0;
-                            Spell1Name = "-";
-                            Spell1Keybind = "";
+                TargetHealthMax = playerReader.TargetMaxHealth();
+                TargetHealthCurrent = playerReader.TargetHealth();
 
-                            Spell2 = 0;
-                            Spell2Name = "-";
-                            Spell2Keybind = "";
-                        }
+                // 读取 Hekili 自动模式状态
+                IsHekiliAutoMode = hekiliReader.IsAutoModeEnabled;
+                
+                // 读取 VizAura 自动施法开关状态
+                IsAutoCastEnabled = addonBits.VizAuraAutoCast_Enabled();
 
-                        GlobalTime = currentGlobalTime;
-                        ShowAddonWarning = false;
-                    }
+                // 更新组合文本 (避免 AXAML 中使用 Run 元素)
+                AutoCastStatusText = $"自动施法: {(IsAutoCastEnabled ? "已启用" : "已禁用")}";
+                PlayerHealthText = $"{PlayerHealthCurrent}/{PlayerHealthMax}";
+                PlayerManaText = $"{PlayerManaCurrent}/{PlayerManaMax}";
+                TargetHealthText = $"{TargetHealthCurrent}/{TargetHealthMax}";
+                DebugInfoText = $"GlobalTime: {currentGlobalTime}  |  Frames: {WelcomeMessage}";
+
+                if (IsHekiliAutoMode)
+                {
+                    // 读取技能 1
+                    Spell1 = hekiliReader.Spell1;
+                    Spell1Name = GetSpellName(Spell1);
+                    Spell1Keybind = hekiliReader.Spell1Keybind;
+                    Spell1Usable = hekiliReader.Spell1Usable;
+
+                    // 读取技能 2
+                    Spell2 = hekiliReader.Spell2;
+                    Spell2Name = GetSpellName(Spell2);
+                    Spell2Keybind = hekiliReader.Spell2Keybind;
                 }
                 else
                 {
-                    // 失败次数超过阈值 (30 次) 才显示警告
-                    if (failureCount > 30)
-                    {
-                        ShowAddonWarning = true;
-                        AddonWarningMessage = GenerateWarningMessage(result);
-                    }
+                    // 清空显示
+                    Spell1 = 0;
+                    Spell1Name = "-";
+                    Spell1Keybind = "";
+
+                    Spell2 = 0;
+                    Spell2Name = "-";
+                    Spell2Keybind = "";
                 }
-            });
+
+                GlobalTime = currentGlobalTime;
+                ShowAddonWarning = false;
+            }
+        }
+        else
+        {
+            // 失败次数超过阈值 (30 次) 才显示警告
+            if (failureCount > 30)
+            {
+                ShowAddonWarning = true;
+                AddonWarningMessage = GenerateWarningMessage(result);
+            }
         }
     }
 

@@ -93,12 +93,10 @@
                             <Border.Background>
                                 <SolidColorBrush Color="{Binding IsAutoCastEnabled, Converter={StaticResource BoolToColorConverter}}"/>
                             </Border.Background>
-                            <TextBlock FontSize="12"
+                            <TextBlock Text="{Binding AutoCastStatusText}"
+                                       FontSize="12"
                                        FontWeight="Bold"
-                                       Foreground="White">
-                                <Run Text="自动施法: "/>
-                                <Run Text="{Binding IsAutoCastEnabled, Converter={StaticResource BoolToStringConverter}}"/>
-                            </TextBlock>
+                                       Foreground="White"/>
                         </Border>
                     </Grid>
                     
@@ -117,11 +115,10 @@
                                        VerticalAlignment="Center"
                                        Margin="0,0,10,0"/>
                             <StackPanel Grid.Column="1" Spacing="3">
-                                <TextBlock FontSize="16"
+                                <TextBlock Text="{Binding Spell1Name}"
+                                           FontSize="16"
                                            FontWeight="Bold"
-                                           Foreground="#2196F3">
-                                    <Run Text="{Binding Spell1Name}"/>
-                                </TextBlock>
+                                           Foreground="#2196F3"/>
                             </StackPanel>
                             <!-- 技能可用状态指示器 -->
                             <TextBlock Grid.Column="2"
@@ -218,12 +215,9 @@
                                  Maximum="{Binding PlayerHealthMax}"
                                  Height="10"
                                  Foreground="#F44336"/>
-                    <TextBlock FontSize="10"
-                               Foreground="#666">
-                        <Run Text="{Binding PlayerHealthCurrent}"/>
-                        <Run Text="/"/>
-                        <Run Text="{Binding PlayerHealthMax}"/>
-                    </TextBlock>
+                    <TextBlock Text="{Binding PlayerHealthText}"
+                               FontSize="10"
+                               Foreground="#666"/>
                 </StackPanel>
 
                 <!-- 玩家法力值 -->
@@ -235,12 +229,9 @@
                                  Maximum="{Binding PlayerManaMax}"
                                  Height="10"
                                  Foreground="#2196F3"/>
-                    <TextBlock FontSize="10"
-                               Foreground="#666">
-                        <Run Text="{Binding PlayerManaCurrent}"/>
-                        <Run Text="/"/>
-                        <Run Text="{Binding PlayerManaMax}"/>
-                    </TextBlock>
+                    <TextBlock Text="{Binding PlayerManaText}"
+                               FontSize="10"
+                               Foreground="#666"/>
                 </StackPanel>
 
                 <!-- 目标生命值 -->
@@ -252,12 +243,9 @@
                                  Maximum="{Binding TargetHealthMax}"
                                  Height="10"
                                  Foreground="#FF9800"/>
-                    <TextBlock FontSize="10"
-                               Foreground="#666">
-                        <Run Text="{Binding TargetHealthCurrent}"/>
-                        <Run Text="/"/>
-                        <Run Text="{Binding TargetHealthMax}"/>
-                    </TextBlock>
+                    <TextBlock Text="{Binding TargetHealthText}"
+                               FontSize="10"
+                               Foreground="#666"/>
                 </StackPanel>
             </Grid>
 
@@ -271,14 +259,10 @@
                     <TextBlock Text="📊 调试信息"
                                FontSize="13"
                                FontWeight="SemiBold"/>
-                    <TextBlock FontSize="11"
+                    <TextBlock Text="{Binding DebugInfoText}"
+                               FontSize="11"
                                Foreground="#666"
-                               FontFamily="Consolas,Menlo,monospace">
-                        <Run Text="GlobalTime: "/>
-                        <Run Text="{Binding GlobalTime}"/>
-                        <Run Text="  |  Frames: "/>
-                        <Run Text="{Binding WelcomeMessage}"/>
-                    </TextBlock>
+                               FontFamily="Consolas,Menlo,monospace"/>
                 </StackPanel>
             </Border>
         </StackPanel>
