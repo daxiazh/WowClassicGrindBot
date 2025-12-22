@@ -104,44 +104,89 @@ public sealed class DataConfig
         }
     }
 
+    /// <summary>
+    /// 向上搜索 json/ 目录 (从指定目录开始)
+    /// </summary>
+    /// <param name="startDir">起始目录</param>
+    /// <param name="maxLevels">最大向上搜索层数</param>
+    /// <returns>找到的 json/ 目录绝对路径,未找到返回 null</returns>
+    private static string? SearchUpwardsForJson(string? startDir, int maxLevels)
+    {
+        if (string.IsNullOrEmpty(startDir))
+            return null;
+
+        string? current = startDir;
+        
+        for (int i = 0; i < maxLevels; i++)
+        {
+            string jsonPath = Join(current, "json");
+            
+            if (Directory.Exists(jsonPath))
+            {
+                Console.WriteLine($"[DataConfig] ✅ 找到数据目录 (向上搜索 {i} 层): {jsonPath}");
+                return GetFullPath(jsonPath);
+            }
+            
+            string? parent = GetDirectoryName(current);
+            
+            // 已到达根目录
+            if (parent == null || parent == current)
+                break;
+            
+            current = parent;
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// 获取默认的数据根路径 (Json/ 目录)
+    /// 兼容 Rider 调试、dotnet run 和打包后运行
+    /// </summary>
+    /// <returns>Json/ 目录的绝对路径</returns>
     private static string GetDefaultRootPath()
     {
+        Console.WriteLine("[DataConfig] 开始查找 Json/ 数据目录...");
+        
+        // 1. 从程序集位置向上查找 (最可靠 - 兼容调试和打包运行)
+        string? assemblyDir = GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+        Console.WriteLine($"[DataConfig] 程序集位置: {assemblyDir}");
+        
+        string? jsonPath = SearchUpwardsForJson(assemblyDir, maxLevels: 6);
+        if (jsonPath != null)
+            return jsonPath;
+        
+        Console.WriteLine("[DataConfig] ❌ 从程序集位置未找到 json/ 目录");
+        
         // 2. 检查当前工作目录
         string currentDirJsonPath = Join(Environment.CurrentDirectory, "json");
-        Console.WriteLine($"[DataConfig] 检查当前工作目录下的json路径: {currentDirJsonPath}");
+        Console.WriteLine($"[DataConfig] 检查当前工作目录: {currentDirJsonPath}");
         
         if (Directory.Exists(currentDirJsonPath))
         {
-            Console.WriteLine($"[DataConfig] ✅ 找到数据目录: {currentDirJsonPath}");
-            // 确保返回绝对路径
+            Console.WriteLine($"[DataConfig] ✅ 找到数据目录 (当前工作目录): {currentDirJsonPath}");
             return GetFullPath(currentDirJsonPath);
         }
-        else
-        {
-            Console.WriteLine($"[DataConfig] ❌ 未找到目录: {currentDirJsonPath}");
-        }
+        
+        Console.WriteLine("[DataConfig] ❌ 当前工作目录未找到 json/ 目录");
         
         // 3. 检查当前工作目录的父目录
-        string parentDirJsonPath = Join(GetDirectoryName(Environment.CurrentDirectory), "json");
-        Console.WriteLine($"[DataConfig] 检查当前工作目录上级目录下的json路径: {parentDirJsonPath}");
+        string? parentDirJsonPath = Join(GetDirectoryName(Environment.CurrentDirectory), "json");
+        Console.WriteLine($"[DataConfig] 检查父目录: {parentDirJsonPath}");
         
-        if (Directory.Exists(parentDirJsonPath))
+        if (parentDirJsonPath != null && Directory.Exists(parentDirJsonPath))
         {
-            Console.WriteLine($"[DataConfig] ✅ 找到数据目录: {parentDirJsonPath}");
-            // 确保返回绝对路径
+            Console.WriteLine($"[DataConfig] ✅ 找到数据目录 (父目录): {parentDirJsonPath}");
             return GetFullPath(parentDirJsonPath);
         }
-        else
-        {
-            Console.WriteLine($"[DataConfig] ❌ 未找到目录: {parentDirJsonPath}");
-        }
+        
+        Console.WriteLine("[DataConfig] ❌ 父目录未找到 json/ 目录");
         
         // 4. 回退到默认相对路径
-        string fallbackPath = Join("..", "json");
-        Console.WriteLine($"[DataConfig] 使用回退路径: {fallbackPath}");
-        Console.WriteLine($"[DataConfig] ⚠️  警告: 使用回退路径可能无法找到数据文件");
-        // 即使是回退路径也要确保返回绝对路径
-        // 使用 Combine 确保得到绝对路径
-        return GetFullPath(Combine(Environment.CurrentDirectory, fallbackPath));
+        string fallbackPath = Combine(Environment.CurrentDirectory, "..", "json");
+        Console.WriteLine($"[DataConfig] ⚠️  使用回退路径: {fallbackPath}");
+        Console.WriteLine($"[DataConfig] ⚠️  警告: 回退路径可能无法找到数据文件,请检查 Json/ 目录位置");
+        
+        return GetFullPath(fallbackPath);
     }
 }

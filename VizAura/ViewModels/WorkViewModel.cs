@@ -41,6 +41,9 @@ public sealed partial class WorkViewModel : ViewModelBase
     private long _lastUIUpdateTicks = 0;  // 上次 UI 更新时间戳 (Ticks, 使用 Interlocked)
     private const int UI_UPDATE_INTERVAL_MS = 66;  // UI 更新间隔 (15 FPS)
     private volatile int _isUIUpdatePending = 0;  // UI 更新是否待处理 (0=false, 1=true, 使用 Interlocked)
+    
+    // 错误处理 (线程安全)
+    private volatile bool _isExiting = false;  // 防止重复退出
 
     public string StatusMessage => $"正在监控进程: {processInfo.ProcessName} (PID: {processInfo.ProcessId})";
 
@@ -262,8 +265,51 @@ public sealed partial class WorkViewModel : ViewModelBase
     {
         // 订阅帧更新事件 (每次 ScreenCaptureKit 捕获到新帧时触发)
         screen.OnFrameUpdated += OnScreenFrameUpdated;
+        
+        // 订阅流错误事件 (当窗口关闭等错误发生时触发)
+        screen.OnStreamError += OnScreenError;
     }
 
+    /// <summary>
+    /// 流错误回调 (在 native 线程中被调用)
+    /// 当 ScreenCaptureKit 流发生错误时触发 (例如窗口关闭)
+    /// </summary>
+    /// <param name="errorCode">错误码</param>
+    private void OnScreenError(int errorCode)
+    {
+        // 原子 CAS: 仅首次调用成功,防止重复退出
+        if (Interlocked.CompareExchange(ref _isExiting, true, false))
+            return;
+        
+        logger.LogError("ScreenCaptureKit 流错误: Code={ErrorCode}, 窗口可能已关闭", errorCode);
+        
+        // 切换到 UI 线程处理状态转换
+        Dispatcher.UIThread.Post(() =>
+        {
+            // 二次检查: 确保当前仍是 WorkViewModel 状态
+            var mainWindow = App.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+            
+            var mainVm = mainWindow?.DataContext as MainWindowViewModel;
+            
+            if (mainVm?.CurrentViewModel == this)
+            {
+                logger.LogInformation("检测到窗口关闭,退出 Work 状态");
+                
+                // 先清理资源 (取消订阅+释放 screen)
+                OnExit();
+                
+                // 再切换状态
+                mainVm.TransitionTo(AppState.Validating);
+            }
+            else
+            {
+                logger.LogWarning("OnScreenError 回调时已不在 Work 状态,跳过处理");
+            }
+        }, DispatcherPriority.Normal);
+    }
+    
     /// <summary>
     /// 屏幕帧更新回调 (在 native 线程中被调用)
     /// 每次 ScreenCaptureKit 捕获到新帧时触发
@@ -523,10 +569,12 @@ public sealed partial class WorkViewModel : ViewModelBase
     /// </summary>
     public void OnExit()
     {
-        // 取消事件订阅
+        // 取消事件订阅 (防止回调到已释放的对象)
         screen.OnFrameUpdated -= OnScreenFrameUpdated;
+        screen.OnStreamError -= OnScreenError;
 
         // 手动释放 native 资源 (在 Scope 销毁前提前释放)
+        // 内部有原子检查,防止重复 Dispose
         screen.Dispose();
     }
 }
