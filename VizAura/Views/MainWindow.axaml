@@ -26,6 +26,71 @@
             </MenuItem>
         </Menu>
 
+        <!-- 底部日志区域 -->
+        <Border DockPanel.Dock="Bottom"
+                Background="#1E1E1E"
+                BorderBrush="#3C3C3C"
+                BorderThickness="0,1,0,0"
+                Height="200">
+            <Grid RowDefinitions="Auto,*">
+                <!-- 日志标题栏 -->
+                <Border Grid.Row="0"
+                        Background="#2D2D30"
+                        Padding="10,5">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                        <TextBlock Grid.Column="0"
+                                   Text="📋 日志输出"
+                                   FontWeight="SemiBold"
+                                   Foreground="#CCCCCC"
+                                   VerticalAlignment="Center"/>
+                        
+                        <Button Grid.Column="2"
+                                Content="📋 复制所有日志"
+                                Command="{Binding CopyAllLogsCommand}"
+                                Margin="0,0,10,0"
+                                Padding="8,4"
+                                Background="#3C3C3C"
+                                Foreground="#CCCCCC"
+                                BorderBrush="#555555"
+                                VerticalAlignment="Center"/>
+                        
+                        <CheckBox Grid.Column="3"
+                                  Content="自动滚动"
+                                  IsChecked="{Binding AutoScrollLog}"
+                                  Foreground="#CCCCCC"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- 日志内容 -->
+                <ListBox Grid.Row="1"
+                         Name="LogListBox"
+                         ItemsSource="{Binding LogMessages}"
+                         Background="#1E1E1E"
+                         BorderThickness="0"
+                         SelectionMode="Multiple">
+                    <ListBox.Styles>
+                        <!-- 移除选中高亮背景 -->
+                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                            <Setter Property="Background" Value="#264F78"/>
+                        </Style>
+                        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                            <Setter Property="Background" Value="#2A2D2E"/>
+                        </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <SelectableTextBlock Text="{Binding}"
+                                                 FontFamily="Consolas,Menlo,monospace"
+                                                 FontSize="11"
+                                                 Foreground="#D4D4D4"
+                                                 Padding="5,1"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+
         <!-- 主内容区域 - 使用 ContentControl 根据 CurrentViewModel 自动切换视图 -->
         <ContentControl Content="{Binding CurrentViewModel}">
             <ContentControl.DataTemplates>

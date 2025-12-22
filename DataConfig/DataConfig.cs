@@ -15,6 +15,38 @@ public static class DataConfigMeta
 {
     public const int Version = 14;
     public const string DefaultFileName = "data_config.json";
+    
+    /// <summary>
+    /// 获取配置文件完整路径
+    /// 智能检测运行环境:
+    ///   - .app Bundle: ~/Library/Application Support/VizAura/data_config.json
+    ///   - 开发模式: 当前工作目录/data_config.json
+    /// </summary>
+    public static string GetConfigPath()
+    {
+        // 检测是否在 .app Bundle 内运行
+        var execPath = Environment.ProcessPath;
+        if (execPath != null && execPath.Contains(".app/Contents/MacOS"))
+        {
+            // .app Bundle 模式: 使用 Application Support 目录
+            string baseDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Library",
+                "Application Support",
+                "VizAura"
+            );
+            
+            if (!Directory.Exists(baseDir))
+            {
+                Directory.CreateDirectory(baseDir);
+            }
+            
+            return Path.Combine(baseDir, DefaultFileName);
+        }
+        
+        // 开发模式: 使用当前工作目录
+        return Path.Combine(Directory.GetCurrentDirectory(), DefaultFileName);
+    }
 }
 
 public sealed class DataConfig
@@ -56,9 +88,10 @@ public sealed class DataConfig
 
     public static DataConfig Load()
     {
-        if (File.Exists(DataConfigMeta.DefaultFileName))
+        string configPath = DataConfigMeta.GetConfigPath();
+        if (File.Exists(configPath))
         {
-            var loaded = DeserializeObject<DataConfig>(ReadAllText(DataConfigMeta.DefaultFileName));
+            var loaded = DeserializeObject<DataConfig>(ReadAllText(configPath));
             if (loaded.Version == DataConfigMeta.Version)
                 return loaded;
         }
@@ -68,9 +101,10 @@ public sealed class DataConfig
 
     public static DataConfig Load(string client)
     {
-        if (File.Exists(DataConfigMeta.DefaultFileName))
+        string configPath = DataConfigMeta.GetConfigPath();
+        if (File.Exists(configPath))
         {
-            var loaded = DeserializeObject<DataConfig>(ReadAllText(DataConfigMeta.DefaultFileName));
+            var loaded = DeserializeObject<DataConfig>(ReadAllText(configPath));
             if (loaded.Version == DataConfigMeta.Version)
             {
                 loaded.Exp = client.ToLowerInvariant();
@@ -85,7 +119,7 @@ public sealed class DataConfig
 
     private DataConfig Save()
     {
-        WriteAllText(DataConfigMeta.DefaultFileName, SerializeObject(this));
+        WriteAllText(DataConfigMeta.GetConfigPath(), SerializeObject(this));
 
         return this;
     }

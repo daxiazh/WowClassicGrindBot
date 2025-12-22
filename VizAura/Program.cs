@@ -57,10 +57,15 @@ static class Program
         services.AddTransient<AddonStepViewModel>();
         services.AddTransient<FrameStepViewModel>();
         
+        // UI 日志提供者 (Singleton - 全局唯一,捕获所有日志)
+        var uiLoggerProvider = new UILoggerProvider();
+        services.AddSingleton(uiLoggerProvider);
+        
         // 日志服务
         services.AddLogging(builder =>
         {
             builder.AddConsole();
+            builder.AddProvider(uiLoggerProvider);  // 添加 UI 日志提供者
             builder.SetMinimumLevel(LogLevel.Information);
         });
         

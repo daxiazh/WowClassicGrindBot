@@ -53,4 +53,9 @@ public static class ConfigPaths
     /// frame_config.json 完整路径
     /// </summary>
     public static string FrameConfigPath => Path.Combine(BaseDirectory, "frame_config.json");
+
+    /// <summary>
+    /// data_config.json 完整路径
+    /// </summary>
+    public static string DataConfigPath => Path.Combine(BaseDirectory, "data_config.json");
 }
