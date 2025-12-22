@@ -119,18 +119,6 @@
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center"
                         FontWeight="SemiBold"/>
-                
-                <Button Content="💾 保存配置"
-                        Command="{Binding SaveCommand}"
-                        IsEnabled="{Binding CanSave}"
-                        Background="#4CAF50"
-                        Foreground="White"
-                        Padding="12,8"
-                        CornerRadius="6"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Center"
-                        FontWeight="SemiBold"
-                        FontSize="13"/>
             </StackPanel>
         </StackPanel>
     </Grid>
