@@ -86,7 +86,7 @@ dotnet run
 cd VizAura
 
 # 发布为自包含应用 (Apple Silicon)
-dotnet publish -c Debug -r osx-arm64 --self-contained false
+dotnet publish -c Release -r osx-arm64 --self-contained false
 ```
 ```bash
 # 发布为自包含应用 (Intel)
