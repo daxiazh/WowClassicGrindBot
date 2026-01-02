@@ -54,21 +54,13 @@
     <ItemGroup>
       <AddonsFiles Include="$(ProjectDir)../Addons/**/*.*" />
       <JsonFiles Include="$(ProjectDir)../json/**/*.*" />
-      <!-- 添加bash脚本文件 -->
-      <BashScript Include="$(ProjectDir)run.sh" />
     </ItemGroup>
     <Copy SourceFiles="@(AddonsFiles)" 
           DestinationFolder="$(TargetDir)Addons/%(RecursiveDir)" 
           SkipUnchangedFiles="false" />
     <Copy SourceFiles="@(JsonFiles)" 
-          DestinationFolder="$(TargetDir)../json/%(RecursiveDir)" 
-          SkipUnchangedFiles="false" />
-    <!-- 复制bash脚本到输出目录 -->
-    <Copy SourceFiles="@(BashScript)" 
-          DestinationFolder="$(TargetDir)" 
-          SkipUnchangedFiles="true" />
-    <!-- 设置bash脚本的执行权限 -->
-    <Exec Command="chmod +x $(TargetDir)run.sh" Condition="'$([MSBuild]::IsOSPlatform(OSX))' Or '$([MSBuild]::IsOSPlatform(Linux))'" />
+          DestinationFolder="$(TargetDir)json/%(RecursiveDir)" 
+          SkipUnchangedFiles="false" />   
   </Target>
 
   <!-- 发布时复制 Addons 和 json 文件夹 (跨平台) -->
@@ -76,20 +68,43 @@
     <ItemGroup>
       <AddonsPublishFiles Include="$(ProjectDir)../Addons/**/*.*" />
       <JsonPublishFiles Include="$(ProjectDir)../json/**/*.*" />
-      <!-- 添加bash脚本文件 -->
-      <BashScriptPublish Include="$(ProjectDir)run.sh" />
     </ItemGroup>
     <Copy SourceFiles="@(AddonsPublishFiles)" 
           DestinationFolder="$(PublishDir)Addons/%(RecursiveDir)" 
           SkipUnchangedFiles="false" />
     <Copy SourceFiles="@(JsonPublishFiles)" 
-          DestinationFolder="$(PublishDir)../json/%(RecursiveDir)" 
+          DestinationFolder="$(PublishDir)json/%(RecursiveDir)" 
           SkipUnchangedFiles="false" />
-    <!-- 复制bash脚本到发布目录 -->
-    <Copy SourceFiles="@(BashScriptPublish)" 
-          DestinationFolder="$(PublishDir)" 
-          SkipUnchangedFiles="true" />
-    <!-- 设置bash脚本的执行权限 -->
-    <Exec Command="chmod +x $(PublishDir)run.sh" Condition="'$([MSBuild]::IsOSPlatform(OSX))' Or '$([MSBuild]::IsOSPlatform(Linux))'" />
+   </Target>
+
+  <!-- 创建 macOS .app Bundle (仅在 macOS 发布时执行) -->
+  <Target Name="CreateMacOSAppBundle" AfterTargets="CopyCustomContentOnPublish" Condition="'$([MSBuild]::IsOSPlatform(OSX))'">
+    <PropertyGroup>
+      <AppBundlePath>$(PublishDir)../VizAura.app</AppBundlePath>
+      <AppContentsPath>$(AppBundlePath)/Contents</AppContentsPath>
+      <AppMacOSPath>$(AppContentsPath)/MacOS</AppMacOSPath>
+      <AppResourcesPath>$(AppContentsPath)/Resources</AppResourcesPath>
+    </PropertyGroup>
+
+    <!-- 创建 .app 目录结构 -->
+    <MakeDir Directories="$(AppMacOSPath)" />
+    <MakeDir Directories="$(AppResourcesPath)" />
+
+    <!-- 复制 Info.plist -->
+    <Copy SourceFiles="$(ProjectDir)Info.plist" DestinationFolder="$(AppContentsPath)" />
+
+    <!-- 复制所有发布文件到 Contents/MacOS -->
+    <ItemGroup>
+      <PublishFiles Include="$(PublishDir)**/*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PublishFiles)" 
+          DestinationFolder="$(AppMacOSPath)/%(RecursiveDir)" 
+          SkipUnchangedFiles="false" />
+
+    <!-- 设置可执行文件权限 -->
+    <Exec Command="chmod +x $(AppMacOSPath)/VizAura" />
+    <Exec Command="chmod +x $(AppMacOSPath)/libScreenCapture.dylib" />
+
+    <Message Importance="high" Text="✅ macOS .app Bundle 已创建: $(AppBundlePath)" />
   </Target>
 </Project>

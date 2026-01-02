@@ -19,6 +19,14 @@ public sealed class WowScreenMacOS
     private IntPtr streamHandle;
     // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
     private readonly ScreenCaptureKitInterop.FrameCallback? frameCallback;
+    // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
+    private readonly ScreenCaptureKitInterop.ErrorCallback? errorCallback;
+    
+    // GCHandle: 钉住 delegate,防止 GC 回收 (避免 CallbackOnCollectedDelegate 崩溃)
+    private GCHandle frameCallbackHandle;
+    private GCHandle errorCallbackHandle;
+    
+    private volatile int isDisposed = 0;
 
     private Image<Bgra32>? screenImage;
     
@@ -39,6 +47,13 @@ public sealed class WowScreenMacOS
     public event Action? OnFrameUpdated;
     
     /// <summary>
+    /// 流错误事件 (当 ScreenCaptureKit 流发生错误时触发, 例如窗口关闭)
+    /// 注意: 在 native 线程中被调用,订阅者需负责线程调度
+    /// </summary>
+    /// <param name="errorCode">错误码 (SCStreamErrorCode)</param>
+    public event Action<int>? OnStreamError;
+    
+    /// <summary>
     /// 构造函数
     /// </summary>
     /// <param name="windowId">窗口 ID</param>
@@ -53,13 +68,35 @@ public sealed class WowScreenMacOS
             addonDataSnapshot = new AddonDataSnapshot(frames);
       
         // 启动 ScreenCaptureKit 流
-        // 重要: 保存 callback 引用防止被 GC 回收
+        // 创建 delegate
         frameCallback = OnFrameReceived;
-        streamHandle = ScreenCaptureKitInterop.sc_create_stream(windowId, frameCallback);
+        errorCallback = OnStreamErrorReceived;
+        
+        // 使用 GCHandle 钉住 delegate,防止 GC 回收 (避免 CallbackOnCollectedDelegate 崩溃)
+        // 说明: P/Invoke 传递的 delegate 必须在 native 代码使用期间保持存活
+        frameCallbackHandle = GCHandle.Alloc(frameCallback);
+        errorCallbackHandle = GCHandle.Alloc(errorCallback);
+        
+        streamHandle = ScreenCaptureKitInterop.sc_create_stream(windowId, frameCallback, errorCallback);
         if (streamHandle == IntPtr.Zero)
         {
+            // 创建失败,释放 GCHandle
+            if (frameCallbackHandle.IsAllocated)
+                frameCallbackHandle.Free();
+            if (errorCallbackHandle.IsAllocated)
+                errorCallbackHandle.Free();
+            
             throw new Exception("Failed to create ScreenCaptureKit stream");
         }
+    }
+    
+    /// <summary>
+    /// ScreenCaptureKit 错误回调 (在 native 线程中被调用)
+    /// </summary>
+    /// <param name="errorCode">错误码</param>
+    private void OnStreamErrorReceived(int errorCode)
+    {
+        OnStreamError?.Invoke(errorCode);
     }
     
     /// <summary>
@@ -224,17 +261,34 @@ public sealed class WowScreenMacOS
     }
     
     /// <summary>
-    /// 释放资源
+    /// 释放资源 (线程安全)
     /// </summary>
     public void Dispose()
     {
+        // 原子 CAS: 仅首次调用成功,防止重复 Dispose
+        if (Interlocked.CompareExchange(ref isDisposed, 1, 0) != 0)
+            return;
+        
         if (streamHandle != IntPtr.Zero)
         {
+            // sc_stop_stream 内部会检查 isCapturing 状态
+            // 如果流已停止,会跳过 await,避免卡死
             ScreenCaptureKitInterop.sc_stop_stream(streamHandle);
             streamHandle = IntPtr.Zero;
         }
         
-        screenImage?.Dispose();
+        lock (frameLock)
+        {
+            screenImage?.Dispose();
+            screenImage = null;
+        }
+        
+        // 释放 GCHandle (必须在 sc_stop_stream 之后,确保 native 回调不再触发)
+        // 说明: 即使 ScreenCaptureKit 异步停止流,此时 delegate 已不会被调用
+        if (frameCallbackHandle.IsAllocated)
+            frameCallbackHandle.Free();
+        if (errorCallbackHandle.IsAllocated)
+            errorCallbackHandle.Free();
     }
     
     #region RGB 定位序列查找

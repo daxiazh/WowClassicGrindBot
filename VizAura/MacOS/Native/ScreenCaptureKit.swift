@@ -11,16 +11,25 @@ import AVFoundation
 ///   - bytesPerRow: 每行字节数
 public typealias FrameCallback = @convention(c) (UnsafePointer<UInt8>, Int32, Int32, Int32) -> Void
 
+/// 错误回调类型
+/// - Parameters:
+///   - errorCode: 错误码 (SCStreamErrorCode)
+public typealias ErrorCallback = @convention(c) (Int32) -> Void
+
 /// ScreenCaptureKit 管理类
 class ScreenCaptureManager: NSObject, SCStreamOutput, SCStreamDelegate {
     private var stream: SCStream?
     private var frameCallback: FrameCallback?
+    private var errorCallback: ErrorCallback?
     private var isCapturing = false
     
     /// 初始化管理器
-    /// - Parameter callback: 帧数据回调函数
-    init(callback: @escaping FrameCallback) {
-        self.frameCallback = callback
+    /// - Parameters:
+    ///   - frameCallback: 帧数据回调函数
+    ///   - errorCallback: 错误回调函数
+    init(frameCallback: @escaping FrameCallback, errorCallback: @escaping ErrorCallback) {
+        self.frameCallback = frameCallback
+        self.errorCallback = errorCallback
         super.init()
     }
     
@@ -69,7 +78,7 @@ class ScreenCaptureManager: NSObject, SCStreamOutput, SCStreamDelegate {
             config.height = Int(pixelHeight)
             config.colorSpaceName = CGColorSpace.sRGB
             config.pixelFormat = kCVPixelFormatType_32BGRA  // BGRA 格式,与 WowScreenDXGI 一致
-            config.minimumFrameInterval = CMTime(value: 1, timescale: 20)  // 20 FPS
+            config.minimumFrameInterval = CMTime(value: 1, timescale: 30)  // 30 FPS
             config.queueDepth = 2  // 增加缓冲
             config.showsCursor = false  // 不显示鼠标
             // config.captureResolution = .nominal
@@ -128,15 +137,20 @@ class ScreenCaptureManager: NSObject, SCStreamOutput, SCStreamDelegate {
     
     /// 停止捕获流
     func stopCapture() {
-        if isCapturing {
-            Task {
-                do {
-                    try await stream?.stopCapture()
-                    isCapturing = false
-                    print("ScreenCaptureKit: Stream stopped")
-                } catch {
-                    print("ScreenCaptureKit: Failed to stop stream: \(error)")
-                }
+        // 检查是否正在捕获
+        guard isCapturing else {
+            print("ScreenCaptureKit: Stream already stopped, skipping")
+            return
+        }
+        
+        isCapturing = false
+        
+        Task {
+            do {
+                try await stream?.stopCapture()
+                print("ScreenCaptureKit: Stream stopped")
+            } catch {
+                print("ScreenCaptureKit: Stop failed: \(error)")
             }
         }
     }
@@ -146,6 +160,13 @@ class ScreenCaptureManager: NSObject, SCStreamOutput, SCStreamDelegate {
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         print("ScreenCaptureKit: Stream stopped with error: \(error)")
         isCapturing = false
+        
+        // 提取错误码并调用错误回调
+        let nsError = error as NSError
+        let errorCode = Int32(nsError.code)
+        
+        print("ScreenCaptureKit: Calling error callback with code: \(errorCode)")
+        errorCallback?(errorCode)
     }
     
     /// 检查 Screen Recording 权限
@@ -244,11 +265,16 @@ class KeyboardSimulator {
 /// 创建屏幕捕获流
 /// - Parameters:
 ///   - windowID: 目标窗口 ID
-///   - callback: 帧数据回调函数
+///   - frameCallback: 帧数据回调函数
+///   - errorCallback: 错误回调函数
 /// - Returns: 管理器句柄,失败返回 nil
 @_cdecl("sc_create_stream")
-public func sc_create_stream(windowID: UInt32, callback: @escaping FrameCallback) -> UnsafeMutableRawPointer? {
-    let manager = ScreenCaptureManager(callback: callback)
+public func sc_create_stream(
+    windowID: UInt32,
+    frameCallback: @escaping FrameCallback,
+    errorCallback: @escaping ErrorCallback
+) -> UnsafeMutableRawPointer? {
+    let manager = ScreenCaptureManager(frameCallback: frameCallback, errorCallback: errorCallback)
     
     // 同步等待流初始化完成
     let semaphore = DispatchSemaphore(value: 0)

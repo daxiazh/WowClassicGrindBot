@@ -1,9 +1,15 @@
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.ObjectModel;
+using System.Threading.Tasks;
 using VizAura.Models;
+using VizAura.Services;
 
 namespace VizAura.ViewModels;
 
@@ -45,21 +51,115 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private ViewModelBase? currentViewModel;
 
     /// <summary>
+    /// 日志集合 (最多保留 500 条)
+    /// </summary>
+    public ObservableCollection<string> LogMessages { get; } = new();
+
+    /// <summary>
+    /// 日志自动滚动标志
+    /// </summary>
+    [ObservableProperty]
+    private bool autoScrollLog = true;
+
+    private const int MaxLogCount = 500;
+
+    /// <summary>
     /// 构造函数
     /// </summary>
     /// <param name="logger">日志记录器</param>
     /// <param name="serviceProvider">服务提供者</param>
+    /// <param name="uiLoggerProvider">UI 日志提供者</param>
     public MainWindowViewModel(
         ILogger<MainWindowViewModel> logger,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        UILoggerProvider uiLoggerProvider)
     {
         this.logger = logger;
         this.serviceProvider = serviceProvider;
+
+        // 订阅日志事件
+        uiLoggerProvider.OnLogWritten += OnLogWritten;
 
         logger.LogInformation("MainWindowViewModel (状态机) 初始化");
 
         // 初始状态
         TransitionTo(AppState.Validating);
+    }
+
+    /// <summary>
+    /// 日志写入回调 (在后台线程调用)
+    /// </summary>
+    /// <param name="categoryName">日志分类</param>
+    /// <param name="logLevel">日志级别</param>
+    /// <param name="message">日志消息</param>
+    private void OnLogWritten(string categoryName, LogLevel logLevel, string message)
+    {
+        // 切换到 UI 线程
+        Dispatcher.UIThread.Post(() =>
+        {
+            string timestamp = DateTime.Now.ToString("HH:mm:ss");
+            string levelStr = logLevel switch
+            {
+                LogLevel.Trace => "TRC",
+                LogLevel.Debug => "DBG",
+                LogLevel.Information => "INF",
+                LogLevel.Warning => "WRN",
+                LogLevel.Error => "ERR",
+                LogLevel.Critical => "CRT",
+                _ => "???"
+            };
+
+            // 简化分类名称 (只显示最后一段)
+            string shortCategory = categoryName.Contains('.')
+                ? categoryName[(categoryName.LastIndexOf('.') + 1)..]
+                : categoryName;
+
+            string logLine = $"[{timestamp}] [{levelStr}] {shortCategory}: {message}";
+
+            LogMessages.Add(logLine);
+
+            // 限制日志数量
+            while (LogMessages.Count > MaxLogCount)
+            {
+                LogMessages.RemoveAt(0);
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// 复制所有日志到剪贴板
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyAllLogsAsync()
+    {
+        if (LogMessages.Count == 0)
+        {
+            logger.LogWarning("没有日志可复制");
+            return;
+        }
+
+        try
+        {
+            string allLogs = string.Join(Environment.NewLine, LogMessages);
+            
+            // 获取主窗口
+            var lifetime = App.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
+            var mainWindow = lifetime?.MainWindow;
+            
+            if (mainWindow != null)
+            {
+                var clipboard = TopLevel.GetTopLevel(mainWindow)?.Clipboard;
+                if (clipboard != null)
+                {
+                    await clipboard.SetTextAsync(allLogs);
+                    logger.LogInformation($"已复制 {LogMessages.Count} 条日志到剪贴板");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "复制日志失败");
+        }
     }
 
     /// <summary>
@@ -122,6 +222,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         currentScope = null;
         
         logger.LogInformation("已销毁当前 Scope,所有 Scoped 服务已释放");
+    }
+
+    /// <summary>
+    /// 窗口关闭时清理资源
+    /// 重写 ViewModelBase.OnWindowClosing() 虚方法
+    /// </summary>
+    public override void OnWindowClosing()
+    {
+        logger.LogInformation("主窗口关闭,开始清理资源");
+        ExitCurrentState();
     }
 
     /// <summary>

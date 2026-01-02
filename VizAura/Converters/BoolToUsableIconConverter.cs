@@ -6,9 +6,14 @@ namespace VizAura.Converters;
 
 /// <summary>
 /// 将布尔值转换为可用性图标 (true="🟢", false="🔴")
+/// 优化: 使用 static readonly 常量避免重复字符串实例创建
 /// </summary>
 public sealed class BoolToUsableIconConverter : IValueConverter
 {
+    private static readonly string GreenIcon = "🟢";
+    private static readonly string RedIcon = "🔴";
+    private static readonly string GrayIcon = "⚪";
+
     /// <summary>
     /// 将布尔值转换为可用性图标
     /// </summary>
@@ -21,10 +26,10 @@ public sealed class BoolToUsableIconConverter : IValueConverter
     {
         if (value is bool boolValue)
         {
-            return boolValue ? "🟢" : "🔴";
+            return boolValue ? GreenIcon : RedIcon;
         }
 
-        return "⚪";
+        return GrayIcon;
     }
 
     /// <summary>

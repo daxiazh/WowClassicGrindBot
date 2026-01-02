@@ -28,15 +28,25 @@ public static class ScreenCaptureKitInterop
     );
     
     /// <summary>
+    /// 错误回调委托
+    /// 当 ScreenCaptureKit 流发生错误时被调用
+    /// </summary>
+    /// <param name="errorCode">错误码 (SCStreamErrorCode)</param>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void ErrorCallback(int errorCode);
+    
+    /// <summary>
     /// 创建屏幕捕获流
     /// </summary>
     /// <param name="windowID">目标窗口的 CGWindowID</param>
-    /// <param name="callback">帧数据回调函数</param>
+    /// <param name="frameCallback">帧数据回调函数</param>
+    /// <param name="errorCallback">错误回调函数</param>
     /// <returns>管理器句柄,失败返回 IntPtr.Zero</returns>
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr sc_create_stream(
         uint windowID,
-        FrameCallback callback
+        FrameCallback frameCallback,
+        ErrorCallback errorCallback
     );
     
     /// <summary>

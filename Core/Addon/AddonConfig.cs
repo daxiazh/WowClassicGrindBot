@@ -36,7 +36,7 @@ public sealed class AddonConfig
     {
         if (Exists())
         {
-            var loaded = DeserializeObject<AddonConfig>(File.ReadAllText(AddonConfigMeta.DefaultFileName))!;
+            var loaded = DeserializeObject<AddonConfig>(File.ReadAllText(ConfigPaths.AddonConfigPath))!;
             if (loaded.Version == AddonConfigMeta.Version)
                 return loaded;
         }
@@ -46,19 +46,19 @@ public sealed class AddonConfig
 
     public static bool Exists()
     {
-        return File.Exists(AddonConfigMeta.DefaultFileName);
+        return File.Exists(ConfigPaths.AddonConfigPath);
     }
 
     public static void Delete()
     {
         if (Exists())
         {
-            File.Delete(AddonConfigMeta.DefaultFileName);
+            File.Delete(ConfigPaths.AddonConfigPath);
         }
     }
 
     public void Save()
     {
-        File.WriteAllText(AddonConfigMeta.DefaultFileName, SerializeObject(this));
+        File.WriteAllText(ConfigPaths.AddonConfigPath, SerializeObject(this));
     }
 }

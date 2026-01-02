@@ -6,9 +6,14 @@ namespace VizAura.Converters;
 
 /// <summary>
 /// 将布尔值转换为字符串 (true="已启用", false="已禁用")
+/// 优化: 使用 static readonly 常量避免重复字符串实例创建
 /// </summary>
 public sealed class BoolToStringConverter : IValueConverter
 {
+    private static readonly string EnabledText = "已启用";
+    private static readonly string DisabledText = "已禁用";
+    private static readonly string UnknownText = "未知";
+
     /// <summary>
     /// 将布尔值转换为字符串
     /// </summary>
@@ -21,10 +26,10 @@ public sealed class BoolToStringConverter : IValueConverter
     {
         if (value is bool boolValue)
         {
-            return boolValue ? "已启用" : "已禁用";
+            return boolValue ? EnabledText : DisabledText;
         }
 
-        return "未知";
+        return UnknownText;
     }
 
     /// <summary>
@@ -34,7 +39,7 @@ public sealed class BoolToStringConverter : IValueConverter
     {
         if (value is string stringValue)
         {
-            return stringValue == "已启用";
+            return stringValue == EnabledText;
         }
     
         return false;

@@ -19,7 +19,7 @@ public sealed partial class AddonConfigurator
     public AddonConfig Config { get; init; }
 
     private const string DefaultAddonName = "DataToColor";
-    private const string AddonSourcePath = @"./Addons/";
+    private static readonly string AddonSourcePath = Path.Combine(AppContext.BaseDirectory, "Addons");
 
     private string AddonBasePath => Path.Join(process.Path, "Interface", "AddOns");
 
@@ -127,19 +127,8 @@ public sealed partial class AddonConfigurator
 
     private void CopyAddonFiles()
     {
-        try
-        {
-            CopyFolder("");
-            logger.LogInformation($"{nameof(CopyAddonFiles)} - Success");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e.Message);
-
-            // This only should be happen when running from IDE
-            CopyFolder(".");
-            logger.LogInformation($"{nameof(CopyAddonFiles)} - Success");
-        }
+        CopyFolder("");
+        logger.LogInformation($"{nameof(CopyAddonFiles)} - Success");
     }
 
     private void CopyFolder(string parentFolder)
@@ -290,11 +279,6 @@ public sealed partial class AddonConfigurator
         try
         {
             repo = GetVersion(Path.Join(AddonSourcePath, DefaultAddonName), DefaultAddonName);
-
-            if (repo == null)
-            {
-                repo = GetVersion(Path.Join("." + AddonSourcePath, DefaultAddonName), DefaultAddonName);
-            }
         }
         catch (Exception e)
         {

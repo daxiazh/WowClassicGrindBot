@@ -9,7 +9,6 @@ using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
-using System.Threading;
 using VizAura.MacOS;
 using VizAura.Models;
 
@@ -27,7 +26,7 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
 
     private DataFrameMeta currentMeta = DataFrameMeta.Empty;
     private DataFrame[] currentFrames = [];
-    private Rectangle screenRect;
+    private readonly Rectangle screenRect;
     private Image<Bgra32>? currentScreenImage;
     private bool waitingForNormalMode;
 
@@ -88,12 +87,7 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     /// <summary>
     /// 插件命令
     /// </summary>
-    public string Command => $"/{addonConfig.Command}";
-
-    /// <summary>
-    /// 配置保存完成事件
-    /// </summary>
-    public event Action? OnConfigSaved;
+    private string Command => $"/{addonConfig.Command}";
     
     /// <summary>
     /// Bitmap 更新事件 (用于触发 UI 重绘)
@@ -120,8 +114,6 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
         // 创建屏幕捕获实例
         screen = new WowScreenMacOS(processInfo.WindowId, screenRect);
         
-        logger.LogInformation($"FrameConfigViewModel 初始化完成, 窗口: {screenRect}");
-        
         // 创建 WriteableBitmap
         FullScreenBitmap = new WriteableBitmap(
             new PixelSize(screenRect.Width, screenRect.Height),
@@ -133,9 +125,6 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
         // 立即启用屏幕捕获并订阅帧更新事件
         screen.Enabled = true;
         screen.OnFrameUpdated += OnScreenFrameUpdated;
-        
-        // 仍然使用定时器进行配置检测 (但不用于预览更新)
-        StartConfigDetectionTimer();
     }
 
     /// <summary>
@@ -149,6 +138,9 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
         IsRunning = true;
         CurrentStep = "步骤 1: 等待进入配置模式";
         StatusMessage = $"请在游戏中输入: {Command}";
+        
+        // 仍然使用定时器进行配置检测 (但不用于预览更新)
+        StartConfigDetectionTimer();
     }
 
     /// <summary>
@@ -216,6 +208,8 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
         IsRunning = false;
         CurrentStep = "已停止";
         StatusMessage = "手动配置已停止";
+        updateTimer?.Stop();
+        updateTimer = null;
         currentScreenImage?.Dispose();
         currentScreenImage = null;
     }
@@ -227,7 +221,6 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            // TODO: 提示玩家应该在游戏中输出"/dc"指令来切换到检测模式
             // 1. 查找 RGB 定位序列,获取中心点 Y 坐标和 cell 大小
             var (idx0Y, cellSize) = screen.FindRGBPatternInColumn0();
             if (idx0Y == -1)
@@ -242,7 +235,6 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
                     
                     // 停止配置并触发事件
                     StopManual();
-                    OnConfigSaved?.Invoke();
                     waitingForNormalMode = false;
                     return;
                 }
@@ -341,55 +333,15 @@ public sealed partial class FrameConfigViewModel : ViewModelBase, IDisposable
             StatusMessage = $"✅ 检测成功!\nFrames: {dataFrames.Length}, CellSize: {cellSize}";
             
             // 自动保存配置
-            SaveCommand.Execute(null);
+            var addonVersion = new Version(1, 0, 0);
+           
+            // 保存配置
+            FrameConfig.Save(screenRect, addonVersion, currentMeta, currentFrames);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "定时器更新时出错");
             StatusMessage = $"错误: {ex.Message}";
-        }
-    }
-
-    /// <summary>
-    /// 保存配置
-    /// </summary>
-    [RelayCommand]
-    private void Save()
-    {
-        try
-        {
-            if (currentFrames.Length == 0 || currentMeta == DataFrameMeta.Empty)
-            {
-                logger.LogWarning("无法保存: 数据帧为空");
-                StatusMessage = "❌ 无法保存: 请先完成配置";
-                return;
-            }
-
-            // 获取插件版本
-            var addonVersion = new Version(1, 0, 0); // TODO: 从 AddonConfigurator 获取
-            if (AddonConfig.Exists())
-            {
-                var config = AddonConfig.Load();
-                // addonVersion = addonConfigurator.GetInstallVersion() ?? addonVersion;
-            }
-
-            // 保存配置
-            screen.GetRectangle(out screenRect);
-            FrameConfig.Save(screenRect, addonVersion, currentMeta, currentFrames);
-            
-            logger.LogInformation($"Frame 配置已保存: {currentFrames.Length} 帧");
-            StatusMessage = $"✅ 配置已保存!\n请在游戏中输入 {Command} 切换回正常模式";
-            CurrentStep = "等待切换回正常模式";
-            
-            // 设置等待状态,不立即停止
-            waitingForNormalMode = true;
-            // 不调用 StopManual(),继续检测
-            // 不触发 OnConfigSaved,等待用户切换回正常模式
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "保存配置时出错");
-            StatusMessage = $"❌ 保存失败: {ex.Message}";
         }
     }
 

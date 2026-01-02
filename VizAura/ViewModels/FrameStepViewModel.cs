@@ -108,9 +108,15 @@ public sealed partial class FrameStepViewModel : ObservableObject, IStepViewMode
                     logger.LogWarning("配置文件损坏: Meta.Count 为 0");
                     return (false, "❌ 配置文件损坏\nMeta.Count 为 0", 0, string.Empty, string.Empty);
                 }
-
-                // 3. 验证版本匹配 (可选)
-                // TODO: 如果需要验证窗口分辨率是否匹配,可以在这里添加
+                
+                // 3. 验证分辨率是否匹配
+                var currentRect = MacOS.MacOSWindowHelper.GetWindowBounds((int)processInfo.WindowId);
+                if (config.Rect.Width != currentRect.Width || config.Rect.Height != currentRect.Height)
+                {
+                    logger.LogWarning("分辨率已变化, 需要重新配置");
+                    Core.FrameConfig.Delete();
+                    return (false, "❌ 分辨率已变化\n请重新配置 Frame", 0, string.Empty, string.Empty);
+                }
 
                 string configPath = Core.FrameConfigMeta.DefaultFilename;
                 string versionStr = config.AddonVersion?.ToString() ?? "未知";
