@@ -1179,6 +1179,12 @@ RegisterUnitEvent( "UNIT_SPELLCAST_SUCCEEDED", "player", "target", function( eve
 
     local ability = class.abilities[ spellID ]
 
+    -- 记录图腾放下时的位置, 用于模拟离图腾的距离
+    if ability and ability.totem then
+        -- print( "--> SUCCEEDED:", spellID, ability and ability.key, ", ", ability and ability.totem )
+        class.RecordTotemPosition( ability.totem )
+    end
+
     if ability and state.holds[ ability.key ] then
         Hekili:RemoveHold( ability.key, true )
     end
