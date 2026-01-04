@@ -830,6 +830,32 @@ spec:RegisterStateExpr( "auto_shot_cast_remains", function()
     return time_to_auto
 end )
 
+-- 宠物血量百分比表达式，方便管理宠物血量
+spec:RegisterStateExpr("pet_health_pct", function()
+    -- 边缘情况处理：如果宠物不存在或已死亡，返回0
+    if not UnitExists("pet") or UnitIsDead("pet") then
+        return 0
+    end
+    -- 计算血量百分比：(当前血量 / 最大血量) * 100
+    return (UnitHealth("pet") / UnitHealthMax("pet")) * 100
+end)
+
+-- 注册宠物低血量判定的状态表达式
+-- 作用：根据用户配置的阈值和宠物当前血量，返回是否为低血量状态（布尔值）
+spec:RegisterStateExpr( "hunter_pet_low_health", function()
+    -- 边缘情况处理：宠物不存在或死亡时，不判定为低血量
+    if not UnitExists("pet") or UnitIsDead("pet") then
+        return false
+    end
+    -- 获取用户在设置中配置的低血量阈值（默认50%）
+    local petHPset = spec:GetSetting("hunter_pet_low_health")
+    -- 获取通过宠物血量百分比表达式计算的当前血量百分比
+    local petHP = state.pet_health_pct
+    -- 防错处理：确保阈值和当前血量都是有效数字，且当前血量≤阈值时返回true（低血量）
+    return type(petHPset) == "number" and type(petHP) == "number" and petHP <= petHPset
+end )
+
+
 
 local finish_raptor = setfenv( function()
     spend( class.abilities.raptor_strike.spends[ spells.raptor_strike ], "mana" )
@@ -840,10 +866,10 @@ spec:RegisterStateFunction( "start_raptor", function()
     state:QueueAuraExpiration( "raptor_strike", finish_raptor, buff.finish_raptor.expires )
 end )
 
+-- 移除猫鼬撕咬的 buff 触发逻辑，猫鼬撕咬只需要近战范围和闪避触发 by 风雪 20251225
 spec:RegisterHook( "reset_precast", function()
     if repeating > 0 then applyBuff( "auto_shot" ) end
 
-    if IsUsableSpell( class.abilities.mongoose_bite.id ) and last_dodge > 0 and now - last_dodge < 5 then applyBuff( "mongoose_bite_usable", last_dodge + 5 - now ) end
     if IsUsableSpell( class.abilities.counterattack.id ) and last_parry > 0 and now - last_parry < 5 then applyBuff( "counterattack_usable", last_parry + 5 - now ) end
 
     if IsCurrentSpell( class.abilities.raptor_strike.id ) then
@@ -1420,7 +1446,7 @@ spec:RegisterAbilities( {
             cool_traps()
         end,
 
-        copy = { 13813, 14316, 14317, 27025, 49066, 49067, 425777 },-- 加入爆炸陷阱发射器425777，修改 by 风雪20250428
+        copy = { 13813, 14316, 14317, 27025, 49066, 49067, 425777, "explosive_trap_launcher" },-- 加入爆炸陷阱发射器425777和别名，修改 by 风雪20250428
     },
 
 
@@ -1749,12 +1775,11 @@ spec:RegisterAbilities( {
         startsCombat = true,
         texture = 132215,
 
-        buff = "mongoose_bite_usable",
-
+        -- 移除错误的buff依赖，猫鼬撕咬只需要近战范围和闪避触发 by 哑吡 20251225
         usable = function() return target.distance < 10, "requires melee range" end,
 
         handler = function ()
-            removeBuff( "mongoose_bite_usable" )
+            --removeBuff( "mongoose_bite_usable" )--移除 buff 关联（错误的依赖）
         end,
 
         copy = { 14269, 14270, 14271, 36916, 53339 },
@@ -2277,7 +2302,8 @@ spec:RegisterAbilities( {
     wing_clip = {
         id = 2974,
         cast = 0,
-        cooldown = 1.5,
+        --cooldown = 1.5,    --泰坦时光版本，摔绊CD=0
+		cooldown = 0,
         gcd = "spell",
 
         spend = function() return mod_beast_within( mod_resourcefulness_cost( 0.06 ) ) * ( 1 - 0.02 * talent.efficiency.rank ) end,
@@ -2391,10 +2417,9 @@ spec:RegisterOptions( {
 } )
 
 spec:RegisterPack( "生存(黑科研)", 20250901, [[Hekili:vJ1spTnwu4FldlgfKMjkj8QivyX0zrNUGUiD3OXoo23KyHJDKTdzyJv6dkjucpkmaTuEPHwArkbqLHMMek)yQV2XR6FH5CTDCCsdL2k1rDyrW(Epp(oF3Z9CUxtfM6our5yurutejuKHcnAOWbJej8idnavu1PZGOIMHHDsMKWdImPHFnxDhC5ncyvFzZdw2C3v7NiX0csmCelPiLvMfKYzA8CBcsy(QZmkMNkA8S8cQ)Miv8oC41IeculdILAcWLP454qoIGuyPI28INOx9qJ5Y38(NR3yd8mfmRDG1mLmpVcENA61w4MOj5f4noPiE(1mlwax4m9ZFM2T0U1hJGF36VxWAZd)dTyAX(zN)UzwrvKSwSPcfmCWqe1GNGN1IHlSLr5N3847B8xNIRmpETh4oxeTygh94MBoR1JlIlud)Sx28nBz(I6MBwXy3zB(U738INzS(z6nEAZl22SEzJIROxDF8Il)HgZJNBx8mph3OgaZB8RGuwRFQE1AruCT9aAXml8qZ7vfF8dWZw3yXLWflzn7IoWaKmuWrui2zXJm29TgLQaCJETAot7AJbjyFFJ1kJ3)PwZwYXsw5R38D2iy)x18FEKX67AUnm(dDMfx4jakDK31kdbwXgS3523aV484Ylr4ZkL9mKE1sgR(oRN8gRnoXy13c67iWhAuWQ(gnRSpUrE8shbsALVO1EVfxAp9QLXZ8AR1bzk66MHHaE(fGqax64Mvo2XLXLuuGqax5PeT3ABY7e3vCfxTgrlwFgBL3Oqf8YNRxF)(WpE((SMDbJ8hGxUbEvyahIUYUMfFfKTACQld4AGRPflaUY2whoF)TDMXw7Px)m9lQaHd4yZ9QOFXwQsS4Jx0i)HaamRSoSequW1mJ2j69YpH1d9ZxaSrNGYjlgdlWNu3C1t6dwf6ZyZtb3bMTp9Q1B(I7cl)qQsF2oGKr6Ht3i6UVXHMjS7mVoGlvBZQ9do0OWggRTozYdEeEPf8e)95VhvubEfvf7T7OemzfuHhNiCRFuPIIezIlG4O(fQOzvq05sXlGOzzuu5ftsekkdRkVKiuiGxvwIoUKeXE2YkLibDswoBPyL5H9u8m2(Hycvg5KivAEfAO(HkSTNGHw2sMjdphDcEzKFaOskgCNoGulfyzeea)rRMcGiVaNFhMbPgKrGFkB3miXaDdUwwbkAiqZkLonJ4LyHorZq(XCgjN)3Hed7xIuqLtzOOgIJMHLfjGKz6HkJCjHOn4usjP6hzefUwxk0EwwjjboPCIb90nOmkndVOIwSX0IbjssqzUpLuJRfZBuAgUPyej1XzzY4GjNcYY8UV6U9ZP8rXs46N18IDAhbO)mJGKcqJoHba9r7DIwlfIlaDzOzKLLY5pSuurmc0(Mul2pQfJdfpBIebB7evilIgLibITZak8WexhouV9DhbKxDo9QRyU6lVsKfWjRoOygwEUXgyWbhDyho(JgFK(TbDGVnlrDB8oz(o0TZP8mGnff(ssf7KJ)8YhEF(76VlMV0dF033RSHTbCxdZXRMIxCGbSzOixcdPGKZGevPDktcfzfHIMqnLiFvKf8QZ5kmRVIXw74XD)KZXlmkxxV2EWOMqRcsw6NfJo2vYMJ)vYKJ)PyXaU7tTzgLGeZ4GdoWaUd6ANRpMZ7Dzav(0qINenhpA8wsOQY5oBGKYszZanvshhk2AVOoK)Lpb0uib7SPa)CyqN(D8E3QD9XAPhP1E)o7h6U7JVMA2HX3s)3UlI9PtH2MmYtAJQb7cvFUzv9EliuctaYCdYaSmNZYQRT1IbTfHFaCaRSiruAEKY4KyWne(HVqvd1)vwe8)(K02eDA40q8T6ufEOlDT)7m4)vuFPh9QBVgAh9d3v078iDAPPi13I)DlD0LYElPDu03Bu)S40SEhsvHAIqFv8k8Q)7B1dAMCugUPBZZJ07dL8)d213(E)0B7H7XMm)eWxcV2Xnv94vcjgnJmcodFCgVRY0oPM8ffuBDpbozMKsIPyYnzxNaV7M6DwM)YRepWvDDaB4nfOczgFFOJCmYIK2yqqxyj8C7GpQbCTo9ApmI3N5axy9M79s4gBA3IeHsK7qrsfJZOG4UTO3xGjNuo14SbtMKWXzvtjjtf15lCy7DQ)9d]] )
-
+spec:RegisterPack( "射击(黑科研)", 20251203, [[Hekili:nAvSooUnq0VLTX4Ugbl51B2aC7wKQCbiBJsxqefn5ylctrkqszFg4GQcqQpG8bKU0M(775WH8xKHu2ROCKTVgBjXHV5ndN5nSiT4xkY5uhu8s28SLPzzlsYYsNNUOi3DObkYBOST0n4dkAn(7x(NF)l)XNFZ)(5p91)(tF9V(Z36T4Gut5EKS6wddTQiFvRq6EVQy1y4NJ4ABawXl4dvcoh6nbSSI8FMA2ARPkBLOPRSQv5atxzJrOnc3HUY1A81Fe2kKIICPW6SEFs1a(3lHibu0vsGx8df5mCpGrqX4GA2aUK9cxLqTC2XxDIAG40eUa6kF(P05ismNqRqu(qJuBf7W1n0Mchs(ZaV)rsTENqTX)HtBTUv6e2kTBccWrgtvSG76kx2vo7UJaKF8)xM7D2IB5SBH8jCrp0v6zggjGcQfG1BX9X(7vMVtlLWbV)V)m)FYcwfMYmuYncVNFAPhLL368iY(arp9zyv761jwW0akhX6qIMyGAQqHS)DDLlITE8Py8H4iaqcHu26UEHs)wtO(cuhrVM4QaYordy69JveYXihEiWHarNY62MW6mTwY17vjXzUHy55UYy(6ak)qFYDIkUbw6rmap2Pqtq3XWWmGw2Yb4gtlUHUrRQO73ovb2)7OryjR0wBWl3n(CPVR0sQXEvmohCy8ctvfn4KaoyJLGtwlmqIpGgWzyHRxffqHrLYtX4EHKFgwNVShXhcAghnOrFSJ)vpGw8DXw0Abc6YA7zg9ySrvOsPbt4aNqzmqIN1tG73hVfuetEStAKryj8fp4p2z4lOTjVwgCz9m2bgQB0VUn0Sxt)az8xZVuhdkWQacJxKNf4vAm7hlfmoaYInKI2XN0Slxe(MOoNOYKH(guJlD58UYp(XBz50zN3(T2Do2UHy5s9WgSfgZAwBicVFuIWWOy(CQmXLRXTGR)W22UzdyDKHjtOw2vMxL(WTX0lFSbhRG)1lBnHOY7E6AQkHDfC3OwMyLSZc1hpja7MEcJwXAT9X3nhYmtc7aPNJpoFw0aVXcw)6Y00h(nuPA2DJf36hjWH1uCK930fiINYU8cZwxevm0Qi9pt83vP)glK(Br5VZYeI8xCRxDyBmWw3jb(RKMVgZAmatxVI66ZpdVEkdDZbmJoYdGSdfh97j6oG7PgLVkSi)91nAJd4DL33Nq1OSw4YDjD)KNa61cz4kL0wxL2Gp5bT4)c]] )
 spec:RegisterPack( "野兽控制", 20230211, [[Hekili:fs1YUTnmqWpMCPfTr2YjTnPajhYHced0CrbO3O0kPvseMIuGKYQ(c)27sjeBkzB0l6b5SdN9Xqwm7Dwsjyr2BBwV5U1BIJJw)W3Em(owI9qhYs6GIDqn9HeAPNVGGX6Y(n9e1hCzFAqnyZlIQR)Sh7bHck9CAu96ccFJ12z(5QvhHrFzf7wviaJ526EEjAwL7j922joVTPxsVxXsY75c7Rsw(LLiDiDyb7nsQn8YsCciAkyjV3WnUSonxP5wsL()Ybdw6YusxMTbDzhvKl7pAW24YgvtelrWnwZyHbRGEHL(8TXcfuy5kjDUCbkl4Y6utJYYsqjKlWs2lmljspYtRKuqsa1CWtxEFvvubLNuSr9DNyKlT8woLL()S(C6QKOgKNIBQwzsBb9oFC3hktn0XltR4ACHe)wiQcqisvvPurjDGlkxG97HyZrs6GiDWxWwa8hHa3XjsluTTGCjHpeIRtn9EgIhdr0BWuk3BnlafV(SZ7cnJ44)x3ySxyIMxwnOUdL20Xnh556DvlORrB0a32WLKQosc(3oHYW3JPwQtmYYDHAULgT4xsZ3F1ZYhkXhkXwosZ0p7Y2CIW9kHapmsXSomOlajEXYZSUlz)GYdxah9BNgP2zoCUza8Uq7htqLAOwjBGHDlPGizpnQ6JXBK3eVEnP9bql9nawYRTDkT1Br34YMi3LnAfJCB9cqvr2owYn34YwCl0w)AXXUSFH56EWFVK)Qc3w32jImrh1)xEA11uCaEc1CtE4oHM1VYRE6mFDi4qh6iyAqlC)tM0WvxAkd3BMjmCJqtx46tMSWvoAQol8L56mNqqYgyBcHpFM3JFH9ie8rdq4ItdX(iNpS)8MqubJ0ZuB4em0BBuAAe7Jl6hhcz)l]] )
-
-spec:RegisterPack( "射击", 20230226, [[Hekili:TA12UnUnq0)gJDrxO6ljoDbI9dfOaDdW6x0(mLOLgBrejsbsQ4AGa(T3HuXwu0sYPa9flBZzoCUCMZiYcYViX5unq2TC(YvZxUCD0INw89vprI1NRbsCnn7v6r8lCAf(5pPYxvvuUQGvBp8CPGMBbrjAKzObK49nSs9p4K9dJ8JOT1qgz3ksCblphATeuz9r3Kw0W1G0KwlzcjtF2KEqG)8VHxzLmsCjtPv2RMka8XoxUaC6(siN8NK4m0hqYOyMqLhbD0jMUGXX7NMPzcoA8)uxkuS3GeTKwt0yO6W7JJRAk1mvHq7dR2g4JDrwpr0aouXaLjD7gt6QoaFtuwcNTq8WOqKd7BoCisPz8JQOCXjEN)kqwdCDI7qlmp6hUzfSkqstUnI1wypqX0z660qH)YUlq2WtA)EIT232bsA5f2EWL6Nh2Fgxv62qu9jIobpIAzp6eXHeDbK8gRgKrAmZtumEgysF2KU2KoZK6QJdzDtT78mHO0wFJ8lCrsOIY42K3Ko3R0RbA(52A7a5Px)dr0bpsJPr41LHDmhAl9yE9dRCj9OGxqp9600R(SH2Xdvsfo0mnNYvjqgolp5atcbSQUdUsPghLmAz5LW(eRmpaRWJTiU2NKwl(y0ZFG6jFlAuqcELvQaJ(dFJkqTjjwdHCKwLbLy7BaC)UVlOOr5aZg7wm))NzXfl(CdJ7w0tKHI2LpOzJZd(Ih51RT2rDX52fpo3K((73Zst6hIJUriTijNHZqF9ZoG03UUCzSXijofX4Gs5YWh6viKzuomyLyCoPc0TnhvZXJakP0jPBvzgxOFX67JPDc(iKyF0QCmWC9ZBMAW25L766rX9ftcfQRLqMOApTtm8UAg9RwtlnnQ8H7YFd)d7HxxztIprLCB1Ge)JQAHud5M0hmPTOysDlHJmVydCXbwjC5curxZKFBZVpwSBEziR9dTVXoSXPPEXs88GTjFZUhzdUbYAB)DyB3S8UoQ0Mx6IdLna8AqxW8UBEEE9Sj24mBYHPTZdcGXQxxQgZ8zHBx(yG7twaBnPtnWAWqBicCiuA)QBdUsiW5wz)G)8QsFy0pS4EGvx1Zd7D(cZUK)gv8WmZRJe2hUQOfw(UiKzVHVmHg72nOs87VpLf3Qa)17rxMnHM7TKPoL1Gt6RlAtLjfuNKK6y69G4g9ZES2N3CdT1BSZFKeNShmw7)A9H2F9T3dpO9TWhsRyvOP)N4sTU0FXpTrxiKK4Fva)vLcVwk3P0s(3)]] )
+spec:RegisterPack( "射击(练级)", 20251203, [[Hekili:vE1YoUTnu0VLSXyg0avBn2Utbg7ffOandqNnk7kQKOLOTigjsbsk7yGbAtlq)u62UU57ji)g9ssllkA9ifbi2J4H333ZroCr4hddsrsC4l(Z9xTWF(sVfpo33FDyG8CjomOeL8k6a8fkQa()V8p)5x(RpF3x)8F81)9VVxD85CgkvzgbRINaqcd2vrYLFGgURJTx4VeavItcF5HWGmsAk2ablscd(ve)vrbIkYiL1XzvujMxhxYjmorEUoEpd(ZFb)kjNegKtesHYNigg(4fDAGPOD540WFkmibUdMtqqsG4hWsVtezgHUA2L)uskWrswukbxhVDZI5GLsKegfSYNkZzcYr4CoQmucbVJXnFnQGDKqpOEqZvlQYLergtcF1C4lZ7jwsHGhrt0EUoEvD8S3DbUuvzMWztzUgJbMTowfzqMGP4ccwOqSSnCpYYZXNTJvW)lD8Fd4KmOKXrrM0BWGy7MvkRSAQ(HfEiqBEiEx1(9EcmVetLrcjH6XXficfc9NQJFqNt92cT7G23xvtLQrS9iO503OsZT4v0iZ3JutxtuOxnq59bZSzKzzrnD2Za0OvVHdildlKnZk68r(TLrwgOKJtyf7qst9r0BPPnonMXdP2ELrS9rYmC0rsjMB6dcIUUa9O16cJUp2h6Qs95jmwEk7e1ZESQTxVTo2UFkXO0ZMjVrRMklQnpqJG8a3LaJbAR5Bvx7gwPC0bgndD61(2(UPtrer7ycH2lVR7yRHYsevaezqE26q7d6BfR1jA7aSoK0O9eo2tLqw9ZRhm(kM2kjO88MC8ejp1XwUhRS4AnH6faLSl0Hx9aG4hSrujWrGlleoGE0gugOHWHcoofgftW5qVUh7(J2xby4ZVqZ0beSIpyJ)cXHAHxOZ0ri6toNaeQMZfQH(Gc0NI6(0GfdtN8YIf2HBxIXUrSVnqeGlTxydp1DN1QI1Cr7IcW4Vy18643EBkK9tCE)366yxCT5YqlTCyNLqXcHodx2PqWtquCVvIHhQfyPP7kQoCad8yT60kQTHvVxSEABQ4loaISWhgEQEyrEAZy0i6BPDxNDeBQlNu9XXjVty0KkHj)MuYDwo(ioxfJpoFML8FxgQFdEfS1)oqnn7DDzZmAaTscnsbtYy2jL0g5iSTRUJ1B8DcXPQQCyWhkkzCjoToEPr7Kb016xLZR(zWnvYmgpm4Jz4FUqaVAcsXdXz7j54MGr4Dnm)UnF)qbw9Z9H2Mh(9K9B0YfniHZD0lFVsPCdiHRW2vPF7g)jVOqw)CBCiubG10qJnNuu9P1ZgrmD2OBUBN7eadvVAQgZSh536VY56JwanqAPEua6tpZ5cUcrxVwVcyox2is58WR6sUrF)sroOUQ(427Svb0j)nAoUzMvhXTpCL(0T81WAQ8WDJqOdszRM)2BJH4w6(7NACz2ie83om1sJ7CsxsyvQmk79OdP6j9oM4gY6otTpT5MXwR1o7vsyZU3yT7Vy0f)1FJN7bMFnvFCfp4c9)1SK5kDEld1)c)Vd]] )
 
 spec:RegisterPackSelector( "beast_mastery", "野兽控制", "|T132164:0|t 野兽控制",
     "如果你在|T132164:0|t野兽控制天赋中投入的点数多于其他天赋,将会为你自动选择该优先级。",
@@ -2402,7 +2427,7 @@ spec:RegisterPackSelector( "beast_mastery", "野兽控制", "|T132164:0|t 野兽
         return tab1 > max( tab2, tab3 )
     end )
 
-spec:RegisterPackSelector( "marksmanship", "射击", "|T132222:0|t 射击",
+spec:RegisterPackSelector( "marksmanship", "射击(黑科研)", "|T132222:0|t 射击",
     "如果你在|T132222:0|t射击天赋中投入的点数多于其他天赋,将会为你自动选择该优先级。",
     function( tab1, tab2, tab3 )
         return tab2 > max( tab1, tab3 )
@@ -2415,6 +2440,40 @@ spec:RegisterPackSelector( "survival", "生存(黑科研)", "|T132215:0|t 生存
     end )
 
 -------------------以下是修改部分 by [黑科力研究所]风雪-------------------------------------	
+
+spec:RegisterSetting( "PET", nil, {
+    type = "header",
+    name = "宠物相关"
+} )
+
+-- 注册宠物低血量阈值配置项
+-- 作用：在插件设置界面生成一个可调节的滑块，允许用户自定义宠物低血量的判定阈值
+spec:RegisterSetting( "hunter_pet_low_health", 50, {
+    type = "range",                   -- 配置类型为范围滑块（可拖动选择数值）
+    name = "|T132179:0|t宠物低血量阈值",  -- 配置项显示名称（带宠物图标）
+    desc = "|T132179:0|t宠物血量低于/等于该值判定为低血量（单位：%），默认50%。",  -- 配置项描述
+    width = "full",                   -- 在设置界面中占满一行宽度
+    min = 20,                         -- 最小值：20%（宠物血量不低于20%不会判定为低血量）
+    softMax = 90,                     -- 建议最大值：90%（滑块拖动上限）
+    step = 5,                         -- 步长：5%（每次拖动增加/减少5%）
+} )
+
+spec:RegisterSetting( "black_arrow_on_moving", true, {
+    type = "toggle",
+    name = "|T136181:0|tBOSS大范围移动时使用黑箭",
+    desc = "启用后，当BOSS持续移动超过5秒时，优先推荐黑箭（单体情况下）。",
+    width = "full",
+} )
+
+spec:RegisterSetting( "moving_long_threshold", 5, {
+    type = "range",
+    name = "大范围移动判定时间",
+    desc = "BOSS持续移动超过此时间（秒）视为大范围移动，默认5秒。",
+    width = "full",
+    min = 2,
+    softMax = 10,
+    step = 0.5,
+} )
 
 spec:RegisterSetting( "kill_shot_advance", 0.25, {
     type = "range",
@@ -2503,3 +2562,28 @@ spec:RegisterSetting( "ICC", nil, {
     type = "header",
     name = "冰冠堡垒"
 } )
+
+
+spec:RegisterPack( "野兽控制PVP(黑科研)", 20251225, [[Hekili:hunter_beast_mastery_pvp]] )
+
+spec:RegisterPack( "射击PVP(黑科研)", 20251225, [[Hekili:hunter_marksmanship_pvp]] )
+
+spec:RegisterPack( "生存PVP(黑科研)", 20251225, [[Hekili:hunter_survival_pvp]] )
+
+spec:RegisterPackSelector( "beast_mastery_pvp", "野兽控制PVP(黑科研)", "|T132164:0|t 野兽控制PVP",
+    "PVP专用野兽控制天赋优先级，适用于战场和竞技场。",
+    function( tab1, tab2, tab3 )
+        return false
+    end )
+
+spec:RegisterPackSelector( "marksmanship_pvp", "射击PVP(黑科研)", "|T132222:0|t 射击PVP",
+    "PVP专用射击天赋优先级，适用于战场和竞技场。",
+    function( tab1, tab2, tab3 )
+        return false
+    end )
+
+spec:RegisterPackSelector( "survival_pvp", "生存PVP(黑科研)", "|T132215:0|t 生存PVP",
+    "PVP专用生存天赋优先级，适用于战场和竞技场。",
+    function( tab1, tab2, tab3 )
+        return false
+    end )

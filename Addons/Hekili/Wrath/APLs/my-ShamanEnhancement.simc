@@ -1,0 +1,35 @@
+## Shaman: Enhancement - 增强萨练级版
+## ========================================
+## 单体: 烈焰震击(DOT保持) > 大地震击 > 火焰新星
+## 多目标: 灼热图腾 > 火焰新星
+## ========================================
+## 武器附魔: 火舌武器
+## ========================================
+
+## 战前准备动作
+actions.precombat+=/flametongue_weapon,if=!mainhand_imbued  ## 主手无附魔时，使用火舌武器附魔
+actions.precombat+=/flametongue_weapon,if=!offhand_imbued  ## 副手无附魔时，使用火舌武器附魔
+actions.precombat+=/water_shield,if=buff.shield.down  ## 没有护盾时，施放水之盾
+
+## ========================================
+## 主动作分流：根据目标数量选择单体或AOE循环
+## ========================================
+actions+=/water_shield,if=buff.shield.down  ## 护盾消失时补充水之盾
+actions+=/totemic_recall,if=has_any_totem&(player_far_from_totem | active_enemies < 1)  ## 有图腾且远离图腾且无目标时回收（避免浪费法力）
+actions+=/call_action_list,name=aoe,if=active_enemies>1  ## 多目标时使用AOE循环
+actions+=/call_action_list,name=single  ## 单目标循环
+
+## ========================================
+## 单目标循环
+## 【省蓝逻辑】根据目标绝对血量选择技能，避免过度击杀浪费法力
+## 【调整阈值】修改下面的数字（默认8000血量为分界线）
+## ========================================
+actions.single+=/flame_shock,if=!ticking&target.health>200&target.time_to_die>3  ## 目标无烈焰震击DOT且存活时间>3秒时施放
+actions.single+=/earth_shock,if=target.health>200  ## 目标生命值>200时使用大地震击（高伤害但耗蓝多）
+actions.single+=/fire_nova,if=target.health > 300 & mana.pct > 40  ## 目标生命值>200时使用火焰新星（低伤害但省蓝）
+
+## ========================================
+## 多目标AOE循环
+## ========================================
+## actions.aoe+=/searing_totem,if=!totem.searing_totem.active  ## 灼热图腾未激活时召唤
+actions.aoe+=/fire_nova  ## 火焰新星AOE伤害

@@ -9381,8 +9381,8 @@ do
                     
                     btnFunction = {
                         type = "toggle",
-                        name = "按钮功能",
-                        desc = "如果勾选，将启用额外的按钮功能。",
+                        name = "快捷按钮",
+                        desc = "请去DD下载Hekili Pro插件，单独提供此功能。",
                         order = 2.1,
                     },
 
@@ -9400,9 +9400,9 @@ do
                         type = 'description',
                         name = "",
                         fontSize = "medium",
-                        image = "Interface\\Addons\\Hekili\\Textures\\Taco256",
-                        imageWidth = 192,
-                        imageHeight = 192,
+                        image = "Interface\\Addons\\Hekili\\Textures\\HekLab.tga",
+                        imageWidth = 400,
+                        imageHeight = 180,
                         order = 5,
                         width = "full"
                     },
@@ -9410,42 +9410,12 @@ do
                     supporters = {
                         type = "description",
                         name = function ()
-                            return "|cFF00CCFF感谢我们的支持者！|r\n\n" .. ns.Patrons .. ".\n\n" ..
-                                "若提交Bug报告，请访问 |cFFFFD100Issue Reporting|r 页面。\n\n"
+                            return "|cFF00CCFF感谢Hekili原作者的前期开发！\n\n泰坦时光服版本由【黑科力研究所】成员们继续维护：|r\n\n" .. ns.Patrons .. "。\n\n" ..
+                                "|cFF00CCFF若想提交Bug报告，得先找到我们。|r\n\n"
                         end,
                         fontSize = "medium",
                         order = 6,
                         width = "full"
-                    },
-
-                    curse = {
-                        type = "input",
-                        name = "Curse",
-                        order = 10,
-                        get = function () return "https://www.curseforge.com/wow/addons/hekili" end,
-                        set = function () end,
-                        width = "full",
-                        dialogControl = "SFX-Info-URL",
-                    },
-
-                    github = {
-                        type = "input",
-                        name = "GitHub",
-                        order = 11,
-                        get = function () return "https://github.com/Hekili/hekili/" end,
-                        set = function () end,
-                        width = "full",
-                        dialogControl = "SFX-Info-URL",
-                    },
-
-                    simulationcraft = {
-                        type = "input",
-                        name = "SimC",
-                        order = 12,
-                        get = function () return "https://github.com/simulationcraft/simc/wiki" end,
-                        set = function () end,
-                        width = "full",
-                        dialogControl = "SFX-Info-URL",
                     }
                 }
             },

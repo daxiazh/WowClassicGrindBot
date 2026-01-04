@@ -274,6 +274,7 @@ spec:RegisterAuras( {
         id = 53817,
         duration = 30,
         max_stack = 5,
+        copy = { 1283511 }, -- 泰坦服熔岩武器（双手形态）的漩涡武器ID
     },
     -- Your next Nature spell with a casting time less than 10 secs will be an instant cast spell.
     natures_swiftness = {
@@ -853,50 +854,196 @@ spec:RegisterGlyphs( {
 } )
 
 
-spec:RegisterStateExpr( "windfury_mainhand", function () return false end )
-spec:RegisterStateExpr( "windfury_offhand", function () return false end )
-spec:RegisterStateExpr( "flametongue_mainhand", function () return false end )
-spec:RegisterStateExpr( "flametongue_offhand", function () return false end )
-spec:RegisterStateExpr( "frostbrand_mainhand", function () return false end )
-spec:RegisterStateExpr( "frostbrand_offhand", function () return false end )
-spec:RegisterStateExpr( "rockbiter_mainhand", function () return false end )
-spec:RegisterStateExpr( "rockbiter_offhand", function () return false end )
-spec:RegisterStateExpr( "mainhand_imbued", function () return false end )
-spec:RegisterStateExpr( "offhand_imbued", function () return false end )
+-- 武器附魔状态变量 - 这些值在 reset_precast 钩子中设置
+local _windfury_mainhand, _windfury_offhand = false, false
+local _flametongue_mainhand, _flametongue_offhand = false, false
+local _frostbrand_mainhand, _frostbrand_offhand = false, false
+local _rockbiter_mainhand, _rockbiter_offhand = false, false
+local _mainhand_imbued, _offhand_imbued = false, false
+
+spec:RegisterStateExpr( "windfury_mainhand", function () return _windfury_mainhand end )
+spec:RegisterStateExpr( "windfury_offhand", function () return _windfury_offhand end )
+spec:RegisterStateExpr( "flametongue_mainhand", function () return _flametongue_mainhand end )
+spec:RegisterStateExpr( "flametongue_offhand", function () return _flametongue_offhand end )
+spec:RegisterStateExpr( "frostbrand_mainhand", function () return _frostbrand_mainhand end )
+spec:RegisterStateExpr( "frostbrand_offhand", function () return _frostbrand_offhand end )
+spec:RegisterStateExpr( "rockbiter_mainhand", function () return _rockbiter_mainhand end )
+spec:RegisterStateExpr( "rockbiter_offhand", function () return _rockbiter_offhand end )
+spec:RegisterStateExpr( "mainhand_imbued", function () return _mainhand_imbued end )
+spec:RegisterStateExpr( "offhand_imbued", function () return _offhand_imbued end )
 
 local GetWeaponEnchantInfo = _G.GetWeaponEnchantInfo
 
 local enchant_ids = {
-    [283]  = "windfury",
-    [284]  = "windfury",
-    [525]  = "windfury",
-    [1669] = "windfury",
-    [2636] = "windfury",
-    [5]    = "flametongue",
-    [4]    = "flametongue",
-    [3]    = "flametongue",
-    [523]  = "flametongue",
-    [1665] = "flametongue",
-    [1666] = "flametongue",
-    [2634] = "flametongue",
+    -- Windfury (所有等级)
+    [283]  = "windfury",  -- Rank 1
+    [284]  = "windfury",  -- Rank 2
+    [525]  = "windfury",  -- Rank 3
+    [1669] = "windfury",  -- Rank 4
+    [2636] = "windfury",  -- Rank 5
+    [3785] = "windfury",  -- Rank 6
+    [3786] = "windfury",  -- Rank 7
+    [3787] = "windfury",  -- Rank 8
+    -- Flametongue (所有等级)
+    [5]    = "flametongue",  -- Rank 1
+    [4]    = "flametongue",  -- Rank 2
+    [3]    = "flametongue",  -- Rank 3
+    [523]  = "flametongue",  -- Rank 4
+    [1665] = "flametongue",  -- Rank 5
+    [1666] = "flametongue",  -- Rank 6
+    [2634] = "flametongue",  -- Rank 7
+    [3779] = "flametongue",  -- Rank 8
+    [3780] = "flametongue",  -- Rank 9
+    [3781] = "flametongue",  -- Rank 10
+    -- Frostbrand (所有等级)
     [2]    = "frostbrand",
     [12]   = "frostbrand",
     [524]  = "frostbrand",
     [1667] = "frostbrand",
     [1668] = "frostbrand",
     [2635] = "frostbrand",
+    [3782] = "frostbrand",  -- Rank 7
+    [3783] = "frostbrand",  -- Rank 8
+    [3784] = "frostbrand",  -- Rank 9
+    -- Rockbiter (所有等级)
     [3023] = "rockbiter",
     [3026] = "rockbiter",
     [3028] = "rockbiter",
     [3031] = "rockbiter",
     [3034] = "rockbiter",
     [3037] = "rockbiter",
-    [3040] = "rockbiter", -- ???
-    [3043] = "rockbiter"  -- ???
+    [3040] = "rockbiter",
+    [3043] = "rockbiter",
+    -- Earthliving (所有等级)
+    [3345] = "earthliving",
+    [3346] = "earthliving",
+    [3347] = "earthliving",
+    [3348] = "earthliving",
+    [3349] = "earthliving",
+    [3350] = "earthliving",
 }
 
 local MainhandHasSpellpower = false
 spec:RegisterStateExpr( "mainhand_has_spellpower", function() return MainhandHasSpellpower end )
+
+-- ============================================
+-- 图腾位置追踪系统（基于真实玩家坐标）
+-- ============================================
+
+-- 图腾距离常量
+local TOTEM_MAX_DISTANCE = 999  -- 最大距离（码），用于表示"无限远"
+local TOTEM_MAX_DISTANCE_SQUARED = 0.999 * 0.999  -- 最大距离的平方（地图单位）
+
+-- 存储图腾召唤时的位置信息
+local TotemPositionData = {
+    earth = { x = 0, y = 0, mapID = 0, time = 0 },  -- 土图腾位置
+    fire = { x = 0, y = 0, mapID = 0, time = 0 },   -- 火图腾位置
+    water = { x = 0, y = 0, mapID = 0, time = 0 },  -- 水图腾位置
+    air = { x = 0, y = 0, mapID = 0, time = 0 },    -- 风图腾位置
+}
+
+-- 获取当前玩家位置（返回 x, y, mapID）
+local function GetCurrentPlayerPosition()
+    local map = C_Map.GetBestMapForUnit("player")
+    if not map then
+        return 0, 0, 0
+    end
+
+    local pos = C_Map.GetPlayerMapPosition(map, "player")
+    if not pos then
+        return 0, 0, map
+    end
+
+    local x, y = pos:GetXY()
+    return x or 0, y or 0, map
+end
+
+-- 计算两点之间距离的平方（用于性能优化，避免开方运算）
+-- 返回地图单位的平方值，不进行单位转换
+local function CalculateDistanceSquared(x1, y1, x2, y2)
+    local dx = (x2 - x1)
+    local dy = (y2 - y1)
+    return dx * dx + dy * dy
+end
+
+-- 记录图腾召唤位置
+-- @param totemType 图腾类型："earth", "fire", "water", "air"
+local function RecordTotemPosition(totemType)
+    local x, y, mapID = GetCurrentPlayerPosition()
+    if TotemPositionData[totemType] then
+        TotemPositionData[totemType].x = x
+        TotemPositionData[totemType].y = y
+        TotemPositionData[totemType].mapID = mapID
+        TotemPositionData[totemType].time = GetTime()
+    end
+end
+
+-- 获取玩家与指定类型图腾的距离平方（用于性能优化）
+-- @param totemType 图腾类型："earth", "fire", "water", "air"
+-- @return 距离的平方（地图单位），如果没有图腾或切换地图返回 TOTEM_MAX_DISTANCE_SQUARED
+local function GetDistanceToTotemSquared(totemType)
+    local totemData = TotemPositionData[totemType]
+    if not totemData or totemData.time == 0 then
+        return TOTEM_MAX_DISTANCE_SQUARED
+    end
+
+    local x, y, mapID = GetCurrentPlayerPosition()
+
+    -- 如果玩家切换了地图，返回最大值
+    if mapID ~= totemData.mapID then
+        return TOTEM_MAX_DISTANCE_SQUARED
+    end
+
+    return CalculateDistanceSquared(totemData.x, totemData.y, x, y)
+end
+
+-- 注册状态表达式：获取玩家与任意图腾的最小距离（性能优化版）
+spec:RegisterStateExpr( "totem_distance", function()
+    -- 使用平方值进行比较，初始值为最大距离的平方
+    local minDistanceSquared = TOTEM_MAX_DISTANCE_SQUARED
+
+    if buff.earth_totem.up then
+        minDistanceSquared = math.min(minDistanceSquared, GetDistanceToTotemSquared("earth"))
+    end
+    if buff.fire_totem.up then
+        minDistanceSquared = math.min(minDistanceSquared, GetDistanceToTotemSquared("fire"))
+    end
+    if buff.water_totem.up then
+        minDistanceSquared = math.min(minDistanceSquared, GetDistanceToTotemSquared("water"))
+    end
+    if buff.air_totem.up then
+        minDistanceSquared = math.min(minDistanceSquared, GetDistanceToTotemSquared("air"))
+    end
+
+    -- 如果没有图腾，返回0（用于兼容 totem_distance > 30 的判断）
+    if minDistanceSquared >= TOTEM_MAX_DISTANCE_SQUARED - 0.001 then  -- 接近最大值
+        return 0
+    end
+
+    -- 最后开方并转换为码
+    return math.sqrt(minDistanceSquared) * 100
+end )
+
+spec:RegisterStateExpr( "has_any_totem", function()
+      return buff.earth_totem.up or buff.fire_totem.up or
+             buff.water_totem.up or buff.air_totem.up
+end )
+
+-- 注册状态表达式：判断玩家是否远离图腾
+-- 标准：距离任意图腾超过40码认为远离
+spec:RegisterStateExpr( "player_far_from_totem", function()
+    if not ( buff.earth_totem.up or buff.fire_totem.up or
+             buff.water_totem.up or buff.air_totem.up ) then
+        return false
+    end
+
+    return totem_distance > 30
+end )
+
+-- 注册状态表达式：判断玩家是否接近图腾
+spec:RegisterStateExpr( "player_near_totem", function()
+    return not player_far_from_totem
+end )
 
 local AURA_APPLIED_EVENTS = {
     SPELL_AURA_APPLIED      = 1,
@@ -948,43 +1095,50 @@ local update_gear = function(slotId, itemId)
 end
 
 spec:RegisterHook( "reset_precast", function()
-    windfury_mainhand = nil
-    windfury_offhand = nil
-    flametongue_mainhand = nil
-    flametongue_offhand = nil
-    frostbrand_mainhand = nil
-    frostbrand_offhand = nil
-    rockbiter_mainhand = nil
-    rockbiter_offhand = nil
-    mainhand_imbued = nil
-    offhand_imbued = nil
+    _windfury_mainhand = false
+    _windfury_offhand = false
+    _flametongue_mainhand = false
+    _flametongue_offhand = false
+    _frostbrand_mainhand = false
+    _frostbrand_offhand = false
+    _rockbiter_mainhand = false
+    _rockbiter_offhand = false
+    _mainhand_imbued = false
+    _offhand_imbued = false
 
-    local mh, mh_expires, _, mh_id, oh, oh_expires, _, oh_id = GetWeaponEnchantInfo()
+    -- GetWeaponEnchantInfo 返回值:
+    -- 1: hasMainHandEnchant (boolean)
+    -- 2: mainHandExpiration (number)
+    -- 3: mainHandCharges (number)
+    -- 4: mainHandEnchantID (number) <-- 这是附魔ID！
+    -- 5-8: 副手同样的参数
+    local mh_enchanted, mh_expires, mh_charges, mh_enchant_id, oh_enchanted, oh_expires, oh_charges, oh_enchant_id = GetWeaponEnchantInfo()
 
-    if mh then
-        mainhand_imbued = true
+    if mh_enchanted then
+        _mainhand_imbued = true
 
-        mh = enchant_ids[ mh ]
+        -- 用附魔 ID (第4个参数) 查找附魔类型
+        local mh_type = enchant_ids[ mh_enchant_id ]
 
-        if mh == "windfury" then windfury_mainhand = true
-        elseif mh == "flametongue" then flametongue_mainhand = true
-        elseif mh == "frostbrand" then frostbrand_mainhand = true
-        elseif mh == "rockbiter" then rockbiter_mainhand = true end
+        if mh_type == "windfury" then _windfury_mainhand = true
+        elseif mh_type == "flametongue" then _flametongue_mainhand = true
+        elseif mh_type == "frostbrand" then _frostbrand_mainhand = true
+        elseif mh_type == "rockbiter" then _rockbiter_mainhand = true end
     end
 
-    if oh then
-        offhand_imbued = true
+    if oh_enchanted then
+        _offhand_imbued = true
 
-        oh = enchant_ids[ oh ]
+        -- 用附魔 ID (第8个参数) 查找附魔类型
+        local oh_type = enchant_ids[ oh_enchant_id ]
 
-        if oh == "windfury" then windfury_offhand = true
-        elseif oh == "flametongue" then flametongue_offhand = true
-        elseif oh == "frostbrand" then frostbrand_offhand = true
-        elseif oh == "rockbiter" then rockbiter_offhand = true end
+        if oh_type == "windfury" then _windfury_offhand = true
+        elseif oh_type == "flametongue" then _flametongue_offhand = true
+        elseif oh_type == "frostbrand" then _frostbrand_offhand = true
+        elseif oh_type == "rockbiter" then _rockbiter_offhand = true end
     end
 
     last_consumed_stack_ts = LastConsumedStackTS
-    state.swings.mh_pseudo_speed = state.swings.mainhand_speed
 end )
 
 
@@ -1239,6 +1393,7 @@ spec:RegisterAbilities( {
             removeBuff( "water_totem" )
             summonTotem( "cleansing_totem" )
             applyBuff( "cleansing_totem" )
+            RecordTotemPosition( "water" )  -- 记录图腾召唤位置
         end,
     },
 
@@ -1284,6 +1439,7 @@ spec:RegisterAbilities( {
             removeBuff( "earth_totem" )
             summonTotem( "earth_elemental_totem" )
             applyBuff( "earth_elemental_totem" )
+            RecordTotemPosition( "earth" )  -- 记录图腾召唤位置
         end,
     },
 
@@ -1355,6 +1511,7 @@ spec:RegisterAbilities( {
             removeBuff( "earth_totem" )
             summonTotem( "earthbind_totem" )
             applyBuff( "earthbind_totem" )
+            RecordTotemPosition( "earth" )  -- 记录图腾召唤位置
         end,
     },
 
@@ -1471,6 +1628,7 @@ spec:RegisterAbilities( {
             removeBuff( "fire_totem" )
             summonTotem( "fire_elemental_totem" )
             applyBuff( "fire_elemental_totem" )
+            RecordTotemPosition( "fire" )  -- 记录图腾召唤位置
         end,
     },
 
@@ -1518,6 +1676,7 @@ spec:RegisterAbilities( {
             removeBuff( "water_totem" )
             summonTotem( "fire_resistance_totem" )
             applyBuff( "fire_resistance_totem" )
+            RecordTotemPosition( "water" )  -- 记录图腾召唤位置
         end,
 
         copy = { 10537, 10538, 25563, 58737, 58739 },
@@ -1568,6 +1727,7 @@ spec:RegisterAbilities( {
             removeBuff( "fire_totem" )
             summonTotem( "flametongue_totem" )
             applyBuff( "flametongue_totem" )
+            RecordTotemPosition( "fire" )  -- 记录图腾召唤位置
         end,
 
         copy = { 8249, 10526, 16387, 25557, 58649, 58652, 58656 },
@@ -1575,11 +1735,12 @@ spec:RegisterAbilities( {
 
 
     -- Imbue the Shaman's weapon with fire, increasing total spell damage by 211. Each hit causes 89.0 to 274 additional Fire damage, based on the speed of the weapon.  Slower weapons cause more fire damage per swing.  Lasts 30 minutes.
+    -- 火舌武器：必须学习了该技能才显示 by 哑吡 20251225
     flametongue_weapon = {
         id = 8024,
         cast = 0,
         cooldown = 0,
-        gcd = "totem",
+        gcd = "spell",
         max_rank = 10,
 
         spend = 0.06,
@@ -1588,16 +1749,25 @@ spec:RegisterAbilities( {
         startsCombat = false,
         texture = 135814,
 
-        usable = function() return ( equipped.mainhand and not mainhand_imbued ) or ( equipped.offhand and not offhand_imbued ), "must have an unimbued weapon" end,
+        -- 必须学习了该技能才显示
+        known = function() return IsSpellKnown(8024) or IsSpellKnown(8027) or IsSpellKnown(8030) or IsSpellKnown(16339) or IsSpellKnown(16341) or IsSpellKnown(16342) or IsSpellKnown(25489) or IsSpellKnown(58785) or IsSpellKnown(58789) or IsSpellKnown(58790) end,
+
+        usable = function()
+            -- 如果主手已经是火舌，不需要再上
+            if flametongue_mainhand then
+                return false, "already have flametongue"
+            end
+            -- 主手没有火舌，可以上（包括切换场景）
+            return true, "need flametongue"
+        end,
 
         handler = function ()
-            if equipped.mainhand and not mainhand_imbued then
-                mainhand_imbued = true
-                flametongue_mainhand = true
-            elseif equipped.offhand and not offhand_imbued then
-                offhand_imbued = true
-                flametongue_offhand = true
-            end
+            -- 清除其他附魔状态，设置火舌
+            _windfury_mainhand = false
+            _frostbrand_mainhand = false
+            _rockbiter_mainhand = false
+            _flametongue_mainhand = true
+            _mainhand_imbued = true
         end,
 
         copy = { 8027, 8030, 16339, 16341, 16342, 25489, 58785, 58789, 58790 },
@@ -1623,6 +1793,7 @@ spec:RegisterAbilities( {
             removeBuff( "fire_totem" )
             summonTotem( "frost_resistance_totem" )
             applyBuff( "frost_resistance_totem" )
+            RecordTotemPosition( "fire" )  -- 记录图腾召唤位置
         end,
 
         copy = { 10478, 10479, 25560, 58741, 58745 },
@@ -1655,6 +1826,7 @@ spec:RegisterAbilities( {
 
 
     -- Imbue the Shaman's weapon with frost.  Each hit has a chance of causing 530 additional Frost damage and slowing the target's movement speed by 50% for 8 sec.  Lasts 30 minutes.
+    -- 冰封武器：必须学习了该技能才显示 by 哑吡 20251225
     frostbrand_weapon = {
         id = 8033,
         cast = 0,
@@ -1666,6 +1838,9 @@ spec:RegisterAbilities( {
 
         startsCombat = false,
         texture = 135847,
+
+        -- 必须学习了该技能才显示
+        known = function() return IsSpellKnown(8033) or IsSpellKnown(8038) or IsSpellKnown(10456) or IsSpellKnown(16355) or IsSpellKnown(16356) or IsSpellKnown(25500) or IsSpellKnown(58794) or IsSpellKnown(58795) or IsSpellKnown(58796) end,
 
         usable = function() return ( equipped.mainhand and not mainhand_imbued ) or ( equipped.offhand and not offhand_imbued ), "must have an unimbued weapon" end,
 
@@ -1721,6 +1896,7 @@ spec:RegisterAbilities( {
             removeBuff( "air_totem" )
             summonTotem( "grounding_totem" )
             applyBuff( "grounding_totem" )
+            RecordTotemPosition( "air" )  -- 记录图腾召唤位置
         end,
     },
 
@@ -1744,6 +1920,7 @@ spec:RegisterAbilities( {
             removeBuff( "water_totem" )
             summonTotem( "healing_stream_totem" )
             applyBuff( "healing_stream_totem" )
+            RecordTotemPosition( "water" )  -- 记录图腾召唤位置
         end,
 
         copy = { 6375, 6377, 10462, 10463, 25567, 58755, 58756, 58757 },
@@ -1820,6 +1997,7 @@ spec:RegisterAbilities( {
 
 
     -- You charge your off-hand weapon with lava, instantly dealing 100% off-hand Weapon damage. Damage is increased by 25% if your off-hand weapon is enchanted with Flametongue.
+    -- 熔岩猛击（双持）
     lava_lash = {
         id = 60103,
         cast = 0,
@@ -1832,6 +2010,32 @@ spec:RegisterAbilities( {
         talent = "lava_lash",
         startsCombat = true,
         texture = 236289,
+
+        usable = function()
+            return equipped.offhand, "需要双持武器"
+        end,
+
+        handler = function ()
+        end,
+    },
+
+    -- 熔岩强击（双手武器，双手灵巧天赋）
+    lava_strike = {
+        id = 1272856,
+        cast = 0,
+        cooldown = 6,
+        gcd = "spell",
+
+        spend = 0.04,
+        spendType = "mana",
+
+        talent = "dual_wield",
+        startsCombat = true,
+        texture = 236289,
+
+        usable = function()
+            return not equipped.offhand, "需要双手武器"
+        end,
 
         handler = function ()
         end,
@@ -1930,6 +2134,7 @@ spec:RegisterAbilities( {
             removeBuff( "fire_totem" )
             summonTotem( "magma_totem" )
             applyBuff( "magma_totem" )
+            RecordTotemPosition( "fire" )  -- 记录图腾召唤位置
         end,
 
         copy = { 10585, 10586, 10587, 25552, 58731, 58734 },
@@ -1955,6 +2160,7 @@ spec:RegisterAbilities( {
             removeBuff( "water_totem" )
             summonTotem( "mana_spring_totem" )
             applyBuff( "mana_spring_totem" )
+            RecordTotemPosition( "water" )  -- 记录图腾召唤位置
         end,
 
         copy = { 10495, 10496, 10497, 25570, 58771, 58773, 58774 },
@@ -1980,6 +2186,7 @@ spec:RegisterAbilities( {
             removeBuff( "water_totem" )
             summonTotem( "mana_tide_totem" )
             applyBuff( "mana_tide_totem" )
+            RecordTotemPosition( "water" )  -- 记录图腾召唤位置
         end,
     },
 
@@ -2003,6 +2210,7 @@ spec:RegisterAbilities( {
             removeBuff( "air_totem" )
             summonTotem( "nature_resistance_totem" )
             applyBuff( "nature_resistance_totem" )
+            RecordTotemPosition( "air" )  -- 记录图腾召唤位置
         end,
 
         copy = { 10600, 10601, 25574, 58746, 58749 },
@@ -2073,6 +2281,7 @@ spec:RegisterAbilities( {
 
 
     -- Imbue the Shaman's weapon, increasing its damage per second by 9.  Lasts 30 minutes.
+    -- 石化武器：必须学习了该技能才显示 by 哑吡 20251225
     rockbiter_weapon = {
         id = 8017,
         cast = 0,
@@ -2084,6 +2293,9 @@ spec:RegisterAbilities( {
 
         startsCombat = false,
         texture = 136086,
+
+        -- 必须学习了该技能才显示
+        known = function() return IsSpellKnown(8017) or IsSpellKnown(8018) or IsSpellKnown(8019) or IsSpellKnown(10399) end,
 
         usable = function() return ( equipped.mainhand and not mainhand_imbued ) or ( equipped.offhand and not offhand_imbued ), "must have an unimbued weapon" end,
 
@@ -2120,6 +2332,7 @@ spec:RegisterAbilities( {
             removeBuff( "fire_totem" )
             summonTotem( "searing_totem" )
             applyBuff( "searing_totem" )
+            RecordTotemPosition( "fire" )  -- 记录图腾召唤位置
         end,
 
         copy = { 6363, 6364, 6365, 10437, 10438, 25533, 58699, 58703, 58704 },
@@ -2144,6 +2357,7 @@ spec:RegisterAbilities( {
         handler = function ()
             removeBuff( "air_totem" )
             applyBuff( "sentry_totem" )
+            RecordTotemPosition( "air" )  -- 记录图腾召唤位置
         end,
 
         copy = { 6363, 6364, 6365, 10437, 10438, 25533 },
@@ -2191,6 +2405,7 @@ spec:RegisterAbilities( {
             removeBuff( "earth_totem" )
             summonTotem( "stoneclaw_totem" )
             applyBuff( "stoneclaw_totem" )
+            RecordTotemPosition( "earth" )  -- 记录图腾召唤位置
         end,
 
         copy = { 6390, 6391, 6392, 10427, 10428, 25525, 58580, 58581, 58582 },
@@ -2216,6 +2431,7 @@ spec:RegisterAbilities( {
             removeBuff( "earth_totem" )
             summonTotem( "stoneskin_totem" )
             applyBuff( "stoneskin_totem" )
+            RecordTotemPosition( "earth" )  -- 记录图腾召唤位置
         end,
 
         copy = { 8154, 8155, 10406, 10407, 10408, 25508, 25509, 58751, 58753 },
@@ -2261,6 +2477,7 @@ spec:RegisterAbilities( {
             removeBuff( "earth_totem" )
             summonTotem( "strength_of_earth_totem" )
             applyBuff( "strength_of_earth_totem" )
+            RecordTotemPosition( "earth" )  -- 记录图腾召唤位置
         end,
 
         copy = { 8160, 8161, 10442, 25361, 25528, 57622, 58643 },
@@ -2323,6 +2540,7 @@ spec:RegisterAbilities( {
             removeBuff( "fire_totem" )
             summonTotem( "totem_of_wrath" )
             applyBuff( "totem_of_wrath" )
+            RecordTotemPosition( "fire" )  -- 记录图腾召唤位置
         end,
     },
 
@@ -2336,6 +2554,18 @@ spec:RegisterAbilities( {
 
         startsCombat = false,
         texture = 310733,
+
+        -- 智能判断：仅在满足以下条件时提示回收图腾
+        -- 1. 至少有一个图腾存在
+        usable = function()
+            -- 检查是否有图腾存在
+            if not ( buff.earth_totem.up or buff.fire_totem.up or
+                     buff.water_totem.up or buff.air_totem.up ) then
+                return false -- 没有图腾存在不应该推荐
+            end
+
+            return true
+        end,
 
         handler = function ()
             if buff.earth_totem.up then
@@ -2377,6 +2607,7 @@ spec:RegisterAbilities( {
             removeBuff( "earth_totem" )
             summonTotem( "tremor_totem" )
             applyBuff( "tremor_totem" )
+            RecordTotemPosition( "earth" )  -- 记录图腾召唤位置
         end,
     },
 
@@ -2395,7 +2626,7 @@ spec:RegisterAbilities( {
         texture = 136148,
 
         handler = function ()
-            applyBuff( "water_breathing" )
+            applyBuff( "water_breathing" )    
         end,
     },
 
@@ -2412,7 +2643,7 @@ spec:RegisterAbilities( {
 
         handler = function ()
             removeBuff( "shield" )
-            applyBuff( "water_shield", nil, glyph.water_shield.enabled and 4 or 3 )
+            applyBuff( "water_shield", nil, glyph.water_shield.enabled and 4 or 3 )      
         end,
 
         copy = { 52129, 52131, 52134, 52136, 52138, 24398, 33736 },
@@ -2433,7 +2664,7 @@ spec:RegisterAbilities( {
         texture = 135863,
 
         handler = function ()
-            applyBuff( "water_walking" )
+            applyBuff( "water_walking" )                    
         end,
     },
 
@@ -2480,11 +2711,13 @@ spec:RegisterAbilities( {
             removeBuff( "air_totem" )
             summonTotem( "windfury_totem" )
             applyBuff( "windfury_totem" )
+            RecordTotemPosition( "air" )  -- 记录图腾召唤位置
         end,
     },
 
 
     -- Imbue the Shaman's weapon with wind.  Each hit has a 20% chance of dealing additional damage equal to two extra attacks with 1250 extra attack power.  Lasts 30 minutes.
+    -- 风怒武器：必须学习了该技能才显示 by 哑吡 20251225
     windfury_weapon = {
         id = 8232,
         cast = 0,
@@ -2497,16 +2730,25 @@ spec:RegisterAbilities( {
         startsCombat = false,
         texture = 136018,
 
-        usable = function() return ( equipped.mainhand and not mainhand_imbued ) or ( equipped.offhand and not offhand_imbued ), "must have an unimbued weapon" end,
+        -- 必须学习了该技能才显示
+        known = function() return IsSpellKnown(8232) or IsSpellKnown(8235) or IsSpellKnown(10486) or IsSpellKnown(16362) or IsSpellKnown(25505) or IsSpellKnown(58801) or IsSpellKnown(58803) or IsSpellKnown(58804) end,
+
+        usable = function()
+            -- 如果主手已经是风怒，不需要再上
+            if windfury_mainhand then
+                return false, "already have windfury"
+            end
+            -- 主手没有风怒，可以上（包括切换场景）
+            return true, "need windfury"
+        end,
 
         handler = function ()
-            if equipped.mainhand and not mainhand_imbued then
-                mainhand_imbued = true
-                windfury_mainhand = true
-            elseif equipped.offhand and not offhand_imbued then
-                offhand_imbued = true
-                windfury_offhand = true
-            end
+            -- 清除其他附魔状态，设置风怒
+            _flametongue_mainhand = false
+            _frostbrand_mainhand = false
+            _rockbiter_mainhand = false
+            _windfury_mainhand = true
+            _mainhand_imbued = true
         end,
 
         copy = { 8235, 10486, 16362, 25505, 58801, 58803, 58804 },
@@ -2532,6 +2774,7 @@ spec:RegisterAbilities( {
             removeBuff( "air_totem" )
             summonTotem( "wrath_of_air_totem" )
             applyBuff( "wrath_of_air_totem" )
+            RecordTotemPosition( "air" )  -- 记录图腾召唤位置
         end,
     },
 } )
@@ -2558,6 +2801,26 @@ spec:RegisterSetting( "shaman_rage_threshold", 50, {
     width = "full",
 } )
 
+spec:RegisterSetting( "auto_imbue_2h", false, {
+    type = "toggle",
+    name = "|T135814:0|t双手武器自动切换附魔",
+    desc = "启用后，当使用双手武器时，插件会根据敌人数量自动推荐切换武器附魔：\n\n"
+        .. "- |cFFFF0000AOE|r (敌人数量 >= 阈值): 推荐|T135814:0|t火舌武器\n"
+        .. "- |cFF00FF00单体|r (敌人数量 < 阈值): 推荐|T136018:0|t风怒武器",
+    width = "full",
+} )
+
+spec:RegisterSetting( "auto_imbue_2h_aoe_threshold", 3, {
+    type = "range",
+    name = "|T135814:0|t双手AOE切换阈值",
+    desc = "当敌人数量达到或超过此阈值时，推荐使用|T135814:0|t火舌武器。\n\n"
+        .. "低于此阈值时，推荐使用|T136018:0|t风怒武器。",
+    min = 2,
+    max = 10,
+    step = 1,
+    width = "full",
+} )
+
 
 spec:RegisterOptions( {
     enabled = true,
@@ -2577,11 +2840,13 @@ spec:RegisterOptions( {
     usePackSelector = true
 } )
 
-spec:RegisterPack( "增强(黑科研)", 20250820, [[Hekili:TE1wVTrru4Fl8aOwHYQ1oX5IuHh4jOpuEy5ne76X7o27ip7owZm2Mivzfvukor0wIk3QkKsab9I4I6lrOqI4hdETt(xWzM1EV5Bjr8IZQDoZ5778DUSNyxY(JST8qsS9DkBwUI5MLnnkzAwzTnSTKB3cBB1c52e1aEiefa)g9thgD6j34I)(Grp)Gr)4xDtLfBtzipLNeS2CxWQ4JJ2)PGfJE5Xd3BhBRATju5heAxlhGaK2wO2sFghU2p)WlE6RST8jEE4ylXcxBRZ)NNm4VE1W9358p7SbN(Dr72F0jp)IDFWOZ(JONDYGtE47JBsOKHVEVOV4BgTx)O(hp4SV)F35E9UDVBpnx(4yC(eG6CwDcfiSTvhmxqyHzPvxepKe2qyBnS)xgT)ZI(ZtJ29xgCY9xpHnr9)2Zp6fAKSTOeHuOfuCDuBQeE8oLM8J02chIQrXE2VNTvBb2PRpaTJlsibqugz5YjsmNG0EqDOeXBGLoeHJs7vxIvVUtdxpT5ixPIXwHejN5uJXuWlHiqXbxuR4ttTRlj0Zr4Jr88qvRD96gJ5Hr7w9Q(w9Qw4TDk3R670RQz2GaqA1zhDtaeGIc32PlQdodJgD4Vf9OdwPI5BE(r7CXN)O40mNKq4uYPjractfqig40fJAXcnesOOutOkAYQWr6B0Yv2R6TGxAQ42AkvidPk4uqfK(osMehy4X6gQDK(K6eoEMh0fkB5Z8eezQ3hGcrXm6D7vTSzQO4IOuin6i9XoykoahgN1QO47eJuPAGUbIcc(6znQfl(V5SyJCj)r9Vpi1tjWt8Gouhtcenoek4VnliJjxfZHBiArazDAaHlUvoIe90dp)X)q61f(iqHGggIRdxpFjn)ex1B0Li9jHLmliNqcwGLQQsHrSx0oa0tow4ZOEfcGsMlUivRbHSoOC9m5emelh)u3SdOBH4acwOtWL0inNM9KmVpIe6qjn8LQ5kzWdayL4UIf0lmfSLslaxulIMALZqT0KYd(6bN94eKNFZYcDFs8LezWSiy6Nc25mGi19Vbua0eUIougN4LKavdOJhbdrjGXwzYwu4ZqWqmMBtnaRTma08xiz8aiainX6o0m1HPNO9xLlL)kmIi1DbOgbOX9rk3T(mCxTCXFaRZKW)AMGxtBLORAoDGQcZhf6zWXQNJRoJzNrH6p9W9EvF7EvPWGTq3TZ4h1NzUUU5YuWVw0RV3WtF5WJpA4V)Rrp5fAXAJRIy9)MQKVQ96kklXlZTjzjsYMzKKzmWk)GUTwwTlmJhg0Rej1yxDtKXydt1uHpbt9kuxNY64J1RzmNbRzwTGjnY0WMt3GVCZ4ZUL)w564J)qDshF5sZqsY2fNxukxEzKSydDcjbASAmjVXI6mNZvx)MZDQq5vNriqrDqouKWVyaS0jCxLS64(dvOTWKRuTBm2LfudLSg7CgGR(2mju1x4qcQ1EmOzFTpsalkGP0wSUyE(9rR3MV94Mx7jRUEvWzPGOR)KSWgTXtWXIJcBoXcJPnaMx8PokBwr)z9vxeNGzczO0cHD57KEPB9QSy)m9UT39UZB52KtME72KJYVE7YxLn3wQxIDm3WEjB1QliRHeyVpmCM)pOqM3v5hLH2)3]] )
+spec:RegisterPack( "增强(黑科研)", 20251221, [[Hekili:nJvwtTTvu4FlzYmSKM4ylhsA6GZdDANPnpK8GYBDQKUw(ASg0IhjzOmdJgiByiqAOqwH0eA2GSqsBAziS08JPwsMN6FHEUx5fTAdnDsQFaSp3Z(57EohjUmCxGJTaYeZDoM0mdKHHjtQ0mzg4ez4ynhRmMJTmsCy0qWxurkWFT)LF2ENT6BVTN39zZ7(Wf73sOpM(jSnMSgQarDgAv0fbw94XEMLa2CxBdNPNGJnFfjzZVvLlFCwnlZj5yrvmlPPdgAH5TVXkCSLKkua7ja2qKJT(7VBTnFUZmtu)s7wBN7yFLQUB9S9UYCU7UU9d2Q2wx)BWdljl58RtBp7TCNUQD1nQT7Y)1ex06SwNL49Z8WABDv7FCwNPVMZREQ9Dx1(NM19QlA)BRbbM9uB7EVl7S4RDMDYgYenm(opF77HOwxROKmeRh(WwcSLqki1VWs4RvlHufXkyvtlHJzj4LZQFJvD2EfIlt9lRZsKX5TVX((p152B4U2wUt)o7QVGCeripgjo5BVPhV52NF84gIq3jFXX37rxh(h8Z5UzTDxaCoNDwZzJv8IClHZyjS3TFU7I)H76VY7xp66o373DMEbitqj4EPQUx(n7T8uaH((QZFHAV)(qUPF6z2p(z2l34mF6Q27UM7s)PN0t(cqANB9gN78apc0mT7SlrejohL5yzDxADNhovY(6ElKGY)ihBDluAei12(j12CMVy)7VnJVp1Ht3aAn)0k4b0QpKMFf2N)By93vVTHOvVA9hDX)vPI9r46VyCadxKOPKMQrQY6yrnL8iZpl3XhvsTqXk6JXpkgvwt9OsfZDifKePvqbEjL8vWf6PnHsidEJYyz5YAJI1JxJfLHoUMAQdvb3uP6i1HZ5XBQOhNsb9d8ewowMyn)hQ1j6uRyrFQmErLLgQKPQK6q8gLKWYficMVsXIP8(zQcAJQgVKIizzETI8MLW8yzAhuJwsJr6ML4n1mXkuvm(4uYfL0XrPokmDrpkzKKFIX7eL1i0ADwJAlelGd4NAESHjpquMePEcr8vcfZsPklAoy2bcRLpyeYNcCXbgnacyqhgkzykjcMEimHDdSjFEn1kgPmLW6zsJBpNKNPSyUm(vqfdmVeuOm8tmAPHw9BavqYE12aNJ1bYgLL0LmJiNQ2iiIJripcOgvSIe24m5Y6NtXsq6HVfMUfCubHLnm11uAMLnmHvLYnqpH0wGOQ9vJ8AYMDvx7xpoGnmm10vaTjnmosjeqXAIdFuXXeLHlni9HWMg5YCucajingA9fQEddoBpEuHYMc5QgFbj8zYDA)k37Ujv5XhUT7eaLjOwrIqc2GkskSkkVmGetSlH)4pGbqJG4LrgLIqmAcOJnxc1fPNinr0XKRjgdYK2VovqdPG84iov1uOCYGMufhRN2mecZgjCJtZ(OLQs5EIqRP5Y(FvnGcdh0pfcsHs9iPtLnB3UX3a3mQKzjj1mPHonQiANrOvGj4sgP8KIkauy0XGVixGJDeSUbOxVNpi9NZKMJDuKojkmGhbawdy(z(7DUN9R3X(kpP3c4IOkYM9Ax921xz19wEI6pDYABorTTwQ(up3EMvR9(1Dw8D015DF5lzQVYSGS12CoV18j77VWCWZi4mlSQ2J7nM26924rbCQEd7zEGNvHhIGP1dI4zzkxCSYqoWG(CvE(f81ZrFolVCfejTgNWX2iRZ9LCMqWs4QnfwrOPfwxcXXEilHqDTTe6XsWp5GnVdAnFJDi2jBi70K1OD53h(qIoazIttD35PseF6eDk2doNPJomOQbsuvDzceSdOLqM2QpmKMO8t6Vs2AivOc5P8ZKhgkehFUFoIRHqi(pDa(9nuleFzsNyWhCMbSemeSzd5eK(Ru1Kjr10Hbw083auureJfiXgAMk1Ijd(7QfBR4GZxP6nmyVdjKa(yW8Xj8N)9nHnC6pm2las1Rtl4c(h1sAoWgzamhltO7anMftZUrNh7vopn1hcar9nzoSVEQeZmDy(a1(HNthxbW7yQHIc2P51qUtaiERb7HBrMocxXwiy6cao08(2rvmZ8Teg0sGmcQf8nMnjOgTly4OBgaQgkBn2oOTtK4gcT9bFZ9PMozyEmRo02sXS(anCZMSLsUt9bb20467GbP2A9clHJyjqwXOZqlMK71hA3JgZQ82)GA3UTdshMcysE1FnEIXwJ3)im4om(6)ddUtg4DGhCNmY6G1WjzqrSViblHXh3)fVypj8luW3rbFPcDVnXj722buawEKbUW5vJ5vUdqYYyrYwgeg5(N)]] )
 
--- spec:RegisterPack( "增强(新手盒子)", 20241230, [[Hekili:LJvtZnTvx4FlSXlObHLDc00jol6QwwqxOURds6A5RJ1y9HhPRJjZKrJtPbcqOjLMxOneAH2qBAPqs7W0xQJ9W)fQLSZk(l0ZvY26kzzzG2PB6MeNZ9CFoFFE8nI8IFSOqjeblEXCzZnlFUCZZLl)C55pVOazLAyrHAiLQOLGpyG0HF6U1M9w7XUF3342ULK3DoY763S39UT7t2MQ5kAMOsueTnRBPaAxHqQz)EN9SnA0GRHIwrZlZPyQlkuSUQg5dnelMGXNLF2zffq1jvmTefIAIkQLkHdUg2wruO)HpY7Gh6E)72BNFLvZEh)mVBSV39Egi05cWVD3FxV9Ac)1hGRQQPEY63QxNN(Q2B2953SFNoVS5ES3(LnVFWv9262Dp(3)ZMFkeCwMLv1GqcPqunnS5QzHHqPiI8ofoBdvJsLRBTIudmQMPXmQLlCkDKQrfKrjjv9I1XLYekOcYwYUgwtRMzdSLZfscXYAq2MyASuD8qqTqgvleOl34hZPJUSevLZWNO5)7ADkMMLlZazYxvtDPkedvJLKSROI1krVyX6LlZf8NCLmByK8nvqAAsMLLivWsynSo2Gyp62yKfPIeXKG19Hy1v9fxw1cpU0gqlL14IrQSct2jQzsLn6Sb1wiwahGv6)61N34Qc9c0SJH5YiQEuXldzwdSUk2ErEwfvQawxAuPBuwxhH1SjwM6ddcBcSnOWCzsdSgivssgmJIPPgnZZnYV4SW042EHcz5oFM4v0bhU4KV3m2yLct(ywVkSVSOPgzQr4y5DOfWuP6mkROOb(hYAjmXUa)m0QAuz58lkevLQGXYeiLJOQtJkPsQ4flmFKuFAD9XAVZmw39W8xUSSyAtmT0HOsTkoC8luw02F2(ewH6OL0rbMjj)zuLtdChdLvCKZ4ihQ0GqbPL0ehGEW8SFon5Qu42daeajAHbsQbxHdBGkQbtntCZs0SqetGwgjPHSRmTGLrgx9Azgt2Wmq()Pca)wVfyLq7U8LE6SC5ZlkSm2YgmuaDz2z5brnqwuZzdmLpz)aAnV7CnG1Qx7wUh9fUh(hN0C3E7CWjp6i3VCTE7(zE7CO3MRbCAUh3Q)tFQ3HB195)C32FL76B0R1pEYv6CYEn7)dR5U56E38xEv7DDUGJ8zCK)KUDEbatVR)tamxcyobfC3(XDp(4UD(FE)2d9276bsC37GrO195pbSyGPHR4TXD63C9HagiM)sU3EZbFohf3(V4R9EW)3DTDDp6QEF(b9V12qm42ANav6)9R7U)18EWwSqdbdqYVX2U34BDpST76pQBRRMdIkVB0S)v64UXD7)Wd81ruqt1My7)DEWLr11iWhVO)3bkOec5ZrR7ffguKeFFrcKYPAfkrqXsfMdvrIcNYro22C)HHjSrp0uJVpxuGYqmuJ0zrO(u(08PO8cPAwaQzNiur3J7iVOJmpdAd3DqbzUjcsklBDKl4ipNFklDtfJLIAWZfZGaFaO3ejeMwy57ePWNiVa4QavvSLDr2h4JuAUWOonGNKgdN)TpPfcwu6nkSVBmyJu(d2cb2IL6IojimgHMOqUynwd428tcJZVbXp4AZtDH5tpYIXUfMutGHds9oY5YY0mKaVj1M8zt3OX5bdrK5eFGISwiSnp6wb(jVwyI9h0MOxFwZqFGH8X305zDqgc14U4KhTtHzk0ZyOxtQFl4yFdnhRdXMoJ5qNJvVr8XX1AQZfS0ZHUBcu0(np5NCIm(OYBxcAWC5crLoIc3r(00Dh5ZNAsKqFP5GNJmIB6nH15uVgepXEU6)Pz3EZAXNcbx8xP6iV6QJtue7K4VwL5OOVyD6l)Imyf8u2Otv(nyfr24sFeCsW)fhyuTgqBc8q0tf)R]] )
+spec:RegisterPack( "增强双持(黑科研)", 20251224, [[Hekili:TJ1tpUnru8pl9svRqyf7DZsrc4qVbhwoyUHyShBpjEugpJ14XjSxSwbQWYEbwPvQiHulGecOx4eiuP8PHMnPFl4n2BITx)VW2fUuUefnZB(97nV59(9Ejit0hGSdWkc6qRrwJnTmpWW0A0493dzRokMGSJX(ZWtHVWXrWNl)(hT8zp9oV4poB1pE2QV987M5EhR7Qn7iMahOHlrKk9btlSz5PFdy2QF(3U4logz7LszQ3LJ8QY6O7znczJtvHcjYE9xF26V8Zx(GtwD(Jr2H0GasH9Ke)2a9dREGpc8ePycLb8JSNtKjubVkllWsoLpnbzFXjF1YtF8YF5zlFWp88N(zh88F)jxC6XR)0)C5jpC939t)1XFs27HSz0evI(wHfeDW6WTFOq2eo2Jrcq3VW7K0yLMo7x8WNS68FD9jpcoMFXs(Hyk3HrNgQ08dliPkIKIr23ksmhwkZ92zUAZNtCiCseLKK5(ozUM5B4LozIreMWsusrKZccowWnsuWRdy1BN5UxUzjlaKa7aUcX8adjr)9cGkCfJR4jg(4evM7RL5YGheU)rvWrmzY1ggi(COLoWvjivENVE3t4Ao(kH6UJWa)71(B1MteHNgHDucfjQQVL7ctOssXwLx(3kZ1k3jvy5uIYybvfs57RzA)(zkhnUyoUpEsJBpfaU1MAog3phjkHmcIA0zKQSuZxTkJXvm3iqSGRz4GbUfmqcWjju4pRw(RI6pBtc8L0POr6RLtaLuCdgRX)n6hFcwQcBIFGqzuH6AjJ5WEV(HDBkbCEkHf04nOy5TrH3Sf4869qBPAbK7l3qdaL5ObCn8CSddNe29lgCsvU6J1gO(xov26)Gu5bkmF1tS02h3O3r3YkBn(MssThn0)x15vxvNaYeCkt1MWZv8RIGyrXV25kFXROkuFJcVUTDW0gRhH5yJyFvrA9O2KUktIXmMJyIJkeQgyKichMGBZ0iTw6udPlrVKrqRmHOu6PgH4pg2Wrcted4ljqUH(PDB1q(2WiJu)CBQgY6w2R3A49krxMYDk(UJES0IHtDkMlpVbXWdI0aIDq)4QBaXJ9BmfwDxzxMxPSaXtWuDPXFZjLxNVRRs(aO0LqEhACvYghoSmSoE3IDxdL5wL47w37FSYCRc8DieE)DxzUvD9EefFjgwQ1PV0u1XVrSTrOktaQvqb1qVmZxz2XqC7s3KgnU041MYLxhDGgOrN5asu7C3PyjXxe5HB2FQQNr5btsLhDz5sT8uTipLRR0DOrEPKG8GA1LdXjojXeglwSGir9(tA7aUUWQE6VsWNMs26KsmF2glmAAaOc8XoABE9Ttt3PpbIzvCPEP9Y2h3ajm5VpE4esW7ZB5)mc0uIj(AXkTHO)o]] )
+spec:RegisterPack( "增强双手2(黑科研)", 20251224, [[Hekili:TJvxVTnvy4FlCdf4IOeNK2ojGl4kyx0BmxBNtSpj5O4V0Xh3qKMIYguwAjfA1Q4JrfJIGTQPXM2nOswR2pMzNKEf)f49CSz2jyhN11jHe9MilFE973VpVpNOus5tvK1rmSYgsfLQwssQsHIfLwVYAkYSUoyfzhKwBut4blKj8BWV8tbNoA6Ehh8ndhV9xj1R27C(Z2FYd2FYpFW7YLURHnsNRvxBpQg8fkY19igSpXsPEAMATQGOoynLnat2IORJdfe7QPip95)G)jpC8o9N(5N5F63hS1GjJEW5BT7KZECW9g5p6R)yCBIbz8t3oy43oz7bbd(d)Zo8f9VLISbXL5k8dIvtdm80gIGfPXi2wW5OnrQUmkPn4JyluDdSUYhPWaVlPyUmBQzQIvMlw8BK1OegMsqkYVvVAmIwBWU9Q92WZiAtmRaJyIvz2Q6eCVAF4h0R21ITsddi5Q62YwRnx1vYu119A0OGjcBaUKTPAhmYX2QGldksHkT8CryDpQlJRZQxmDcQSAcvsA2IzbbMADBdHAxnt1QJfkorcSGNtSQWikRvCiVwYKEYZMnPVEMMJHmWwmUBd5(WVTqKGIQqOZ0IGn0lOB3XkTGk8yUDUws3PbHIvTS3enNZuQ4LI3eLPF)zFRj6ZuJo596vRyHYLxShxQ0IlWIGGzZWMIWp2l6aJK0OtOyteXYv4msfJnOgYWq1UHkRfwfBGnHyZvyuPL2OXQgAPmaBAP1n2jecgPzKrc)m2hmrnnrHNimD2ZFrdCDiSweRsffwXezHk4OXeHMlMXGSNlKRrWbQuaGdInkgkuq2mE4xCmaKa1qUmk8wEOXUbYd6(NhrPdXshkiqZBAakzHuWZkTqWxsmR7f1DW14Mq(WcBsWHvJYZANgE0UrtQ5IfTmwyoOdbEeZ2QPhoHvQKmA9CXQGrmDNlyRMuih7Ob6KsS6)A2AUc)CYpd0qdmfeZ1Har4sJna1BaWYYZfaHX0sfX88HMWMQsoAcuUslSShciKQYtlvUASYOEwQHpRYxjfUysnCzkYgNdosAkxA5uUMbgTjovOHL5ZJwBk64DOynBZ6O4E(xNETC7MFTNxwQU5SNzE1wvKZY6WDzjbEVXnsc6L6jjXKN7ieHMk8ygq0SWUS5XQYALM0YrrAH4n5S4pjJQ8tFlhVeTwqxH6lRoPX3zMMH)HBHwxykrnCFHlpfjZx7o7BLRCH42TqUr5sJRIsg04w7IPZ8OXTEY6E2CENHwu2S0UKigL)S3ci98QyOljgylpzOlrgy5aJ9MKbw2JUVHzGfTA7cELUSW((FfOw5Ra1Ucu7kqT)7aQbWADquE2hMoN(73py)D(RtVBWtonyRFBLORCUsWGVB6rhF(H9NE)B6FsF)r)40B)WGDo2)5pE8b)5l6FRExFYJEK00JgcFR)j7o(GNmE4nNC3Vy8D21)Sdhp82(p7xxPogy5d3t1GxQdVI2kIVT31hpyVGDUxOv9h9LvF5)(wOLfsbbIhRLnCl3G7SFWEhXVFGDdIb))6Jhhk)9p]] )
+spec:RegisterPack( "增强双手(黑科研)", 20251225, [[Hekili:fB1wZnTru4Fl9LgOZexB5gUKb4HoTZ0MhOpiEwYRLxhTt0fpsRtAMHrtsjqCcouOjCnHsdxd3c0sltWKa)yQUy)u)l0ZUsowsXYg4Hw)qI9z)2Z35(zLkiDgjXkikw60c5fgRGGWy5kC08fYFmjr6S1WsI1qktHMe(Ibsh(BbMKz1mrvy302SULcivsSCDIg97nKkFq1DKXekweWwdRiD6JkjQsQubhIeBRij2(930DNN4V8CTp3EU7EdVZ3iO1J6C(vc2BBV70YT1L(o8uenI)VVKxZRfSudVgV2DVn(75(jNjevr6iJXDk9TgQidfSo2G6uAuNsE39x92Tv7lVL)B3KPt(fDMW)vV072p0)6Vo4XTcw6nEnEktm7cHG8x6I(V6QotCYpWpot49ZndM)PFzN7Dj4FaVRCv39wfmi)DFS)R30)5p07MB5u6uoL6C9NeS2FfS9Zd)19UK)T(t)Lw1BX3YfeCUgbl8YoBSii4qFZpCg33FB)MZFy(zE3)rEBeDwmD5(MlgS(7cV98pfUT)1EP)nUtOGlSM3F84GMRZUsAJuy0IbRVT)VTy22zNvZqX)h7xdYnICc33(a3DwE8pCBTRV9)PRmScRUF4onRQKBLDU5cDE(AEnw0FL7oUZeJ2TE7qNikwC4XdT75(Li3IHj4D3NH5uNmgiiw1UrZUGgMv09d07BzwLOX74NbzzqmM0gAGb1CLL)NDVL3l2178pyKk4QO6A0r8AC92BUvNnMR9dN3DN5CBTE7fFI3YB5((T9x7n8g4GN9mH2B2eUR7oR4V2lGaAWTwWF1vGoC)MqU9(JugBtLvXinGm5AMuIPXi87cTZnUS3Y3jKv3wxqy)XiHmZrjjQrSP285CH2f81tZN7Huykd8eIrfzBGcljrSbQSgUI0xlrHzymu9KiQyrOylcss8ZCkXUv16wZkRJiSPpvCk95oLy6CASm2aRtW2oLobuNMKj(DMbJQbcaokoioQQbdDPMgtwhpyAo1jtWt871JQVktQSXu5YMg1TZrjyRc5X9gNklutXPeO(c9uVnFSlewjkYwSLdGYhlEeTUnwg0TUDQa6rIdkmxMcXrJJOkXc8rnUDG0KPMGktH)yjWJTay21iGJLc3XZ03hwOKzdgMtJyAPq(mvt56vRMthH1SPwM6rr9C2uy9jp8nw)ZBjIRkQqowwJmPkL1AXzSWNoJ9u8(QeYYqdatVzxBpyBmz8Oy8WVn10shmgYu4ur)cPl9suOc9EMktbMWSkAyzkYAsm0Wc9OI6OFuoPurHuTiqn4uGJXJUHGGAyqNut5keCy684CBirfk0Stv7sCsB9izgzGIqOsKfIzv(8lNlciNFEgXwLG1QKRI5mg9lbeEmNOdwRZJRPmNev4AOPrYAiB10Oo(bq13eHWqkG5wbVpJ7a98QzGh1zfDIfMnlkC4gOWELVinnzZQYu197AT5KoKA4yK2t1qAtd40qz2Egr)MhKkqRJMuhfnPGrD2L5rTp7dpx9A9ykU84UBXSzk7b5FmLnrTVNiPuwFq0jFHtP85kwCWLwczpQpQhzgcvLyuip3aGH5OC1uOCEHDbu2E9CHt55d4HuQfgmCq7dCjGWhypMqIfbPMoLcAIUeuDOVgrzHIK4OS3MGvm1lJ6TGpR1QDxLkt0lxpkjexSkYg2IG10Qzod2AGRVh4te6hpdLK(S7w0czmvxe5oiaE9bdZOfg6tkmRwnMj9P)KHpUzDJny9ewPeFUZzpB8E((Es8rsPocrS670HSMqn03LWlWGIpvtit5T6v8U8MCzs)7]] )
+spec:RegisterPack( "元素(黑科研)", 20251225, [[Hekili:TAvZUTTrq4NLEPi9qf0VwnfPfOfihAo4CG5mxUICP4IqUuy3LsWabebXWgYUfb2iU19srTrr(ZfTPOjPWnjn9HPMI2VfD2LwMuYuYsf9Ij9oZ(nZ8nZ8jAwZ8oMgoyjXC16vR3Qw96RuPA1QTRw30qUwpIPrpS9DXDHxy4a4VjBSE6Ro4AN92DtF6UPhS3hP8yn)qSJcjrye3g8Y0Ote1x(vmZoLb)kTQb(2JyBUABtdpQJdjZtIW20WWdhGzFAS1n9jbeMe7hB9XXwzr(0DE2O3E4jV77t(MVlDRHX3A0l)TKF4jJ2)psF(Bs36ptg(ZQJvxiZPrB91JE53c(DWXj)96jV)O0h(ca70n3l53FE6Wnp9NEqS1NhBD2(hLU3Rt)1FPW)D2JE)1(IBFtOg9PcPqvH4qc8yvnVry4o(ehZV00WMtLeofBA8bXwYqjjOIlLtQGTL0(aHOEgYaovzcf6IgWXsptjWlxnsb4Ubyu27zagB9HGrmVlrwzav6rz1QMhKc(RIqdDEFUnYyoffGfqGwRyWbNBE1PJQWq54umVYJtzoPWV18W3H0jY1TIRpmQHeEH23TsuVcyMFUcQvMjuxbo(4(yuNiUqQGPDr6X2dtziFAxpjJY6of58jZmIxQLp)oKMDyH9XkuVEXe4IqJ6e6lNm(svL5IJGZN7iOhb7l9Q0ZwgBDJyRgTYHVdrirk7Qi0luF44HWX(mGYCawJG5tv(nMze10DEQl8OeFNkoHdyAEawNXzPdSA1OAzvB2vM)eOokda1e(CIWnMmcfDF(ZFz9neHrcOebKQFgGeitj5uBPIUVatEedL9osPlKPoGY0hv6dLmBUixvpok1ph3EJeeqSWf112zIm48o3KTN6Z7gQZHknqSW90LviBbuoGrkyUCAOagMW6k9uOP9ybvlox4HYVeI6CsbhymhSzRxCby6PLlbNA4cj6XvZPxGw7LrvD2chlIQArTejfK0KHihkrVnvR(0YkLi6E9Lw0n26E3RutCsaOqkY2ZMP0mO19)I2CTAlH2ypoXomOdoF9zMYmLS4uAYoHSsR5iR8FDnstdYqw3isE7QzXCVSvDD52NWfklJ)YQMQSIRQsyhF0WDs2(htEX7s24XN8MnBEYXhnA77F66)vYW9p9WN9p3)bX3sXyHUu)SVxdlio3Mv6h4HJKEHWpgK8ODt25qD0n)3d]] )
 
-spec:RegisterPack( "元素(黑科研)", 20250820, [[Hekili:nxvtVTrry4Fl9cPvGw540GtKaK4RdnhciTCdXU7SZo27qMDMvZmRT8LrPuCBsvCJJuuPICOPckT0ksVa02Ks5hdz96CI)c8o7My7eLOYboWfRXVZZ7ZZ7NZ6nR3x45gH0eVLRxR(81wOEnNAlE15NFbpxD3uINBkcVcQfCGJsGFZ7DJIFD3lF0bBv8OTk2D7Ryr0LjqrwMuImjgq55gMrz6RX9cpn91aEvPeS3Yn8CJPrrKkief2ZTI08BVdWBXp)7dxF1VC092A0M3kV3AfBF)VYeKV3g539Bd7E0pCNJ25jMLmlnRZW1U3W7(Dh(IF5Wx0F0dEyXoV(VF1gvgZxV)Wnhu8J7xz)Vw9Bmlv3bWLVrV8bp9d)SpfGo(VfRDZ8n3Qe0Co5hS)O927OE9ZhSwX1H7Ezh0H)XFwS9JTSV7lh2FVr36jJ2)PHznh9OFcCmFZBhkuQH3Ox(n)nau(RwnFWZQ8fi9esg9SNBD8bBm8(pC46V(4a46F)W784r9haa9CzuLwv2yinrzmnCC5zp5hTNlHJczKiVpYZntr87etzeFmsPP8wwqUiSMk4qlJQLc)qHWYxjwrZM(TWrLOWsQMiPOsDSuOrYweTpv5dDAn0YoFnN43LmbjikpgXJ8PjHzW9J1UjdMx0cERmicjOuWgq5CVjkHYzthcsQJ91cnjXjs0HBcEltq5nnPsY5ErhyitEU3GOtBFsaIrmgup81XeFcJKq4qrccXRAR8xu6QP4vSv5tNM(QybEfRZZFHoNG4iNuS2e8EMGg1mbcPj4YNY6c1kJ6erBqIRmrdDCgpIivAHmXkY7(VQiEELQQoSthQoMYRxBIekOKdIwH3QrJlmrIeANPYAhjXodOmbFGjWoe6RPjK3wlrTjSQZmO3WXDNOgd1g5hMbzKvQfoJu2hdK00kOtR8XrppftJmbx69nbZ1yXg1RkAJlKqyOiA7UGYbIgmZ3Eh0MLeiGztnIIJHa3NrBfR52MkellEMyzCeFciyBcwiNkO8S5GBQKGfjHOX7Q)xTW8g3bl71QykHfDMb8QvIQRoz37cRZFodHjMGUWd4WyIDka6O0MW5ys3zKWvCbuCrmjbf11eKL(oMGibFgWyhexBDcSQaGuDLNDiZ0MuAd6wiBM)12z(p(towaN)xT3x2gBdBzwqt91QoiPTVdVFETKuHuBtM5G8PKntq5B1oMLa(Z0XcPN70FYYoyiSVTE8CI3)8]] )
 
 
 
