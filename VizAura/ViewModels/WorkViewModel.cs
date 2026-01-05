@@ -42,6 +42,12 @@ public sealed partial class WorkViewModel : ViewModelBase
     private int nextAfkTabIntervalMs;  // 下次 Tab 间隔 (随机 2~5秒, 0表示需要初始化)
     private const int AFK_TAB_MIN_INTERVAL_MS = 20000;  // 切换目标最小间隔 (20秒)
     private const int AFK_TAB_MAX_INTERVAL_MS = 50000;  // 切换目标最大间隔 (50秒)
+
+    // 跳跃防掉线相关字段
+    private DateTime lastAfkJumpTime = DateTime.MinValue;  // 上次跳跃时间
+    private int nextAfkJumpIntervalMs;  // 下次跳跃间隔 (随机, 0表示需要初始化)
+    private const int AFK_JUMP_MIN_INTERVAL_MS = 30000;  // 跳跃最小间隔 (30秒)
+    private const int AFK_JUMP_MAX_INTERVAL_MS = 90000;  // 跳跃最大间隔 (90秒)
     private static readonly Random _afkRandom = new();
 
     // 挂机模式 UI 更新相关
@@ -578,8 +584,10 @@ public sealed partial class WorkViewModel : ViewModelBase
     /// <summary>
     /// 挂机模式更新 (独立于 AutoSendKeybind)
     /// 逻辑:
-    /// - 有目标时: 每1秒发送 I 键(面向目标)
-    /// - 无目标时: 每2~5秒发送 Tab 键(切换目标)
+    /// - 有目标时: 继续执行后续逻辑
+    /// - 无目标时:
+    ///   - 每30~90秒跳跃一次 (Space键, 防掉线)
+    ///   - 每20~50秒切换目标一次 (Tab键)
     /// </summary>
     /// <returns>返回是否继续后续逻辑</returns>
     private bool AfkModeUpdate()
@@ -611,7 +619,35 @@ public sealed partial class WorkViewModel : ViewModelBase
             return true;
         }
 
-        // 3.2 无目标: 每2~5秒发送 Tab 键(切换目标)
+        // 3.2 无目标: 执行防掉线操作
+        // 3.2.1 每30~90秒跳跃一次 (防掉线)
+        var elapsedSinceJump = (now - lastAfkJumpTime).TotalMilliseconds;
+
+        // 首次或需要重新计算随机间隔
+        if (nextAfkJumpIntervalMs == 0)
+        {
+            nextAfkJumpIntervalMs = _afkRandom.Next(AFK_JUMP_MIN_INTERVAL_MS, AFK_JUMP_MAX_INTERVAL_MS + 1);
+        }
+
+        if (elapsedSinceJump >= nextAfkJumpIntervalMs)
+        {
+            bool success = KeybindMapper.SendKeybind("Space");
+            if (success)
+            {
+                lastAfkJumpTime = now;
+                // 重新随机下次间隔
+                nextAfkJumpIntervalMs = _afkRandom.Next(AFK_JUMP_MIN_INTERVAL_MS, AFK_JUMP_MAX_INTERVAL_MS + 1);
+                logger.LogDebug("[挂机模式] 跳跃防掉线 (Space), 下次间隔: {NextInterval}ms", nextAfkJumpIntervalMs);
+                // 跳跃后不执行其他操作
+                return false;
+            }
+            else
+            {
+                logger.LogWarning("[挂机模式] 跳跃失败 (Space)");
+            }
+        }
+
+        // 3.2.2 每20~50秒发送 Tab 键(切换目标)
         var elapsedSinceTab = (now - lastAfkTabTime).TotalMilliseconds;
 
         // 首次或需要重新计算随机间隔
