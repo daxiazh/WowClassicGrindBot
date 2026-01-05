@@ -171,6 +171,9 @@ DataToColor.corpseInRange = 0
 
 DataToColor.softInteractGuid = nil
 
+-- VizAura 目标不合法标记 (用于显示警告图标)
+DataToColor.vizAuraInvalidTarget = false
+
 local bagCache = {}
 
 DataToColor.equipmentQueue = DataToColor.TimedQueue:new(ITEM_ITERATION_FRAME_CHANGE_RATE, nil)
@@ -1168,6 +1171,11 @@ function DataToColor:CreateFrames()
         end
 
         globalTick = globalTick + 1
+
+        -- 更新 VizAura 警告图标显示状态 (由 ConfigUI.lua 提供)
+        if DataToColor.UpdateVizAuraWarning then
+            DataToColor:UpdateVizAuraWarning(DataToColor.vizAuraInvalidTarget)
+        end
     end
 
     local function genFrame(name, x, y)
@@ -1218,7 +1226,7 @@ function DataToColor:CreateFrames()
 
     DataToColor.SetMarkersVisible = _SetMarkersVisible
     _SetMarkersVisible(false) -- 默认隐藏
-    
+
     -- 跳过第0列, 现在是定位标记了
     local offsetX = 1
     

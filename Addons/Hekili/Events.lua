@@ -1179,12 +1179,6 @@ RegisterUnitEvent( "UNIT_SPELLCAST_SUCCEEDED", "player", "target", function( eve
 
     local ability = class.abilities[ spellID ]
 
-    -- 记录图腾放下时的位置, 用于模拟离图腾的距离
-    if ability and ability.totem then
-        -- print( "--> SUCCEEDED:", spellID, ability and ability.key, ", ", ability and ability.totem )
-        class.RecordTotemPosition( ability.totem )
-    end
-
     if ability and state.holds[ ability.key ] then
         Hekili:RemoveHold( ability.key, true )
     end
@@ -1319,7 +1313,23 @@ end ) ]]
 
 
 -- Update due to player totems.
-RegisterEvent( "PLAYER_TOTEM_UPDATE", function( event )
+RegisterEvent( "PLAYER_TOTEM_UPDATE", function( event, totemSlot )
+    -- 记录图腾放下时的位置，用于计算玩家与图腾的距离
+    -- totemSlot: 1=火图腾, 2=土图腾, 3=水图腾, 4=风图腾
+    if totemSlot and class.RecordTotemPosition then
+        local slotToType = { "fire", "earth", "water", "air" }
+        local totemType = slotToType[totemSlot]
+
+        if totemType then
+            local haveTotem, name, startTime, duration, icon = GetTotemInfo(totemSlot)
+
+            if haveTotem then
+                -- 图腾刚刚被放置，记录当前玩家位置作为图腾位置
+                class.RecordTotemPosition(totemType)
+            end
+        end
+    end
+
     Hekili:ForceUpdate( event )
 end )
 

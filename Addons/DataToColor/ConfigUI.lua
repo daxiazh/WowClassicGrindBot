@@ -89,6 +89,50 @@ toggleButton:SetScript("OnLeave", function(self)
     GameTooltip:Hide()
 end)
 
+-- ============================================================================
+-- VizAura 警告图标相关函数
+-- ============================================================================
+
+--- 创建 VizAura 目标不合法警告图标
+--- 在 InitConfig() 中调用
+local function CreateWarningFrame()
+    local warningFrame = CreateFrame("Frame", "VizAuraWarningFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate")
+    warningFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    warningFrame:SetSize(64, 64)
+    warningFrame:SetFrameStrata("DIALOG")
+
+    -- 创建纹理显示禁止图标
+    local warningTexture = warningFrame:CreateTexture(nil, "OVERLAY")
+    warningTexture:SetAllPoints(warningFrame)
+    warningTexture:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady") -- 红色禁止图标
+
+    -- 创建文字提示
+    local warningText = warningFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    warningText:SetPoint("TOP", warningFrame, "BOTTOM", 0, -8)
+    warningText:SetTextColor(1, 0, 0, 1)
+    warningText:SetText("目标不合法")
+
+    -- 默认隐藏
+    warningFrame:Hide()
+
+    -- 保存到全局
+    DataToColor.vizAuraWarningFrame = warningFrame
+end
+
+--- 更新警告图标显示状态（每帧调用）
+--- @param show boolean 是否显示警告图标
+function DataToColor:UpdateVizAuraWarning(show)
+    if self.vizAuraWarningFrame then
+        if show then
+            self.vizAuraWarningFrame:Show()
+        else
+            self.vizAuraWarningFrame:Hide()
+        end
+    end
+end
+
+-- ============================================================================
+
 --- 初始化配置（在 OnInitialize 中调用）
 function DataToColor:InitConfig()
     -- 确保 SavedVariables 存在
@@ -96,13 +140,16 @@ function DataToColor:InitConfig()
     if DataToColorDB.VizAuraAutoCastEnabled == nil then
         DataToColorDB.VizAuraAutoCastEnabled = true  -- 默认启用
     end
-    
+
     -- 同步到运行时配置
     DataToColor.DATA_CONFIG.VIZAURA_AUTO_CAST_ENABLED = DataToColorDB.VizAuraAutoCastEnabled
-    
+
     -- 更新按钮颜色
     UpdateButtonColor()
-    
+
+    -- 创建警告图标框架
+    CreateWarningFrame()
+
     -- 提示
     local status = DataToColorDB.VizAuraAutoCastEnabled and "|cff00ff00启用|r" or "|cffff0000禁用|r"
     DataToColor:Print("VizAura 自动施法: " .. status .. " (点击左下角按钮切换)")

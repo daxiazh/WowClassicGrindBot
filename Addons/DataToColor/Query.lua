@@ -163,12 +163,58 @@ function DataToColor:Bits2()
         (DataToColor:PetIsDefensive() and 2 or 0) ^ 23
 end
 
-function DataToColor:Bits3()
-    -- 检测是否按下了修饰键（Shift、Ctrl或Alt）
-    -- 只有在未按下任何修饰键且VIZAURA_AUTO_CAST_ENABLED配置启用时，才允许vizAura自动施法
+--- 检查 VizAura 自动施法是否启用
+--- @return boolean 是否允许 VizAura 自动施法
+function DataToColor:CheckVizAuraAutoCastEnabled()
+    -- 1. 基础配置检查
+    if not DataToColor.DATA_CONFIG.VIZAURA_AUTO_CAST_ENABLED then
+        return false
+    end
+
+    -- 2. 检查是否按下了修饰键（Shift、Ctrl或Alt）
     local modifyDown = IsShiftKeyDown() or IsControlKeyDown() or IsAltKeyDown()
-    local IsMounted = IsMounted()
-    local vizAuraAutoCastEnabled = not IsMounted and not modifyDown and DataToColor.DATA_CONFIG.VIZAURA_AUTO_CAST_ENABLED
+    if modifyDown then
+        return false
+    end
+
+    -- 3. 检查是否骑乘状态
+    if IsMounted() then
+        return false
+    end
+
+    -- 4. 检查目标是否存在
+    if not UnitExists(DataToColor.C.unitTarget) then
+        return false
+    end
+
+    -- 5. 检查目标是否存活
+    if UnitIsDead(DataToColor.C.unitTarget) then
+        return false
+    end
+
+    -- 6. 检查目标是否敌对
+    if not DataToColor:IsUnitHostile(DataToColor.C.unitPlayer, DataToColor.C.unitTarget) then
+        return false
+    end
+
+    -- 7. 如果玩家在战斗中，目标也必须在战斗中
+    if UnitAffectingCombat(DataToColor.C.unitPlayer) then
+        if not UnitAffectingCombat(DataToColor.C.unitTarget) then
+            -- 目标不合法，标记为需要显示警告图标
+            DataToColor.vizAuraInvalidTarget = true
+            return false
+        end
+    end
+
+    -- 所有检查通过，清除警告标记
+    DataToColor.vizAuraInvalidTarget = false
+    return true
+end
+
+function DataToColor:Bits3()
+    -- VizAura 自动施法启用条件检查
+    local vizAuraAutoCastEnabled = DataToColor:CheckVizAuraAutoCastEnabled()
+    
     return
         (UnitExists(DataToColor.C.unitSoftInteract) and 1 or 0) +
         (UnitIsDead(DataToColor.C.unitSoftInteract) and 2 or 0) ^ 1 +

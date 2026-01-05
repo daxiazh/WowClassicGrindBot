@@ -523,12 +523,9 @@ public sealed partial class WorkViewModel : ViewModelBase
 
         // 1. 检查 Hekili 自动模式
         if (!hekiliReader.IsAutoModeEnabled) return;
-
-        // 2. 检查战斗状态, 且不是挂机状态
-        if (!addonBits.Combat() && !IsAfkModeEnabled) return;
-
+        
         // 3. 检查目标还活着且是敌对
-        if (addonBits.Target_Dead() || !addonBits.Target_Hostile()) return;
+        if (!addonBits.Target_Alive() || !addonBits.Target_Hostile()) return;
 
         // 4. 检查 WoW 进程是否为前台活动窗口
         if (!WinAPI.ScreenCaptureKitInterop.is_process_frontmost(processInfo.ProcessId)) return;
@@ -608,33 +605,35 @@ public sealed partial class WorkViewModel : ViewModelBase
         var now = DateTime.UtcNow;
 
         // 3. 检查是否有目标
-        bool hasTarget = addonBits.Target();
-        if (!hasTarget)
+        bool hasTarget = addonBits.Target_Alive() && addonBits.Target_Hostile();
+        if (hasTarget)
         {
-            // 3.2 无目标: 每2~5秒发送 Tab 键(切换目标)
-            var elapsedSinceTab = (now - lastAfkTabTime).TotalMilliseconds;
+            return true;
+        }
 
-            // 首次或需要重新计算随机间隔
-            if (nextAfkTabIntervalMs == 0)
+        // 3.2 无目标: 每2~5秒发送 Tab 键(切换目标)
+        var elapsedSinceTab = (now - lastAfkTabTime).TotalMilliseconds;
+
+        // 首次或需要重新计算随机间隔
+        if (nextAfkTabIntervalMs == 0)
+        {
+            nextAfkTabIntervalMs = _afkRandom.Next(AFK_TAB_MIN_INTERVAL_MS, AFK_TAB_MAX_INTERVAL_MS + 1);
+        }
+
+        if (elapsedSinceTab >= nextAfkTabIntervalMs)
+        {
+            bool success = KeybindMapper.SendKeybind("Tab");
+            if (success)
             {
+                lastAfkTabTime = now;
+                // 重新随机下次间隔
                 nextAfkTabIntervalMs = _afkRandom.Next(AFK_TAB_MIN_INTERVAL_MS, AFK_TAB_MAX_INTERVAL_MS + 1);
+                return false;
+                // logger.LogDebug("[挂机模式] 切换目标 (Tab), 下次间隔: {NextInterval}ms", nextAfkTabIntervalMs);
             }
-
-            if (elapsedSinceTab >= nextAfkTabIntervalMs)
+            else
             {
-                bool success = KeybindMapper.SendKeybind("Tab");
-                if (success)
-                {
-                    lastAfkTabTime = now;
-                    // 重新随机下次间隔
-                    nextAfkTabIntervalMs = _afkRandom.Next(AFK_TAB_MIN_INTERVAL_MS, AFK_TAB_MAX_INTERVAL_MS + 1);
-                    return false;
-                    // logger.LogDebug("[挂机模式] 切换目标 (Tab), 下次间隔: {NextInterval}ms", nextAfkTabIntervalMs);
-                }
-                else
-                {
-                    logger.LogWarning("[挂机模式] 切换目标失败 (Tab)");
-                }
+                logger.LogWarning("[挂机模式] 切换目标失败 (Tab)");
             }
         }
 
