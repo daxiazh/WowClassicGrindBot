@@ -73,6 +73,7 @@ public static class ScreenCaptureKitInterop
     /// <param name="ctrlPressed">是否按下 Ctrl 键</param>
     /// <param name="altPressed">是否按下 Alt/Option 键</param>
     /// <param name="cmdPressed">是否按下 Command 键</param>
+    /// <param name="targetPid">目标进程 PID（0 = 全局发送，> 0 = 直接发送到进程）</param>
     /// <returns>是否成功发送</returns>
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
@@ -81,6 +82,7 @@ public static class ScreenCaptureKitInterop
         [MarshalAs(UnmanagedType.I1)] bool shiftPressed,
         [MarshalAs(UnmanagedType.I1)] bool ctrlPressed,
         [MarshalAs(UnmanagedType.I1)] bool altPressed,
-        [MarshalAs(UnmanagedType.I1)] bool cmdPressed
+        [MarshalAs(UnmanagedType.I1)] bool cmdPressed,
+        int targetPid
     );
 }

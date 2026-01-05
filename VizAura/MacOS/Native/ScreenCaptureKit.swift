@@ -199,6 +199,7 @@ class KeyboardSimulator {
     ///   - altPressed: 是否按下 Alt/Option 键
     ///   - cmdPressed: 是否按下 Command 键
     ///   - useRandomDelay: 是否使用随机延迟模拟人类行为 (60-150ms)
+    ///   - targetPid: 目标进程 PID（0 = 全局发送，> 0 = 直接发送到进程）
     /// - Returns: 是否成功发送
     static func sendKey(
         keyCode: CGKeyCode,
@@ -206,7 +207,8 @@ class KeyboardSimulator {
         ctrlPressed: Bool = false,
         altPressed: Bool = false,
         cmdPressed: Bool = false,
-        useRandomDelay: Bool = true
+        useRandomDelay: Bool = true,
+        targetPid: Int32 = 0
     ) -> Bool {
         // 1. 创建基于 HID 系统状态的事件源
         // .hidSystemState 是模拟硬件来源的关键
@@ -242,9 +244,15 @@ class KeyboardSimulator {
         keyUpEvent.flags = flags
         keyUpEvent.setIntegerValueField(.eventSourceUserData, value: 0)
         
-        // 6. 发送事件到系统全局 HID 事件流
-        keyDownEvent.post(tap: .cghidEventTap)
-        
+        // 6. 发送事件到系统全局 HID 事件流或直接发送到目标进程
+        if targetPid > 0 {
+            // 方式 1：直接发送到目标进程（挂机模式）
+            keyDownEvent.postToPid(pid_t(targetPid))
+        } else {
+            // 方式 2：全局发送（默认）
+            keyDownEvent.post(tap: .cghidEventTap)
+        }
+
         // 7. 模拟物理按键的行程时间 (人类通常在 60ms 到 150ms 之间)
         if useRandomDelay {
             let randomDelay = UInt32.random(in: 60000...150000) // 微秒单位
@@ -252,8 +260,12 @@ class KeyboardSimulator {
         } else {
             usleep(10000) // 默认 10ms
         }
-        
-        keyUpEvent.post(tap: .cghidEventTap)
+
+        if targetPid > 0 {
+            keyUpEvent.postToPid(pid_t(targetPid))
+        } else {
+            keyUpEvent.post(tap: .cghidEventTap)
+        }
         
         // print("KeyboardSimulator: Sent key \(keyCode) with modifiers: shift=\(shiftPressed), ctrl=\(ctrlPressed), alt=\(altPressed), cmd=\(cmdPressed)")
         return true
@@ -316,6 +328,7 @@ public func is_process_frontmost(pid: Int32) -> Bool {
 ///   - ctrlPressed: 是否按下 Ctrl 键
 ///   - altPressed: 是否按下 Alt/Option 键
 ///   - cmdPressed: 是否按下 Command 键
+///   - targetPid: 目标进程 PID（0 = 全局发送，> 0 = 直接发送到进程）
 /// - Returns: 是否成功发送
 @_cdecl("kb_send_key")
 public func kb_send_key(
@@ -323,7 +336,8 @@ public func kb_send_key(
     shiftPressed: Bool,
     ctrlPressed: Bool,
     altPressed: Bool,
-    cmdPressed: Bool
+    cmdPressed: Bool,
+    targetPid: Int32
 ) -> Bool {
     return KeyboardSimulator.sendKey(
         keyCode: CGKeyCode(keyCode),
@@ -331,6 +345,7 @@ public func kb_send_key(
         ctrlPressed: ctrlPressed,
         altPressed: altPressed,
         cmdPressed: cmdPressed,
-        useRandomDelay: true
+        useRandomDelay: true,
+        targetPid: targetPid
     )
 }

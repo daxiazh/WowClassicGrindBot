@@ -145,8 +145,9 @@ public static class KeybindMapper
     /// 发送 Hekili 快捷键
     /// </summary>
     /// <param name="keybind">快捷键字符串 (如 "S3", "CF", "1")</param>
+    /// <param name="targetPid">目标进程 PID（0 = 全局发送，> 0 = 直接发送到进程）</param>
     /// <returns>是否成功发送</returns>
-    public static bool SendKeybind(string keybind)
+    public static bool SendKeybind(string keybind, int targetPid = 0)
     {
         var parsed = Parse(keybind);
         if (!parsed.HasValue)
@@ -154,16 +155,17 @@ public static class KeybindMapper
             // 解析失败
             return false;
         }
-        
+
         var (keyCode, shift, ctrl, alt) = parsed.Value;
-        
+
         // 调用 Swift 底层函数
         return WinAPI.ScreenCaptureKitInterop.kb_send_key(
             keyCode,
             shift,
             ctrl,
             alt,
-            cmdPressed: false  // WoW 不使用 Command 键
+            cmdPressed: false,  // WoW 不使用 Command 键
+            targetPid
         );
     }
 }

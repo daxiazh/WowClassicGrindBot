@@ -40,8 +40,8 @@ public sealed partial class WorkViewModel : ViewModelBase
     // 挂机模式相关
     private DateTime lastAfkTabTime = DateTime.MinValue;  // 上次切换目标时间
     private int nextAfkTabIntervalMs;  // 下次 Tab 间隔 (随机 2~5秒, 0表示需要初始化)
-    private const int AFK_TAB_MIN_INTERVAL_MS = 20000;  // 切换目标最小间隔 (20秒)
-    private const int AFK_TAB_MAX_INTERVAL_MS = 50000;  // 切换目标最大间隔 (50秒)
+    private const int AFK_TAB_MIN_INTERVAL_MS = 50000;  // 切换目标最小间隔 (50秒)
+    private const int AFK_TAB_MAX_INTERVAL_MS = 100000;  // 切换目标最大间隔 (100秒)
 
     // 跳跃防掉线相关字段
     private DateTime lastAfkJumpTime = DateTime.MinValue;  // 上次跳跃时间
@@ -534,7 +534,7 @@ public sealed partial class WorkViewModel : ViewModelBase
         if (!addonBits.Target_Alive() || !addonBits.Target_Hostile()) return;
 
         // 4. 检查 WoW 进程是否为前台活动窗口
-        if (!WinAPI.ScreenCaptureKitInterop.is_process_frontmost(processInfo.ProcessId)) return;
+        if (!IsAfkModeEnabled && !WinAPI.ScreenCaptureKitInterop.is_process_frontmost(processInfo.ProcessId)) return;
 
         // 5. 检查技能 1 是否有快捷键
         if (string.IsNullOrEmpty(hekiliReader.Spell1Keybind)) return;
@@ -567,7 +567,9 @@ public sealed partial class WorkViewModel : ViewModelBase
         // 8. 发送快捷键
         // logger.LogDebug("[自动按键] 准备发送: {Spell1Keybind} ({Spell1Name}) [ID:{Spell1}] | 距上次: {Elapsed}ms", Spell1Keybind, Spell1Name, Spell1, elapsed);
 
-        bool success = KeybindMapper.SendKeybind(hekiliReader.Spell1Keybind);
+        // 挂机模式下使用 postToPid 直接发送到 WoW 进程
+        int targetPid = isAfkModeEnabled ? processInfo.ProcessId : 0;
+        bool success = KeybindMapper.SendKeybind(hekiliReader.Spell1Keybind, targetPid);
         if (success)
         {
             lastKeybindSentTime = now;
@@ -607,8 +609,8 @@ public sealed partial class WorkViewModel : ViewModelBase
         }
 
         // 2. 检查 WoW 进程是否为前台活动窗口
-        if (!WinAPI.ScreenCaptureKitInterop.is_process_frontmost(processInfo.ProcessId))
-            return false;
+        // if (!WinAPI.ScreenCaptureKitInterop.is_process_frontmost(processInfo.ProcessId))
+        //    return false;
 
         var now = DateTime.UtcNow;
 
@@ -631,7 +633,8 @@ public sealed partial class WorkViewModel : ViewModelBase
 
         if (elapsedSinceJump >= nextAfkJumpIntervalMs)
         {
-            bool success = KeybindMapper.SendKeybind("Space");
+            // 挂机模式下使用 postToPid 直接发送
+            bool success = KeybindMapper.SendKeybind("Space", processInfo.ProcessId);
             if (success)
             {
                 lastAfkJumpTime = now;
@@ -658,7 +661,7 @@ public sealed partial class WorkViewModel : ViewModelBase
 
         if (elapsedSinceTab >= nextAfkTabIntervalMs)
         {
-            bool success = KeybindMapper.SendKeybind("Tab");
+            bool success = KeybindMapper.SendKeybind("Tab", processInfo.ProcessId);
             if (success)
             {
                 lastAfkTabTime = now;
