@@ -619,10 +619,15 @@ public sealed partial class WorkViewModel : ViewModelBase
         if (hasTarget)
         {
             // 检查目标是否在战斗范围内
-            if (playerReader.CastState != UI_ERROR.ERR_SPELL_OUT_OF_RANGE)
+            var castState = playerReader.CastState;
+            if (castState != UI_ERROR.ERR_SPELL_OUT_OF_RANGE && castState != UI_ERROR.SPELL_FAILED_TARGETS_DEAD)
             {
                 return true;  // 在范围内，执行战斗逻辑
             }
+
+            // 超出范围，取消目标
+            KeybindMapper.SendKeybind("ESCAPE");
+            return false;
         }
 
         // 3.2 无目标: 执行防掉线操作
