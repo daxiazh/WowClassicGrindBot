@@ -618,7 +618,11 @@ public sealed partial class WorkViewModel : ViewModelBase
         bool hasTarget = addonBits.Target_Alive() && addonBits.Target_Hostile();
         if (hasTarget)
         {
-            return true;
+            // 检查目标是否在战斗范围内
+            if (playerReader.CastState != UI_ERROR.ERR_SPELL_OUT_OF_RANGE)
+            {
+                return true;  // 在范围内，执行战斗逻辑
+            }
         }
 
         // 3.2 无目标: 执行防掉线操作
