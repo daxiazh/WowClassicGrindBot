@@ -37,6 +37,17 @@ public sealed partial class WorkViewModel : ViewModelBase
     private const int KEYBIND_COOLDOWN_MS = 50; // 全局按键最小间隔 (50ms)
     private const int SAME_SPELL_COOLDOWN_MS = 500; // 同一技能强制冷却 (500ms)
 
+    // 挂机模式相关
+    private DateTime lastAfkTabTime = DateTime.MinValue;  // 上次切换目标时间
+    private int nextAfkTabIntervalMs;  // 下次 Tab 间隔 (随机 2~5秒, 0表示需要初始化)
+    private const int AFK_TAB_MIN_INTERVAL_MS = 20000;  // 切换目标最小间隔 (20秒)
+    private const int AFK_TAB_MAX_INTERVAL_MS = 50000;  // 切换目标最大间隔 (50秒)
+    private static readonly Random _afkRandom = new();
+
+    // 挂机模式 UI 更新相关
+    private long _lastAfkUIUpdateTicks;  // 上次挂机 UI 更新时间戳
+    private const int AFK_UI_UPDATE_INTERVAL_MS = 1000;  // 挂机 UI 更新间隔 (1秒)
+
     // UI 更新优化 (线程安全)
     private long _lastUIUpdateTicks = 0;  // 上次 UI 更新时间戳 (Ticks, 使用 Interlocked)
     private const int UI_UPDATE_INTERVAL_MS = 66;  // UI 更新间隔 (15 FPS)
@@ -191,6 +202,19 @@ public sealed partial class WorkViewModel : ViewModelBase
     [ObservableProperty] private bool enableUIUpdates = false;
 
     /// <summary>
+    /// 是否启用挂机模式 (支持无 UI 模式运行)
+    /// 挂机模式会自动:
+    /// - 有目标时每1秒发送 I 键(面向目标)
+    /// - 无目标时每2~5秒发送 Tab 键(切换目标)
+    /// </summary>
+    [ObservableProperty] private bool isAfkModeEnabled = false;
+
+    /// <summary>
+    /// 挂机模式下次切换目标倒计时文本
+    /// </summary>
+    [ObservableProperty] private string afkNextActionText = "";
+
+    /// <summary>
     /// 自动施法状态文本 (优化: 避免 Run 元素)
     /// </summary>
     [ObservableProperty] private string autoCastStatusText = "";
@@ -324,6 +348,10 @@ public sealed partial class WorkViewModel : ViewModelBase
             reader.Update(addonDataSnapshot);
         }
         
+        // 2.1 同步执行: 挂机模式逻辑 (独立于 AutoSendKeybind)
+        if (!AfkModeUpdate())
+            return;
+        
         // 2. 同步执行: 技能释放逻辑 (无 UI 更新)
         AutoSendKeybind();
         
@@ -429,6 +457,9 @@ public sealed partial class WorkViewModel : ViewModelBase
 
                 GlobalTime = currentGlobalTime;
                 ShowAddonWarning = false;
+
+                // 更新挂机模式倒计时（独立节流：每秒更新）
+                UpdateAfkCountdown();
             }
         }
         else
@@ -493,8 +524,8 @@ public sealed partial class WorkViewModel : ViewModelBase
         // 1. 检查 Hekili 自动模式
         if (!hekiliReader.IsAutoModeEnabled) return;
 
-        // 2. 检查战斗状态
-        if (!addonBits.Combat()) return;
+        // 2. 检查战斗状态, 且不是挂机状态
+        if (!addonBits.Combat() && !IsAfkModeEnabled) return;
 
         // 3. 检查目标还活着且是敌对
         if (addonBits.Target_Dead() || !addonBits.Target_Hostile()) return;
@@ -516,13 +547,13 @@ public sealed partial class WorkViewModel : ViewModelBase
         // 7. 防抖: 避免短时间内重复发送
         var now = DateTime.UtcNow;
         var elapsed = (now - lastKeybindSentTime).TotalMilliseconds;
-        
+
         // 7.1 全局按键最小间隔检查
         if (elapsed < KEYBIND_COOLDOWN_MS)
         {
             return;
         }
-        
+
         // 7.2 同一技能强制冷却检查（防止技能释放后 GCD 延迟导致重复发送）
         if (Spell1 == lastSentSpellId && elapsed < SAME_SPELL_COOLDOWN_MS)
         {
@@ -532,7 +563,7 @@ public sealed partial class WorkViewModel : ViewModelBase
 
         // 8. 发送快捷键
         // logger.LogDebug("[自动按键] 准备发送: {Spell1Keybind} ({Spell1Name}) [ID:{Spell1}] | 距上次: {Elapsed}ms", Spell1Keybind, Spell1Name, Spell1, elapsed);
-        
+
         bool success = KeybindMapper.SendKeybind(hekiliReader.Spell1Keybind);
         if (success)
         {
@@ -544,6 +575,118 @@ public sealed partial class WorkViewModel : ViewModelBase
         else
         {
             logger.LogWarning("[自动按键] \u2717 发送失败: {HekiliReaderSpell1Keybind} ({Spell1Name})", hekiliReader.Spell1Keybind, Spell1Name);
+        }
+    }
+
+    /// <summary>
+    /// 挂机模式更新 (独立于 AutoSendKeybind)
+    /// 逻辑:
+    /// - 有目标时: 每1秒发送 I 键(面向目标)
+    /// - 无目标时: 每2~5秒发送 Tab 键(切换目标)
+    /// </summary>
+    /// <returns>返回是否继续后续逻辑</returns>
+    private bool AfkModeUpdate()
+    {
+        // 1. 检查挂机模式是否启用
+        if (!IsAfkModeEnabled) return true;
+        
+        // 更新挂机模式倒计时（独立节流：每秒更新）
+        // 节流：每秒更新一次
+        long nowTicks = DateTime.UtcNow.Ticks;
+        long lastTicks = Interlocked.Read(ref _lastAfkUIUpdateTicks);
+        long elapsedMs = (nowTicks - lastTicks) / TimeSpan.TicksPerMillisecond;
+
+        if (elapsedMs > AFK_UI_UPDATE_INTERVAL_MS)
+        { // 触发UI 刷新
+            Dispatcher.UIThread.Post(UpdateAfkCountdown);
+        }
+
+        // 2. 检查 WoW 进程是否为前台活动窗口
+        if (!WinAPI.ScreenCaptureKitInterop.is_process_frontmost(processInfo.ProcessId))
+            return false;
+
+        var now = DateTime.UtcNow;
+
+        // 3. 检查是否有目标
+        bool hasTarget = addonBits.Target();
+        if (!hasTarget)
+        {
+            // 3.2 无目标: 每2~5秒发送 Tab 键(切换目标)
+            var elapsedSinceTab = (now - lastAfkTabTime).TotalMilliseconds;
+
+            // 首次或需要重新计算随机间隔
+            if (nextAfkTabIntervalMs == 0)
+            {
+                nextAfkTabIntervalMs = _afkRandom.Next(AFK_TAB_MIN_INTERVAL_MS, AFK_TAB_MAX_INTERVAL_MS + 1);
+            }
+
+            if (elapsedSinceTab >= nextAfkTabIntervalMs)
+            {
+                bool success = KeybindMapper.SendKeybind("Tab");
+                if (success)
+                {
+                    lastAfkTabTime = now;
+                    // 重新随机下次间隔
+                    nextAfkTabIntervalMs = _afkRandom.Next(AFK_TAB_MIN_INTERVAL_MS, AFK_TAB_MAX_INTERVAL_MS + 1);
+                    return false;
+                    // logger.LogDebug("[挂机模式] 切换目标 (Tab), 下次间隔: {NextInterval}ms", nextAfkTabIntervalMs);
+                }
+                else
+                {
+                    logger.LogWarning("[挂机模式] 切换目标失败 (Tab)");
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 更新挂机模式倒计时显示
+    /// 独立节流：每秒更新一次（而不是跟随 UI_UPDATE_INTERVAL_MS 的 66ms）
+    /// 简化版：只显示切换目标倒计时
+    /// </summary>
+    private void UpdateAfkCountdown()
+    {
+        // 节流：每秒更新一次
+        long nowTicks = DateTime.UtcNow.Ticks;
+        long lastTicks = Interlocked.Read(ref _lastAfkUIUpdateTicks);
+        long elapsedMs = (nowTicks - lastTicks) / TimeSpan.TicksPerMillisecond;
+
+        if (elapsedMs < AFK_UI_UPDATE_INTERVAL_MS)
+            return;
+
+        Interlocked.Exchange(ref _lastAfkUIUpdateTicks, nowTicks);
+
+        // 如果挂机模式未启用，清空显示
+        if (!IsAfkModeEnabled)
+        {
+            AfkNextActionText = "";
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+
+        // 只显示切换目标（Tab 键）的倒计时
+        var elapsed = (now - lastAfkTabTime).TotalMilliseconds;
+
+        // 确保 nextAfkTabIntervalMs 已初始化
+        if (nextAfkTabIntervalMs == 0)
+        {
+            AfkNextActionText = "🔍 切换目标: 准备中...";
+        }
+        else
+        {
+            var remaining = nextAfkTabIntervalMs - elapsed;
+
+            if (remaining > 0)
+            {
+                AfkNextActionText = $"🔍 切换目标: {remaining / 1000:F0}秒";
+            }
+            else
+            {
+                AfkNextActionText = "🔍 切换目标: 准备中...";
+            }
         }
     }
 
