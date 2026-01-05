@@ -18,6 +18,11 @@ local BUTTON_HEIGHT = 20  -- 按钮高度
 local BUTTON_X = 20       -- X 位置（左侧）
 local BUTTON_Y = -(CELL_SIZE + 8)  -- Y 位置（数据条下方，留 8px 间距）
 
+-- 状态指示器常量
+local DOT_SIZE = 16                        -- 圆点尺寸
+local DOT_X = BUTTON_X + BUTTON_WIDTH + 4 -- 按钮右侧 4px
+local DOT_Y = BUTTON_Y - 2                -- 垂直居中（向下偏移2px）
+
 -- 创建常驻切换按钮
 local toggleButton = CreateFrame("Button", "DataToColorVizAuraToggle", UIParent, BackdropTemplateMixin and "BackdropTemplate")
 toggleButton:SetSize(BUTTON_WIDTH, BUTTON_HEIGHT)
@@ -90,45 +95,83 @@ toggleButton:SetScript("OnLeave", function(self)
 end)
 
 -- ============================================================================
--- VizAura 警告图标相关函数
+-- VizAura 状态指示器
 -- ============================================================================
 
---- 创建 VizAura 目标不合法警告图标
---- 在 InitConfig() 中调用
-local function CreateWarningFrame()
-    local warningFrame = CreateFrame("Frame", "VizAuraWarningFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate")
-    warningFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    warningFrame:SetSize(64, 64)
-    warningFrame:SetFrameStrata("DIALOG")
+-- 引用状态枚举，避免魔法数字
+local VizAuraStatus = DataToColor.VizAuraStatus
 
-    -- 创建纹理显示禁止图标
-    local warningTexture = warningFrame:CreateTexture(nil, "OVERLAY")
-    warningTexture:SetAllPoints(warningFrame)
-    warningTexture:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady") -- 红色禁止图标
+-- 状态颜色映射
+local StatusColors = {
+    [VizAuraStatus.WORKING] = {0, 1, 0},           -- 绿色
+    [VizAuraStatus.DISABLED] = {0.5, 0.5, 0.5},    -- 灰色
+    [VizAuraStatus.PAUSED_MODIFIER] = {1, 0, 0},   -- 红色
+    [VizAuraStatus.PAUSED_MOUNTED] = {1, 0, 0},    -- 红色
+    [VizAuraStatus.PAUSED_NO_TARGET] = {1, 0, 0},  -- 红色
+    [VizAuraStatus.PAUSED_DEAD_TARGET] = {1, 0, 0},-- 红色
+    [VizAuraStatus.PAUSED_FRIENDLY] = {1, 0, 0},   -- 红色
+    [VizAuraStatus.PAUSED_INVALID_COMBAT] = {1, 0, 0} -- 红色
+}
 
-    -- 创建文字提示
-    local warningText = warningFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    warningText:SetPoint("TOP", warningFrame, "BOTTOM", 0, -8)
-    warningText:SetTextColor(1, 0, 0, 1)
-    warningText:SetText("目标不合法")
+-- Tooltip 文本映射
+local StatusTooltips = {
+    [VizAuraStatus.WORKING] = "VizAura: 工作中",
+    [VizAuraStatus.DISABLED] = "VizAura: 已禁用",
+    [VizAuraStatus.PAUSED_MODIFIER] = "VizAura: 已暂停 (按住修饰键)",
+    [VizAuraStatus.PAUSED_MOUNTED] = "VizAura: 已暂停 (骑乘中)",
+    [VizAuraStatus.PAUSED_NO_TARGET] = "VizAura: 已暂停 (无目标)",
+    [VizAuraStatus.PAUSED_DEAD_TARGET] = "VizAura: 已暂停 (目标已死亡)",
+    [VizAuraStatus.PAUSED_FRIENDLY] = "VizAura: 已暂停 (目标非敌对)",
+    [VizAuraStatus.PAUSED_INVALID_COMBAT] = "VizAura: 已暂停 (目标未进入战斗)"
+}
 
-    -- 默认隐藏
-    warningFrame:Hide()
+-- 状态指示器框架
+local statusIndicator
 
-    -- 保存到全局
-    DataToColor.vizAuraWarningFrame = warningFrame
+--- 创建状态指示器
+local function CreateStatusIndicator()
+    -- 创建父框架
+    statusIndicator = CreateFrame("Frame", "DataToColorVizAuraStatusDot", UIParent)
+    statusIndicator:SetSize(DOT_SIZE, DOT_SIZE)
+    statusIndicator:SetPoint("TOPLEFT", DOT_X, DOT_Y)
+    statusIndicator:SetFrameStrata("TOOLTIP")
+    statusIndicator:EnableMouse(true)
+    statusIndicator.currentStatus = -1
+
+    -- 创建圆形纹理
+    statusIndicator.dot = statusIndicator:CreateTexture(nil, "ARTWORK")
+    statusIndicator.dot:SetAllPoints(statusIndicator)
+    statusIndicator.dot:SetTexture("Interface\\Buttons\\WHITE8x8")
+    statusIndicator.dot:SetVertexColor(0.5, 0.5, 0.5, 1)  -- 默认灰色
+
+    -- Tooltip 事件
+    statusIndicator:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        local tooltipText = StatusTooltips[self.currentStatus] or "VizAura: 状态未知"
+        GameTooltip:SetText(tooltipText, 1, 1, 1)
+        GameTooltip:Show()
+    end)
+
+    statusIndicator:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
 end
 
---- 更新警告图标显示状态（每帧调用）
---- @param show boolean 是否显示警告图标
-function DataToColor:UpdateVizAuraWarning(show)
-    if self.vizAuraWarningFrame then
-        if show then
-            self.vizAuraWarningFrame:Show()
-        else
-            self.vizAuraWarningFrame:Hide()
-        end
-    end
+--- 更新状态指示器
+--- @param status number 当前状态代码
+local function UpdateStatusIndicator(status)
+    if not statusIndicator then return end
+    if statusIndicator.currentStatus == status then return end -- 避免重复更新
+
+    local color = StatusColors[status] or {0.5, 0.5, 0.5}
+    statusIndicator.dot:SetVertexColor(color[1], color[2], color[3], 1)
+    statusIndicator.currentStatus = status
+end
+
+--- 暴露更新接口（供 DataToColor.lua 调用）
+--- @param status number 当前状态代码
+function DataToColor:UpdateVizAuraStatusIndicator(status)
+    UpdateStatusIndicator(status)
 end
 
 -- ============================================================================
@@ -147,8 +190,8 @@ function DataToColor:InitConfig()
     -- 更新按钮颜色
     UpdateButtonColor()
 
-    -- 创建警告图标框架
-    CreateWarningFrame()
+    -- 创建状态指示器
+    CreateStatusIndicator()
 
     -- 提示
     local status = DataToColorDB.VizAuraAutoCastEnabled and "|cff00ff00启用|r" or "|cffff0000禁用|r"

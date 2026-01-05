@@ -171,9 +171,6 @@ DataToColor.corpseInRange = 0
 
 DataToColor.softInteractGuid = nil
 
--- VizAura 目标不合法标记 (用于显示警告图标)
-DataToColor.vizAuraInvalidTarget = false
-
 local bagCache = {}
 
 DataToColor.equipmentQueue = DataToColor.TimedQueue:new(ITEM_ITERATION_FRAME_CHANGE_RATE, nil)
@@ -1172,9 +1169,10 @@ function DataToColor:CreateFrames()
 
         globalTick = globalTick + 1
 
-        -- 更新 VizAura 警告图标显示状态 (由 ConfigUI.lua 提供)
-        if DataToColor.UpdateVizAuraWarning then
-            DataToColor:UpdateVizAuraWarning(DataToColor.vizAuraInvalidTarget)
+        -- 更新 VizAura 状态指示器 (由 ConfigUI.lua 提供)
+        if DataToColor.UpdateVizAuraStatusIndicator then
+            local status = DataToColor:CheckVizAuraAutoCastStatus()
+            DataToColor:UpdateVizAuraStatusIndicator(status)
         end
     end
 

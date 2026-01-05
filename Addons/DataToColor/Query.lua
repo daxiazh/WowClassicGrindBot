@@ -3,6 +3,18 @@ local DataToColor = unpack(Load)
 local Range = DataToColor.Libs.RangeCheck
 Range:activate()
 
+-- VizAura 状态枚举
+DataToColor.VizAuraStatus = {
+    WORKING = 0,              -- 工作中
+    DISABLED = 1,             -- 已禁用
+    PAUSED_MODIFIER = 2,      -- 按住修饰键
+    PAUSED_MOUNTED = 3,       -- 骑乘状态
+    PAUSED_NO_TARGET = 4,     -- 无目标
+    PAUSED_DEAD_TARGET = 5,   -- 目标已死亡
+    PAUSED_FRIENDLY = 6,      -- 目标非敌对
+    PAUSED_INVALID_COMBAT = 7 -- 目标不在战斗中
+}
+
 local bit = bit
 local band = bit.band
 local pcall = pcall
@@ -163,52 +175,56 @@ function DataToColor:Bits2()
         (DataToColor:PetIsDefensive() and 2 or 0) ^ 23
 end
 
---- 检查 VizAura 自动施法是否启用
---- @return boolean 是否允许 VizAura 自动施法
-function DataToColor:CheckVizAuraAutoCastEnabled()
+--- 检查 VizAura 自动施法状态
+--- @return number 状态代码（参见 DataToColor.VizAuraStatus）
+function DataToColor:CheckVizAuraAutoCastStatus()
     -- 1. 基础配置检查
     if not DataToColor.DATA_CONFIG.VIZAURA_AUTO_CAST_ENABLED then
-        return false
+        return DataToColor.VizAuraStatus.DISABLED
     end
 
     -- 2. 检查是否按下了修饰键（Shift、Ctrl或Alt）
     local modifyDown = IsShiftKeyDown() or IsControlKeyDown() or IsAltKeyDown()
     if modifyDown then
-        return false
+        return DataToColor.VizAuraStatus.PAUSED_MODIFIER
     end
 
     -- 3. 检查是否骑乘状态
     if IsMounted() then
-        return false
+        return DataToColor.VizAuraStatus.PAUSED_MOUNTED
     end
 
     -- 4. 检查目标是否存在
     if not UnitExists(DataToColor.C.unitTarget) then
-        return false
+        return DataToColor.VizAuraStatus.PAUSED_NO_TARGET
     end
 
     -- 5. 检查目标是否存活
     if UnitIsDead(DataToColor.C.unitTarget) then
-        return false
+        return DataToColor.VizAuraStatus.PAUSED_DEAD_TARGET
     end
 
     -- 6. 检查目标是否敌对
     if not DataToColor:IsUnitHostile(DataToColor.C.unitPlayer, DataToColor.C.unitTarget) then
-        return false
+        return DataToColor.VizAuraStatus.PAUSED_FRIENDLY
     end
 
     -- 7. 如果玩家在战斗中，目标也必须在战斗中
     if UnitAffectingCombat(DataToColor.C.unitPlayer) then
         if not UnitAffectingCombat(DataToColor.C.unitTarget) then
-            -- 目标不合法，标记为需要显示警告图标
-            DataToColor.vizAuraInvalidTarget = true
-            return false
+            return DataToColor.VizAuraStatus.PAUSED_INVALID_COMBAT
         end
     end
 
-    -- 所有检查通过，清除警告标记
-    DataToColor.vizAuraInvalidTarget = false
-    return true
+    -- 所有检查通过，工作中
+    return DataToColor.VizAuraStatus.WORKING
+end
+
+--- 检查 VizAura 自动施法是否启用（兼容层）
+--- @return boolean 是否允许 VizAura 自动施法
+function DataToColor:CheckVizAuraAutoCastEnabled()
+    local status = self:CheckVizAuraAutoCastStatus()
+    return status == DataToColor.VizAuraStatus.WORKING
 end
 
 function DataToColor:Bits3()
