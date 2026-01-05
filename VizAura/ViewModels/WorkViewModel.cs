@@ -613,6 +613,13 @@ public sealed partial class WorkViewModel : ViewModelBase
         //    return false;
 
         var now = DateTime.UtcNow;
+        
+        if (addonBits.GameMenuWindowShown())
+        { // 打开了菜单项, 需要偿试关闭掉
+            KeybindMapper.SendKeybind("ESCAPE", processInfo.ProcessId);
+            Thread.Sleep(200);
+            return false;
+        }
 
         // 3. 检查是否有目标
         bool hasTarget = addonBits.Target_Alive() && addonBits.Target_Hostile();
@@ -626,7 +633,7 @@ public sealed partial class WorkViewModel : ViewModelBase
             }
 
             // 超出范围，取消目标
-            KeybindMapper.SendKeybind("ESCAPE");
+            KeybindMapper.SendKeybind("ESCAPE", processInfo.ProcessId);
             return false;
         }
 
