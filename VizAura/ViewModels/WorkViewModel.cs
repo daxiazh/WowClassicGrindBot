@@ -50,6 +50,8 @@ public sealed partial class WorkViewModel : ViewModelBase
     private const int AFK_JUMP_MAX_INTERVAL_MS = 90000;  // 跳跃最大间隔 (90秒)
     private static readonly Random _afkRandom = new();
 
+    private DateTime waitTimeMs = DateTime.MinValue; // 挂机模式等待时间
+
     // 挂机模式 UI 更新相关
     private long _lastAfkUIUpdateTicks;  // 上次挂机 UI 更新时间戳
     private const int AFK_UI_UPDATE_INTERVAL_MS = 1000;  // 挂机 UI 更新间隔 (1秒)
@@ -583,6 +585,11 @@ public sealed partial class WorkViewModel : ViewModelBase
         }
     }
 
+    private void AfkWait(int waitMs)
+    {
+        waitTimeMs = DateTime.UtcNow + TimeSpan.FromMilliseconds(waitMs);
+    }
+
     /// <summary>
     /// 挂机模式更新 (独立于 AutoSendKeybind)
     /// 逻辑:
@@ -603,7 +610,9 @@ public sealed partial class WorkViewModel : ViewModelBase
         long lastTicks = Interlocked.Read(ref _lastAfkUIUpdateTicks);
         long elapsedMs = (nowTicks - lastTicks) / TimeSpan.TicksPerMillisecond;
 
-        if (elapsedMs > AFK_UI_UPDATE_INTERVAL_MS)
+        if (elapsedMs < AFK_UI_UPDATE_INTERVAL_MS)
+            return true; // 同时也控制挂机执行的频率
+        
         { // 触发UI 刷新
             Dispatcher.UIThread.Post(UpdateAfkCountdown);
         }
@@ -614,27 +623,29 @@ public sealed partial class WorkViewModel : ViewModelBase
 
         var now = DateTime.UtcNow;
         
+        if(now < waitTimeMs)
+            return false; // 需要等待一段时间才可以执行
+        
         if (addonBits.GameMenuWindowShown())
         { // 打开了菜单项, 需要偿试关闭掉
             KeybindMapper.SendKeybind("ESCAPE", processInfo.ProcessId);
-            Thread.Sleep(200);
+            AfkWait(300);
             return false;
         }
 
-        // 3. 检查是否有目标
-        bool hasTarget = addonBits.Target_Alive() && addonBits.Target_Hostile();
-        if (hasTarget)
-        {
-            // 检查目标是否在战斗范围内
-            var castState = playerReader.CastState;
-            if (castState != UI_ERROR.ERR_SPELL_OUT_OF_RANGE && castState != UI_ERROR.SPELL_FAILED_TARGETS_DEAD)
-            {
-                return true;  // 在范围内，执行战斗逻辑
-            }
+        if (playerReader.IsCasting())
+            return false; // 正在施法, 跳过
 
-            // 超出范围，取消目标
-            KeybindMapper.SendKeybind("ESCAPE", processInfo.ProcessId);
-            return false;
+        // 3. 检查是否有目标
+        if (addonBits.Target())
+        {
+            if (addonBits.Target_Dead() || !addonBits.Target_Hostile() || !playerReader.WithInCombatRange())
+            {
+                // 目标已死亡或者目标不是敌对, 或者不在攻击距离内, 取消选中
+                KeybindMapper.SendKeybind("ESCAPE", processInfo.ProcessId);
+                AfkWait(300);
+                return false;
+            }
         }
 
         // 3.2 无目标: 执行防掉线操作
@@ -680,6 +691,7 @@ public sealed partial class WorkViewModel : ViewModelBase
             bool success = KeybindMapper.SendKeybind("Tab", processInfo.ProcessId);
             if (success)
             {
+                AfkWait(300);
                 lastAfkTabTime = now;
                 // 重新随机下次间隔
                 nextAfkTabIntervalMs = _afkRandom.Next(AFK_TAB_MIN_INTERVAL_MS, AFK_TAB_MAX_INTERVAL_MS + 1);
