@@ -87,10 +87,10 @@ cd VizAura
 
 # 发布为自包含应用 (Apple Silicon)
 dotnet publish -c Release -r osx-arm64 --self-contained false
-```
-```bash
-# 发布为自包含应用 (Intel)
-dotnet publish -c Release -r osx-x64 --self-contained false
+
+# 复制打包好的 app 到根目录发布文件夹
+mkdir -p ../Release
+cp -r bin/Release/net10.0/osx-arm64/VizAura.app ../Release/
 ```
 
 **输出位置**:
